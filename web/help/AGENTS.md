@@ -19,6 +19,7 @@ Owns the Astro + Starlight documentation site served under `/help/` in English a
 - English/Arabic `changelog.md` pages are tracked generated Markdown, not hand-maintained MDX. Regenerate them with root `CHANGELOG.md` through `mise run changelog:generate`; see `scripts/dev/README.md#changelog-snapshots`. Preserve full history in both locales and original commit wording; localize only fixed presentation text.
 - English/Arabic security guidance describes browser writing-assistance restrictions as a limited mitigation, not control over extensions, browser-provider features, or clipboard safety; do not imply an observed disclosure.
 - Standalone builds replace `web/dist/help/`, not the root app. Use the combined build owned by `../scripts/AGENTS.md` for publishable output; a later app build deletes help.
+- Recovery setup guidance must separate synthetic practice from verification of actual saved custody copies before working-copy retirement. `it-devops-guide/break-glass.mdx` owns the checkpoint: exact byte comparison, intended Passphrase protection, bounded coverage of every share, failure retention, controlled aggregation, and separated-custody cleanup. Keep both locales aligned.
 
 ## Work Guidance
 
@@ -31,6 +32,7 @@ Owns the Astro + Starlight documentation site served under `/help/` in English a
 - Install: `bun install`
 - Dev server: `bun run dev`
 - Build: `bun run build`
+- Saved-backup rehearsal: build the CLI with `cargo build -p safeparts`, put its target/debug directory on `PATH`, then run `python3 scripts/dev/test_backup_rehearsal.py` from the repository root. This executes the synthetic Bash example in both locales through the public CLI.
 
 ## Child DOX Index
 

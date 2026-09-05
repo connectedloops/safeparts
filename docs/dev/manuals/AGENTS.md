@@ -14,6 +14,7 @@ Owns longer contributor manuals for integrating and automating Safeparts.
 
 - Manuals are contributor-facing. Do not replace end-user help docs.
 - Keep examples synthetic and safe to copy into tests or local drills.
+- CLI automation guidance links to the help site's actual saved-backup checkpoint; synthetic round trips do not certify custody copies. Keep working-copy retention on failed verification and temporary aggregation distinct from ongoing custody.
 - Do not include real secrets, real recovery shares, passphrases, or recovered secret output.
 - Apply the `humanizer` skill before finalizing prose.
 

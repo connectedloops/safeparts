@@ -77,9 +77,9 @@ safeparts combine -P passphrase.txt -i selected-shares.txt -o recovered-secret.b
 <Steps>
 1. Test the command sequence with a synthetic secret.
 2. Split the real secret from stdin or a controlled file.
-3. Verify recovery with the required number of shares if policy allows it.
-4. Distribute shares to separate holders or locations.
-5. Remove temporary files that contain plaintext, recovered output, or all shares together.
+3. Save and distribute shares to separate holders or locations.
+4. Complete the [saved-backup checkpoint](../it-devops-guide/break-glass/#verify-saved-backup) using actual saved Recovery shares, including every custody share and the intended Passphrase protection. A synthetic drill is not backup verification.
+5. After success, restore separated custody and remove temporary material before retiring the working copy or relying on the backup. On failure, keep a known-good working copy, correct or recreate the backup, and repeat verification.
 6. Record custody, threshold, encoding, and approval steps without recording share text.
 </Steps>
 

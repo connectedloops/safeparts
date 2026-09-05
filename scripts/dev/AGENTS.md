@@ -14,6 +14,7 @@ Owns local developer-experience diagnostics and verification helpers.
 - `rustsec_audit.py`: Cargo audit runner and exact policy-exception gate.
 - `test_rustsec_audit.py`: unit tests for RustSec finding classification.
 - `test_web_deploy.py`: local build graph, destructive-writer rehearsal, final-route checks, deployment artifact behavior, and immutable Web workflow policy tests.
+- `test_backup_rehearsal.py`: executes English/Arabic synthetic saved-backup examples through the CLI; checks success, failed verification, working-copy retention, re-verification, and cleanup.
 - `workflow_policy.py`: release workflow input, tag-only publication, and permission policy gate.
 - `test_workflow_policy.py`: public-behavior tests for the release workflow policy.
 - `changelog.py`: main-history/release collector and renderer for the three committed changelog snapshots.
@@ -41,6 +42,7 @@ Owns local developer-experience diagnostics and verification helpers.
 - Coverage automation: `python3 scripts/dev/test_rust_coverage.py` and `mise run coverage`.
 - RustSec automation: `python3 scripts/dev/test_rustsec_audit.py` and `mise run audit`.
 - Web deployment policy: `python3 scripts/dev/test_web_deploy.py`.
+- Backup rehearsal: build `safeparts` with Cargo and put the built binary on `PATH`, then run `python3 scripts/dev/test_backup_rehearsal.py`. Requires Bash and standard Unix tools; accepts no production data.
 - Release/workflow policy: `mise run workflow:check` (also runs changelog fixture and workflow checks).
 - Changelog regression tests: `python3 scripts/dev/test_changelog.py` and `python3 scripts/dev/test_changelog_workflow.py`.
 - Run `mise run dx:verify` when changing DX checks.

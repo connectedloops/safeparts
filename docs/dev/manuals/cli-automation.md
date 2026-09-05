@@ -79,7 +79,9 @@ safeparts combine \
 cmp "$workdir/secret.bin" "$workdir/recovered.bin"
 ```
 
-Use this pattern for smoke tests and operational drills. Replace only the synthetic input when you have a reviewed production procedure.
+Use this pattern for synthetic smoke tests and operational drills. It does not validate a real backup. Before retiring a working copy or declaring a backup established, follow the [saved-backup checkpoint](../../../web/help/src/content/docs/it-devops-guide/break-glass.mdx#verify-saved-backup). It reads actual custody copies, exercises every Recovery share with the intended Passphrase protection, and compares recovered bytes silently. On failure, keep the known-good working copy and correct or recreate the backup before repeating verification.
+
+The [synthetic saved-backup rehearsal](../../../web/help/src/content/docs/it-devops-guide/automation.mdx#saved-backup-rehearsal) covers success, wrong Passphrase, a valid backup of the wrong Secret, and correction through existing CLI commands. Run both locale examples with `scripts/dev/test_backup_rehearsal.py`; see the [help surface guide](../surfaces/help-docs.md).
 
 ## Passphrase-protected automation
 
@@ -176,58 +178,12 @@ If you still need a guarded combine job, use these constraints:
 - Trigger it manually.
 - Use a hardened or self-hosted runner.
 - Keep each required share outside the repository and outside normal logs.
-- Do not store `k` shares in the same CI secret backend unless that is an accepted risk.
+- Gather shares only for the approved session, then restore separated custody. Do not retain `k` shares in one CI secret backend, account, device, administrator domain, or transport channel.
 - Mask variables, but do not rely on masking as the only protection.
 - Write recovered output to a private file and pass it to one narrow step.
 - Delete temporary files before the job exits.
 
-Example skeleton:
-
-```yaml
-name: guarded safeparts combine
-
-on:
-  workflow_dispatch:
-
-jobs:
-  combine:
-    runs-on: self-hosted
-    environment: break-glass
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build CLI
-        run: cargo build --release -p safeparts
-
-      - name: Combine operator-provided shares
-        shell: bash
-        env:
-          SAFEPARTS_SHARE_1: ${{ secrets.SAFEPARTS_SHARE_1 }}
-          SAFEPARTS_SHARE_2: ${{ secrets.SAFEPARTS_SHARE_2 }}
-          SAFEPARTS_PASSPHRASE: ${{ secrets.SAFEPARTS_PASSPHRASE }}
-        run: |
-          set -euo pipefail
-          umask 077
-
-          workdir="$(mktemp -d)"
-          trap 'rm -rf "$workdir"' EXIT
-
-          printf '%s\n%s\n' \
-            "$SAFEPARTS_SHARE_1" \
-            "$SAFEPARTS_SHARE_2" > "$workdir/shares.txt"
-
-          printf '%s' "$SAFEPARTS_PASSPHRASE" > "$workdir/passphrase.txt"
-
-          target/release/safeparts combine \
-            -P "$workdir/passphrase.txt" \
-            -i "$workdir/shares.txt" \
-            -o "$workdir/recovered.bin"
-
-          # Use "$workdir/recovered.bin" in one reviewed step here.
-          # Do not print it. Do not upload it as an artifact.
-```
-
-This skeleton still centralizes at least two shares during the job. Treat that as a break-glass exception, not a normal deployment pattern.
+Use the synthetic CI drill above to rehearse commands. Do not provision enough production Recovery shares and their Passphrase as repository secrets: that gives one administrator domain the recovery capability. A reviewed emergency procedure must define temporary collection from independent custodians and cleanup; it cannot use ongoing co-location as its custody model. Actual-backup setup verification belongs in the controlled checkpoint environment, not shared CI.
 
 ## CI scenario 3: metadata checks
 

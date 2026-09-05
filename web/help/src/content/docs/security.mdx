@@ -26,9 +26,11 @@ Keep fewer Recovery shares than the Threshold in every account, device, location
 1. Choose independent custodians and control boundaries before you split the Secret.
 2. Check that no vault, safe, drive, ticket, repository, CI secret store, administrator, or delivery channel can collect enough Recovery shares to meet the Threshold.
 3. Keep a custody record that names the holder or role for each Recovery share without storing its text.
-4. Practice recovery with synthetic data before relying on the plan.
-5. Rotate the underlying Secret after any real recovery or suspected exposure.
+4. Practice recovery with synthetic data, then complete the [saved-backup checkpoint](../it-devops-guide/break-glass/#verify-saved-backup) on the actual custody copies before retiring the working copy or declaring the backup established. The drill alone cannot validate those copies.
+5. Rotate the underlying Secret after operational recovery or suspected exposure. A controlled setup verification follows the checkpoint's custody and cleanup rules; if those controls fail, rotate and verify a fresh backup.
 </Steps>
+
+Splitting initially creates all Recovery shares in the controlled setup environment. Verification and recovery also require temporary aggregation of at least the Threshold. Authorize and limit these sessions, then remove temporary material and restore separated custody. This is not permission to retain enough shares in one account, device, administrator domain, or transport channel. Keep the known-good working copy if setup verification fails; correct or recreate the backup and verify again before proceeding.
 
 ## Passphrases
 

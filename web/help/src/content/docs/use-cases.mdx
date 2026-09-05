@@ -40,7 +40,7 @@ Suggested distribution:
 1. Run a synthetic drill with the same plan.
 2. Split the real recovery secret.
 3. Store each share in its assigned place.
-4. Recover once with two shares if your policy allows it.
+4. Complete the [saved-backup checkpoint](../it-devops-guide/break-glass/#verify-saved-backup) before retiring the working copy or relying on the backup. For 2 of 3, verify saved shares 1/2 and 1/3 against the source, with the intended Passphrase protection. A synthetic drill or one passing pair does not validate the third share.
 5. Record where each share lives without recording the share text.
 </Steps>
 

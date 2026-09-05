@@ -13,7 +13,7 @@ description: استخدم Safeparts في scripts وتدريبات CI دون تس
 - استخدم stdin والملفات بدلاً من القيم الحرفية في سطر الأوامر للمواد الحساسة.
 - فضّل `--passphrase-file` على `--passphrase`.
 - أنشئ الملفات المؤقتة داخل مجلد خاص مع `umask 077`.
-- لا تخزّن عدداً كافياً من الحصص للاسترداد في CI secret store واحد أو bucket artifacts واحد أو repository واحد أو نطاق هوية واحد إلا إذا قبلت السياسة ذلك صراحة.
+- احتفظ بعدد حصص أقل من العتبة في كل CI secret store وbucket artifacts وrepository ونطاق هوية. لا تجمع الحصص مؤقتاً إلا في جلسة معتمدة ومتحكم بها تتبعها عملية تنظيف.
 - لا تطبع الأسرار المستعادة. قارن الملفات أو مرر البايتات مباشرة إلى خطوة واحدة متحكم بها.
 
 ## تدريب اصطناعي محلي
@@ -46,7 +46,7 @@ safeparts combine \
 cmp "$workdir/secret.bin" "$workdir/recovered.bin"
 ```
 
-استخدم هذا النمط لفحوص smoke والتدريبات. لا تستبدل الإدخال الاصطناعي إلا داخل إجراء استرداد مراجع.
+يعلّم هذا التدريب التقسيم والاسترداد، لكنه لا يتحقق من نسخة احتياطية حقيقية. قبل التخلص من نسخة العمل، اتبع [نقطة التحقق من النسخة المحفوظة](../break-glass/#verify-saved-backup). أبقِ الأمثلة هنا اصطناعية.
 
 ## تدريب محمي بعبارة مرور
 
@@ -78,6 +78,75 @@ safeparts combine \
 
 cmp "$workdir/secret.bin" "$workdir/recovered.bin"
 ```
+
+<h2 id="saved-backup-rehearsal">تدريب اصطناعي للنسخة الاحتياطية المحفوظة</h2>
+
+شغّل هذا المثال باستخدام Bash وCLI المثبت وأدوات Unix المعتادة. يستخدم بيانات اصطناعية فقط، بما فيها سر ثنائي يحتوي بايت NUL. يقرأ ثلاثة ملفات محفوظة ويختبر المجموعتين <span dir="ltr">1/2</span> و<span dir="ltr">1/3</span> مع الحماية بعبارة مرور. ثم يختبر عبارة مرور خاطئة ونسخة محفوظة لسر مختلف: حتى حصص الاسترداد الصالحة قد تستعيد بايتات لا تطابق المصدر.
+
+توجد ملفات الحيازة كلها في مجلد مؤقت واحد هنا لأن التدريب اصطناعي فقط. للمواد الحقيقية، اتبع جلسة التحقق المتحكم بها والحيازة المنفصلة في نقطة التحقق، ولا تستخدم ترتيب المجلد هذا. يحتفظ السكربت بنسخة العمل الاصطناعية عند كل فشل متوقع، ويصحّح النسخة الاحتياطية، ثم يعيد التحقق من كل حصة محفوظة قبل التخلص من نسخة العمل. يحذف إجراء الخروج التلقائي جميع بيانات التدريب؛ لا تستخدمه لنسخة عمل حقيقية يجب أن تبقى عند فشل الفحص.
+
+```bash
+# Synthetic saved-backup rehearsal
+set -euo pipefail
+set +x
+umask 077
+workdir="$(mktemp -d)"
+trap 'rm -rf "$workdir"' EXIT
+
+printf 'synthetic source\000with binary bytes\n' > "$workdir/source.bin"
+printf '%s' 'synthetic rehearsal Passphrase' > "$workdir/passphrase.txt"
+printf '%s' 'synthetic wrong Passphrase' > "$workdir/wrong-passphrase.txt"
+
+save_copies() {
+  # base64url CLI output has one Recovery share per line.
+  for index in 1 2 3; do
+    sed -n "${index}p" "$workdir/export.txt" > "$workdir/saved-$index.txt"
+  done
+  rm "$workdir/export.txt"
+}
+create_backup() {
+  safeparts split -k 2 -n 3 -e base64url \
+    -P "$workdir/passphrase.txt" -i "$1" -o "$workdir/export.txt"
+  save_copies
+}
+verify_saved() {
+  local passphrase_file="$1" other status
+  for other in 2 3; do
+    cat "$workdir/saved-1.txt" "$workdir/saved-$other.txt" > "$workdir/selected.txt"
+    rm -f "$workdir/recovered.bin"
+    status=0
+    if safeparts combine -P "$passphrase_file" \
+      -i "$workdir/selected.txt" -o "$workdir/recovered.bin" >/dev/null 2>&1; then
+      cmp -s "$workdir/source.bin" "$workdir/recovered.bin" || status=$?
+    else
+      status=1
+    fi
+    rm -f "$workdir/selected.txt" "$workdir/recovered.bin"
+    if [ "$status" -ne 0 ]; then return 1; fi
+  done
+}
+
+create_backup "$workdir/source.bin"
+verify_saved "$workdir/passphrase.txt"
+printf '%s\n' 'PASS: saved shares 1,2,3 verified'
+
+if verify_saved "$workdir/wrong-passphrase.txt"; then exit 1; fi
+test -f "$workdir/source.bin"
+printf '%s\n' 'PASS: wrong Passphrase blocked; working copy kept'
+
+printf '%s' 'synthetic wrong source' > "$workdir/wrong-source.bin"
+create_backup "$workdir/wrong-source.bin"
+if verify_saved "$workdir/passphrase.txt"; then exit 1; fi
+test -f "$workdir/source.bin"
+printf '%s\n' 'PASS: saved-copy mismatch blocked; working copy kept'
+
+create_backup "$workdir/source.bin"
+verify_saved "$workdir/passphrase.txt"
+rm "$workdir/source.bin"
+printf '%s\n' 'PASS: corrected backup reverified before retirement'
+```
+
+يجب ألا تظهر إلا رسائل حالة ثابتة. غياب أي سطر PASS أو خروج السكربت بحالة غير صفرية يعني أن التدريب لم يكتمل. يختبر هذا الإجراء بالأوامر الموجودة؛ وليس ميزة للتحقق من النسخ الاحتياطية أو دليلاً على سلامة حصص الاسترداد الحقيقية لديك.
 
 ## تدريب CI
 
@@ -123,7 +192,7 @@ jobs:
 
 - شغّلها يدوياً؛
 - استخدم runner مقوّى أو self-hosted؛
-- تجنّب تخزين عدد كافٍ من الحصص للاسترداد في backend أسرار واحد إلا إذا قبلت السياسة ذلك؛
+- اجمع الحصص للجلسة المعتمدة فقط ثم أعد فصل الحيازة؛ ولا تحتفظ بحصص كافية في backend أسرار واحد؛
 - أخفِ المتغيرات، لكن لا تعتمد على masking كتحكم أساسي؛
 - اكتب الناتج المستعاد إلى ملف خاص؛
 - مرر الملف إلى خطوة واحدة مراجعة؛

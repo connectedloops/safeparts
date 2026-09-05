@@ -14,6 +14,13 @@ python3 scripts/dev/test_workflow_policy.py
 python3 scripts/dev/workflow_policy.py
 ```
 
+The saved-backup documentation rehearsal executes the English and Arabic Bash examples against a built CLI. It uses synthetic data only and checks both verification outcomes, correction, and cleanup:
+
+```bash
+cargo build -p safeparts
+PATH="${CARGO_TARGET_DIR:-$PWD/target}/debug:$PATH" python3 scripts/dev/test_backup_rehearsal.py
+```
+
 Mise shortcuts:
 
 ```bash

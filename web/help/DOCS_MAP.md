@@ -51,8 +51,8 @@ Keep English and Arabic routes aligned.
 | `/help/tui/` | Terminal users | Use the interactive terminal UI. | TUI features, offline workflow, shortcuts. |
 | `/help/it-devops-guide/` | Operators | Decide where Safeparts belongs operationally. | Operational fit and minimum runbook questions. |
 | `/help/it-devops-guide/cli-runbooks/` | Operators | Write a safe CLI runbook. | File patterns, passphrase files, cleanup. |
-| `/help/it-devops-guide/break-glass/` | Incident teams | Design emergency recovery. | Custody, approval, recovery, rotation. |
-| `/help/it-devops-guide/automation/` | Platform teams | Run scripts and CI drills safely. | Synthetic drills, CI hygiene, guarded recovery. |
+| `/help/it-devops-guide/break-glass/` | Incident teams | Design emergency recovery. | Custody, saved-backup verification before working-copy retirement, approval, recovery, rotation. |
+| `/help/it-devops-guide/automation/` | Platform teams | Run scripts and CI drills safely. | Synthetic drills, executable saved-backup success/failure rehearsal, CI hygiene, guarded recovery. |
 | `/help/encodings/` | All users | Choose a share text format. | Encoding trade-offs and surface availability. |
 | `/help/project/` | Curious users | Understand the main mechanics. | Threshold sharing, packets, integrity, passphrases. |
 | `/help/technical-design/` | Engineers and reviewers | Review implementation design. | Data flow, packet format, crypto choices, limits. |
@@ -71,4 +71,5 @@ Keep English and Arabic routes aligned.
 - Keep encoding trade-offs in encodings. Interface pages list only their exposed formats.
 - Keep passphrase behavior in security and technical design. Interface pages explain only how to provide a passphrase.
 - Keep CLI command reference in CLI. Operations pages show commands only as part of a procedure.
+- Keep the saved-backup checkpoint in break-glass. Setup pages link there; automation owns its synthetic rehearsal.
 - Keep cryptographic detail in technical design. Beginner pages stay procedural.
