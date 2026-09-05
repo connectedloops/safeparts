@@ -13,7 +13,6 @@ import {
   type Encoding,
   type EncodingOption,
 } from "./ui/encoding-selector";
-import { EncryptedText } from "./ui/encrypted-text";
 
 type CombineFormProps = {
   lang: Lang;
@@ -533,6 +532,8 @@ export function CombineForm({ lang, strings }: CombineFormProps) {
 
             <CopyButton
               value={secret}
+              shortcut="copy-result"
+              announceCopied={strings.copied}
               copyLabel={strings.copy}
               copiedLabel={strings.copied}
               copyFailedLabel={strings.copyFailed}
@@ -543,18 +544,9 @@ export function CombineForm({ lang, strings }: CombineFormProps) {
 
           <div
             dir="auto"
-            className="input mt-3 min-h-[120px] resize-y font-mono text-xs leading-relaxed whitespace-pre-wrap break-words"
+            className="input mt-3 min-h-[120px] resize-y font-mono text-xs text-slate-200 leading-relaxed whitespace-pre-wrap break-words"
           >
-            <EncryptedText
-              text={secret}
-              revealDelayMs={Math.max(
-                4,
-                Math.min(24, Math.floor(1100 / Math.max(1, secret.length))),
-              )}
-              flipDelayMs={35}
-              encryptedClassName="text-emerald-300/45"
-              revealedClassName="text-slate-200"
-            />
+            {secret}
           </div>
         </div>
       ) : null}

@@ -1,7 +1,5 @@
 import { useEffect } from "react";
 
-import type { Strings } from "../i18n";
-
 type Tab = "split" | "combine";
 
 type ShortcutHandlers = {
@@ -14,8 +12,6 @@ type ShortcutHandlers = {
   keytipsActive: boolean;
   showKeytips: () => void;
   hideKeytips: () => void;
-  strings: Strings;
-  announce: (message: string, type?: "polite" | "assertive") => void;
 };
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -23,59 +19,6 @@ function isEditableTarget(target: EventTarget | null): boolean {
   const tag = target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
   return target.isContentEditable;
-}
-
-async function copyToClipboard(text: string) {
-  if (
-    typeof navigator !== "undefined" &&
-    navigator.clipboard &&
-    typeof navigator.clipboard.writeText === "function"
-  ) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "true");
-  textarea.style.position = "fixed";
-  textarea.style.top = "0";
-  textarea.style.left = "0";
-  textarea.style.opacity = "0";
-
-  document.body.appendChild(textarea);
-  textarea.select();
-  try {
-    if (!document.execCommand("copy")) {
-      throw new Error("clipboard write failed");
-    }
-  } finally {
-    document.body.removeChild(textarea);
-  }
-}
-
-function extractEncryptedTextPlaintext(container: HTMLElement): string | null {
-  const srOnly = container.querySelector<HTMLElement>("span.sr-only");
-  const text = srOnly?.textContent?.trim();
-  if (text) return text;
-
-  // Fallback: if the EncryptedText animation changes markup,
-  // prefer stable readable text over animated glyphs.
-  const ariaLabel = container.querySelector<HTMLElement>("[aria-label]")?.getAttribute("aria-label")?.trim();
-  if (ariaLabel) return ariaLabel;
-
-  const innerText = container.innerText.trim();
-  return innerText.length > 0 ? innerText : null;
-}
-
-function collectCombineResultText(): string | null {
-  const panel = document.getElementById("combine-panel");
-  if (!panel) return null;
-
-  const recovered = panel.querySelector<HTMLDivElement>('div[dir="auto"].input');
-  if (!recovered) return null;
-
-  return recovered.querySelector<HTMLElement>("span.sr-only")?.textContent ?? null;
 }
 
 function clickSubmit(tab: Tab) {
@@ -97,8 +40,6 @@ export function useKeyboardShortcuts({
   keytipsActive,
   showKeytips,
   hideKeytips,
-  strings,
-  announce,
 }: ShortcutHandlers) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -164,12 +105,12 @@ export function useKeyboardShortcuts({
         e.shiftKey &&
         (e.key === "C" || e.key === "c")
       ) {
-        const text = collectCombineResultText();
-        if (!text) return;
+        const copyButton = document.querySelector<HTMLButtonElement>(
+          '#combine-panel button[data-shortcut="copy-result"]',
+        );
+        if (!copyButton) return;
         e.preventDefault();
-        copyToClipboard(text)
-          .then(() => announce(strings.copied, "polite"))
-          .catch(() => announce(strings.copyFailed, "assertive"));
+        copyButton.click();
       }
     }
 
@@ -195,7 +136,6 @@ export function useKeyboardShortcuts({
       window.removeEventListener("blur", onWindowBlur);
     };
   }, [
-    announce,
     closeHelp,
     focusTab,
     helpOpen,
@@ -204,8 +144,6 @@ export function useKeyboardShortcuts({
     openHelp,
     setTab,
     showKeytips,
-    strings.copied,
-    strings.copyFailed,
     tab,
   ]);
 }

@@ -25,6 +25,7 @@ Owns browser smoke, end-to-end, docs route, accessibility, and mirrored Tauri UI
 - Follow `docs/dev/surfaces/web.md` and `docs/agents/conventions.md`.
 - Prefer stable role/label selectors over brittle DOM snapshots.
 - Add tests for stable workflows, not temporary UI experiments.
+- Verify output with browser Selection and clipboard writes, not hidden DOM copies. `readable-output.e2e.spec.ts` covers exact selection, state-backed copy, Unicode/whitespace, English/Arabic, motion preferences, and bounded DOM size for a synthetic 4 KiB Secret.
 
 ## Verification
 

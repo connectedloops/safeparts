@@ -145,8 +145,6 @@ export function App() {
     keytipsActive,
     showKeytips: () => setKeytipsActive(true),
     hideKeytips: () => setKeytipsActive(false),
-    strings,
-    announce,
   });
 
   useEffect(() => {

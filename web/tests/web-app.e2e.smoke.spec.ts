@@ -59,8 +59,7 @@ async function splitAndCollectShares(
   await page.getByRole('button', { name: /^(split|قسم)$/i }).click()
   await expect(page.getByRole('heading', { name: /shares|الحصص/i })).toBeVisible()
 
-  const shareValues = await page.locator('#split-panel div[dir="ltr"].input .sr-only').allTextContents()
-  return shareValues.map((share) => share.trim()).filter(Boolean)
+  return page.locator('#split-panel div[dir="ltr"].input').allTextContents()
 }
 
 async function recoverShares(
@@ -83,7 +82,7 @@ async function recoverShares(
 }
 
 function recoveredSecret(page: Page) {
-  return page.locator('#combine-panel div[dir="auto"].input .sr-only')
+  return page.locator('#combine-panel div[dir="auto"].input')
 }
 
 test.describe('Web App E2E Smoke @smoke', () => {
@@ -123,8 +122,7 @@ test.describe('Web App E2E Smoke @smoke', () => {
     await page.getByRole('button', { name: /^(combine|استعادة)$/i }).click()
     await expect(page.getByRole('heading', { name: /recovered secret|السر المستعاد/i })).toBeVisible()
 
-    const recovered = await page.locator('#combine-panel div[dir="auto"].input .sr-only').textContent()
-    expect(recovered?.trim() ?? '').toBe(secret)
+    expect(await recoveredSecret(page).textContent()).toBe(secret)
   })
 
   test('preserves valid Unicode and embedded NUL text exactly', async ({ page }) => {
@@ -476,7 +474,7 @@ test.describe('Web App E2E Smoke @smoke', () => {
 
     await page.getByRole('button', { name: /^(combine|استعادة)$/i }).click()
     await expect(page.getByRole('heading', { name: /recovered secret|السر المستعاد/i })).toBeVisible()
-    await expect(page.locator('#combine-panel div[dir="auto"].input .sr-only')).toHaveText(secret)
+    await expect(recoveredSecret(page)).toHaveText(secret)
   })
 
   test('wrong passphrase fails cleanly', async ({ page }) => {
