@@ -13,7 +13,7 @@ use ratatui::widgets::{
 };
 use ratatui::{Frame, Terminal};
 use tui_textarea::{Input, TextArea};
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::clipboard::Clipboard;
 use crate::domain::{Encoding, combine_shares, set_id_hex, split_secret};
@@ -306,32 +306,67 @@ impl App {
         }
     }
 
+    fn invalidate_split(&mut self) {
+        self.split_shares.zeroize();
+        for packet in &mut self.split_packets {
+            packet.payload.zeroize();
+        }
+        self.split_packets.clear();
+        self.split_selected_share = 0;
+        self.status = None;
+    }
+
+    fn invalidate_combine(&mut self) {
+        self.combine_recovered = None;
+        self.combine_recovered_text = None;
+        self.combine_used_encoding = None;
+        self.status = None;
+    }
+
+    fn edit_text(
+        textarea: &mut TextArea<'static>,
+        edit: impl FnOnce(&mut TextArea<'static>) -> bool,
+    ) -> bool {
+        // Widget edit flags include replacing a selection with identical text.
+        let previous = Zeroizing::new(textarea.lines().to_vec());
+        edit(textarea) && previous.as_slice() != textarea.lines()
+    }
+
     fn forward_to_widget(&mut self, key: KeyEvent) {
         match self.focus {
             Focus::SplitSecret => {
                 let input: Input = key.into();
-                self.split_secret_text.input(input);
-                self.split_secret_file = None;
-                self.split_secret_file_len = None;
+                if Self::edit_text(&mut self.split_secret_text, |text| text.input(input)) {
+                    self.split_secret_file = None;
+                    self.split_secret_file_len = None;
+                    self.invalidate_split();
+                }
             }
             Focus::CombineShares => {
                 let input: Input = key.into();
-                self.combine_shares_text.input(input);
+                if Self::edit_text(&mut self.combine_shares_text, |text| text.input(input)) {
+                    self.invalidate_combine();
+                }
             }
             Focus::SplitPassphrase => {
-                Self::passphrase_input(key, &mut self.split_passphrase);
+                if Self::passphrase_input(key, &mut self.split_passphrase) {
+                    self.invalidate_split();
+                }
             }
             Focus::CombinePassphrase => {
-                Self::passphrase_input(key, &mut self.combine_passphrase);
+                if Self::passphrase_input(key, &mut self.combine_passphrase) {
+                    self.invalidate_combine();
+                }
             }
             _ => {}
         }
     }
 
-    fn passphrase_input(key: KeyEvent, buf: &mut Zeroizing<String>) {
+    fn passphrase_input(key: KeyEvent, buf: &mut Zeroizing<String>) -> bool {
+        let old_len = buf.len();
         if is_control_key(key, 'u') {
             buf.clear();
-            return;
+            return old_len != 0;
         }
 
         match key.code {
@@ -346,9 +381,11 @@ impl App {
             }
             _ => {}
         }
+        buf.len() != old_len
     }
 
     fn on_up(&mut self) {
+        let previous = (self.split_k, self.split_n, self.split_encoding);
         match self.focus {
             Focus::SplitShares => {
                 self.split_selected_share = self.split_selected_share.saturating_sub(1);
@@ -365,12 +402,17 @@ impl App {
             }
             Focus::CombineEncoding => {
                 self.combine_encoding = cycle_encoding(self.combine_encoding, -1, Encoding::ALL);
+                self.invalidate_combine();
             }
             _ => {}
+        }
+        if previous != (self.split_k, self.split_n, self.split_encoding) {
+            self.invalidate_split();
         }
     }
 
     fn on_down(&mut self) {
+        let previous = (self.split_k, self.split_n, self.split_encoding);
         match self.focus {
             Focus::SplitShares if !self.split_shares.is_empty() => {
                 self.split_selected_share =
@@ -389,8 +431,12 @@ impl App {
             }
             Focus::CombineEncoding => {
                 self.combine_encoding = cycle_encoding(self.combine_encoding, 1, Encoding::ALL);
+                self.invalidate_combine();
             }
             _ => {}
+        }
+        if previous != (self.split_k, self.split_n, self.split_encoding) {
+            self.invalidate_split();
         }
     }
 
@@ -481,18 +527,30 @@ impl App {
 
         match self.focus {
             Focus::SplitSecret => {
-                self.split_secret_text.insert_str(text);
-                self.split_secret_file = None;
-                self.split_secret_file_len = None;
+                if Self::edit_text(&mut self.split_secret_text, |field| field.insert_str(text)) {
+                    self.split_secret_file = None;
+                    self.split_secret_file_len = None;
+                    self.invalidate_split();
+                }
             }
             Focus::CombineShares => {
-                self.combine_shares_text.insert_str(text);
+                if Self::edit_text(&mut self.combine_shares_text, |field| {
+                    field.insert_str(text)
+                }) {
+                    self.invalidate_combine();
+                }
             }
             Focus::SplitPassphrase => {
-                self.split_passphrase.push_str(&text);
+                if !text.is_empty() {
+                    self.split_passphrase.push_str(&text);
+                    self.invalidate_split();
+                }
             }
             Focus::CombinePassphrase => {
-                self.combine_passphrase.push_str(&text);
+                if !text.is_empty() {
+                    self.combine_passphrase.push_str(&text);
+                    self.invalidate_combine();
+                }
             }
             _ => self.set_info("paste into a text field"),
         }
@@ -528,6 +586,7 @@ impl App {
             ModalKind::LoadSecretFile => {
                 let p = PathBuf::from(text);
                 let bytes = fs::read(&p).with_context(|| format!("read {}", p.display()))?;
+                self.invalidate_split();
                 self.split_secret_file_len = Some(bytes.len());
                 self.split_secret_file = Some(p);
 
@@ -546,6 +605,9 @@ impl App {
                         fs::read_to_string(&p).with_context(|| format!("read {}", p.display()))?;
                     combined.push_str(s.trim());
                     combined.push_str("\n\n");
+                }
+                if self.combine_shares_text.lines().join("\n") != combined {
+                    self.invalidate_combine();
                 }
                 self.combine_shares_text = Self::new_combine_shares_text();
                 self.combine_shares_text.insert_str(combined);
@@ -593,6 +655,7 @@ impl App {
     }
 
     fn do_split(&mut self) -> Result<()> {
+        self.invalidate_split();
         let secret_bytes = if let Some(path) = self.split_secret_file.as_ref() {
             fs::read(path).with_context(|| format!("read {}", path.display()))?
         } else {
@@ -632,6 +695,7 @@ impl App {
     }
 
     fn do_combine(&mut self) -> Result<()> {
+        self.invalidate_combine();
         let input = self.combine_shares_text.lines().join("\n");
 
         let passphrase = if self.combine_passphrase.is_empty() {
@@ -653,9 +717,6 @@ impl App {
                 self.set_ok(format!("combined ok ({})", used_enc.label()));
             }
             Err(e) => {
-                self.combine_recovered = None;
-                self.combine_recovered_text = None;
-                self.combine_used_encoding = None;
                 self.set_err(format!("combine error: {e}"));
             }
         }
@@ -1285,6 +1346,439 @@ mod tests {
 
     fn combine_input(shares: &[String]) -> String {
         shares.join("\n\n")
+    }
+
+    fn key(app: &mut App, code: KeyCode) {
+        app.on_key(KeyEvent::new(code, KeyModifiers::NONE)).unwrap();
+    }
+
+    fn ctrl(app: &mut App, character: char) {
+        app.on_key(KeyEvent::new(
+            KeyCode::Char(character),
+            KeyModifiers::CONTROL,
+        ))
+        .unwrap();
+    }
+
+    fn focus(app: &mut App, target: Focus) {
+        for _ in 0..6 {
+            if app.focus == target {
+                return;
+            }
+            key(app, KeyCode::Tab);
+        }
+        panic!("focus target not in active tab");
+    }
+
+    fn split_app() -> App {
+        let mut app = App::new();
+        app.clipboard = Clipboard::recording();
+        for c in "synthetic lifetime Secret".chars() {
+            key(&mut app, KeyCode::Char(c));
+        }
+        key(&mut app, KeyCode::Enter);
+        assert_eq!(status_message(&app), "split ok");
+        app
+    }
+
+    fn assert_split_unavailable(app: &mut App) {
+        focus(app, Focus::SplitShares);
+        let writes = app.clipboard.writes().len();
+        ctrl(app, 'c');
+        assert_eq!(status_message(app), "no shares to copy");
+        assert_eq!(app.clipboard.writes().len(), writes);
+        ctrl(app, 's');
+        assert!(app.modal.is_none());
+        assert_eq!(status_message(app), "no shares to save");
+        assert!(app.split_shares.is_empty());
+        assert!(app.split_packets.is_empty());
+        assert_eq!(app.split_selected_share, 0);
+    }
+
+    #[test]
+    fn split_keyboard_edits_remove_copy_and_export_results() {
+        for (target, edit) in [
+            (Focus::SplitSecret, KeyCode::Char('x')),
+            (Focus::SplitSecret, KeyCode::Backspace),
+            (Focus::SplitK, KeyCode::Up),
+            (Focus::SplitK, KeyCode::Down),
+            (Focus::SplitN, KeyCode::Up),
+            (Focus::SplitN, KeyCode::Down),
+            (Focus::SplitEncoding, KeyCode::Up),
+            (Focus::SplitEncoding, KeyCode::Down),
+            (Focus::SplitPassphrase, KeyCode::Char('p')),
+        ] {
+            let mut app = split_app();
+            focus(&mut app, target);
+            key(&mut app, edit);
+            assert_split_unavailable(&mut app);
+            key(&mut app, KeyCode::Enter);
+            ctrl(&mut app, 'c');
+            assert_eq!(app.clipboard.writes().len(), 1);
+            ctrl(&mut app, 's');
+            assert_eq!(
+                app.modal.as_ref().map(|m| m.kind),
+                Some(ModalKind::SaveSharesDir)
+            );
+        }
+    }
+
+    fn recover_app() -> App {
+        let mut app = split_app();
+        let input = combine_input(&app.split_shares[..2]);
+        key(&mut app, KeyCode::Right);
+        for c in input.chars() {
+            key(&mut app, KeyCode::Char(c));
+        }
+        key(&mut app, KeyCode::Enter);
+        assert!(status_message(&app).starts_with("combined ok"));
+        app
+    }
+
+    fn assert_recovery_unavailable(app: &mut App) {
+        let writes = app.clipboard.writes().len();
+        ctrl(app, 'c');
+        assert_eq!(status_message(app), "nothing to copy");
+        assert_eq!(app.clipboard.writes().len(), writes);
+        ctrl(app, 's');
+        assert!(app.modal.is_none());
+        assert_eq!(status_message(app), "nothing to save");
+        assert!(app.combine_recovered.is_none());
+        assert!(app.combine_recovered_text.is_none());
+        assert!(app.combine_used_encoding.is_none());
+    }
+
+    #[test]
+    fn recover_keyboard_edits_remove_copy_and_save_results() {
+        for (target, edit) in [
+            (Focus::CombineShares, KeyCode::Char('x')),
+            (Focus::CombineShares, KeyCode::Backspace),
+            (Focus::CombineEncoding, KeyCode::Up),
+            (Focus::CombineEncoding, KeyCode::Down),
+            (Focus::CombinePassphrase, KeyCode::Char('p')),
+        ] {
+            let mut app = recover_app();
+            focus(&mut app, target);
+            key(&mut app, edit);
+            assert_recovery_unavailable(&mut app);
+        }
+    }
+
+    #[test]
+    fn clipboard_paste_invalidates_only_the_edited_operation() {
+        for target in [Focus::SplitSecret, Focus::SplitPassphrase] {
+            let mut app = split_app();
+            app.clipboard.set_text("synthetic paste").unwrap();
+            focus(&mut app, target);
+            ctrl(&mut app, 'v');
+            assert_split_unavailable(&mut app);
+        }
+        for target in [Focus::CombineShares, Focus::CombinePassphrase] {
+            let mut app = recover_app();
+            app.clipboard.set_text("synthetic paste").unwrap();
+            focus(&mut app, target);
+            ctrl(&mut app, 'v');
+            assert_recovery_unavailable(&mut app);
+            // Editing Recover must not discard the Split result.
+            key(&mut app, KeyCode::Left);
+            focus(&mut app, Focus::SplitShares);
+            ctrl(&mut app, 'c');
+            assert_eq!(status_message(&app), "copied to clipboard");
+        }
+    }
+
+    fn submit_path(app: &mut App, path: &std::path::Path) {
+        for c in path.to_str().unwrap().chars() {
+            key(app, KeyCode::Char(c));
+        }
+        key(app, KeyCode::Enter);
+    }
+
+    #[test]
+    fn successful_file_loading_invalidates_results_until_fresh_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let secret_path = dir.path().join("secret.bin");
+        let export_path = dir.path().join("export");
+        let recovered_path = dir.path().join("recovered.bin");
+        let secret = b"synthetic replacement Secret\0\xff";
+        fs::write(&secret_path, secret).unwrap();
+        let mut app = split_app();
+        ctrl(&mut app, 'l');
+        submit_path(&mut app, &secret_path);
+        assert_split_unavailable(&mut app);
+        assert!(!export_path.exists());
+        key(&mut app, KeyCode::Enter);
+        ctrl(&mut app, 's');
+        submit_path(&mut app, &export_path);
+        let share_path = fs::read_dir(&export_path)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        assert_eq!(fs::read_dir(&export_path).unwrap().count(), 3);
+
+        let mut app = recover_app();
+        let shares_path = dir.path().join("shares.txt");
+        let mut shares = fs::read_dir(&export_path)
+            .unwrap()
+            .map(|entry| fs::read_to_string(entry.unwrap().path()).unwrap())
+            .collect::<Vec<_>>();
+        shares.sort();
+        fs::write(&shares_path, shares.join("\n")).unwrap();
+        ctrl(&mut app, 'l');
+        submit_path(&mut app, &shares_path);
+        assert_recovery_unavailable(&mut app);
+        assert!(!recovered_path.exists());
+        key(&mut app, KeyCode::Enter);
+        ctrl(&mut app, 'c');
+        assert_eq!(
+            app.clipboard.writes().last().unwrap(),
+            &base64::engine::general_purpose::STANDARD.encode(secret)
+        );
+        ctrl(&mut app, 's');
+        submit_path(&mut app, &recovered_path);
+        assert_eq!(fs::read(&recovered_path).unwrap(), secret);
+
+        // Loading fewer shares clears the successful binary recovery too.
+        ctrl(&mut app, 'l');
+        submit_path(&mut app, &share_path);
+        assert_recovery_unavailable(&mut app);
+    }
+
+    #[test]
+    fn failed_or_rejected_split_attempts_cannot_export_an_earlier_result() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("mutable-secret.bin");
+        for replacement in [Some(b"".as_slice()), None] {
+            fs::write(&path, b"synthetic file Secret").unwrap();
+            let mut app = App::new();
+            app.clipboard = Clipboard::recording();
+            ctrl(&mut app, 'l');
+            submit_path(&mut app, &path);
+            key(&mut app, KeyCode::Enter);
+            assert_eq!(status_message(&app), "split ok");
+            if let Some(bytes) = replacement {
+                fs::write(&path, bytes).unwrap();
+                key(&mut app, KeyCode::Enter);
+                assert_eq!(status_message(&app), "secret is empty");
+            } else {
+                fs::remove_file(&path).unwrap();
+                assert!(
+                    app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+                        .is_err()
+                );
+            }
+            assert_split_unavailable(&mut app);
+        }
+    }
+
+    #[test]
+    fn adding_passphrase_protection_requires_fresh_export_and_recovery_passphrase() {
+        let dir = tempfile::tempdir().unwrap();
+        let export = dir.path().join("protected");
+        let recovered = dir.path().join("recovered.txt");
+        let mut app = split_app();
+        focus(&mut app, Focus::SplitPassphrase);
+        for c in "synthetic protection".chars() {
+            key(&mut app, KeyCode::Char(c));
+        }
+        assert_split_unavailable(&mut app);
+        key(&mut app, KeyCode::Enter);
+        ctrl(&mut app, 'c');
+        assert_eq!(app.clipboard.writes().len(), 1);
+        ctrl(&mut app, 's');
+        submit_path(&mut app, &export);
+        let shares = fs::read_dir(&export)
+            .unwrap()
+            .map(|entry| fs::read_to_string(entry.unwrap().path()).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(shares.len(), 3);
+        app.clipboard.set_text(&shares.join("\n")).unwrap();
+        key(&mut app, KeyCode::Right);
+        ctrl(&mut app, 'v');
+        key(&mut app, KeyCode::Enter);
+        assert!(status_message(&app).starts_with("combine error:"));
+        assert_recovery_unavailable(&mut app);
+        focus(&mut app, Focus::CombinePassphrase);
+        for c in "synthetic protection".chars() {
+            key(&mut app, KeyCode::Char(c));
+        }
+        key(&mut app, KeyCode::Enter);
+        ctrl(&mut app, 'c');
+        assert_eq!(
+            app.clipboard.writes().last().unwrap(),
+            "synthetic lifetime Secret"
+        );
+        ctrl(&mut app, 's');
+        submit_path(&mut app, &recovered);
+        assert_eq!(fs::read(&recovered).unwrap(), b"synthetic lifetime Secret");
+
+        // Deleting and clearing an existing passphrase invalidate both operations.
+        key(&mut app, KeyCode::Backspace);
+        assert_recovery_unavailable(&mut app);
+        key(&mut app, KeyCode::Char('n'));
+        key(&mut app, KeyCode::Enter);
+        ctrl(&mut app, 'u');
+        assert_recovery_unavailable(&mut app);
+        key(&mut app, KeyCode::Enter);
+        assert!(status_message(&app).starts_with("combine error:"));
+        assert_recovery_unavailable(&mut app);
+
+        key(&mut app, KeyCode::Left);
+        focus(&mut app, Focus::SplitPassphrase);
+        key(&mut app, KeyCode::Backspace);
+        assert_split_unavailable(&mut app);
+        key(&mut app, KeyCode::Enter);
+        focus(&mut app, Focus::SplitPassphrase);
+        ctrl(&mut app, 'u');
+        assert_split_unavailable(&mut app);
+    }
+
+    #[test]
+    fn navigation_and_noop_actions_preserve_valid_results() {
+        let mut app = split_app();
+        let shares = app.split_shares.clone();
+        key(&mut app, KeyCode::Down);
+        ctrl(&mut app, 'c');
+        assert_eq!(app.clipboard.writes().last(), Some(&shares[1]));
+        key(&mut app, KeyCode::Up);
+        for target in [Focus::SplitSecret, Focus::SplitPassphrase, Focus::SplitK] {
+            focus(&mut app, target);
+            key(&mut app, KeyCode::Home);
+            key(&mut app, KeyCode::End);
+            app.clipboard.set_text("").unwrap();
+            ctrl(&mut app, 'v');
+        }
+        focus(&mut app, Focus::SplitPassphrase);
+        key(&mut app, KeyCode::Backspace);
+        ctrl(&mut app, 'u');
+        ctrl(&mut app, 'l');
+        key(&mut app, KeyCode::Esc);
+        key(&mut app, KeyCode::F(1));
+        key(&mut app, KeyCode::Esc);
+        focus(&mut app, Focus::SplitShares);
+        ctrl(&mut app, 'c');
+        assert_eq!(app.clipboard.writes().last(), Some(&shares[0]));
+        ctrl(&mut app, 's');
+        assert!(app.modal.is_some());
+        key(&mut app, KeyCode::Esc);
+
+        let mut app = recover_app();
+        for target in [
+            Focus::CombineShares,
+            Focus::CombinePassphrase,
+            Focus::CombineEncoding,
+        ] {
+            focus(&mut app, target);
+            key(&mut app, KeyCode::Home);
+            key(&mut app, KeyCode::End);
+            app.clipboard.set_text("").unwrap();
+            ctrl(&mut app, 'v');
+        }
+        focus(&mut app, Focus::CombinePassphrase);
+        key(&mut app, KeyCode::Backspace);
+        ctrl(&mut app, 'u');
+        ctrl(&mut app, 'c');
+        assert_eq!(
+            app.clipboard.writes().last().unwrap(),
+            "synthetic lifetime Secret"
+        );
+        ctrl(&mut app, 's');
+        assert!(app.modal.is_some());
+    }
+
+    #[test]
+    fn pasting_identical_selected_text_preserves_the_result() {
+        let mut app = split_app();
+        focus(&mut app, Focus::SplitSecret);
+        app.on_key(KeyEvent::new(KeyCode::Home, KeyModifiers::SHIFT))
+            .unwrap();
+        app.clipboard.set_text("synthetic lifetime Secret").unwrap();
+        ctrl(&mut app, 'v');
+        focus(&mut app, Focus::SplitShares);
+        ctrl(&mut app, 'c');
+        assert_eq!(status_message(&app), "copied to clipboard");
+        ctrl(&mut app, 's');
+        assert!(app.modal.is_some());
+    }
+
+    #[test]
+    fn text_clear_delete_and_undo_invalidate_results() {
+        for recover in [false, true] {
+            for clear in [false, true] {
+                let mut app = if recover { recover_app() } else { split_app() };
+                let target = if recover {
+                    Focus::CombineShares
+                } else {
+                    Focus::SplitSecret
+                };
+                focus(&mut app, target);
+                key(&mut app, KeyCode::Home);
+                if clear {
+                    ctrl(&mut app, 'k'); // Delete from cursor to end of line.
+                } else {
+                    key(&mut app, KeyCode::Delete);
+                }
+                if recover {
+                    assert_recovery_unavailable(&mut app);
+                } else {
+                    assert_split_unavailable(&mut app);
+                    focus(&mut app, target);
+                }
+                ctrl(&mut app, 'u'); // TextArea undo restores input, not its old result.
+                if recover {
+                    assert_recovery_unavailable(&mut app);
+                } else {
+                    assert_split_unavailable(&mut app);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn bounded_settings_and_file_cursor_movement_preserve_results() {
+        let mut app = split_app();
+        focus(&mut app, Focus::SplitK);
+        key(&mut app, KeyCode::Down);
+        key(&mut app, KeyCode::Enter);
+        focus(&mut app, Focus::SplitK);
+        key(&mut app, KeyCode::Down); // Threshold is already one.
+        focus(&mut app, Focus::SplitShares);
+        ctrl(&mut app, 'c');
+        assert_eq!(status_message(&app), "copied to clipboard");
+        focus(&mut app, Focus::SplitN);
+        key(&mut app, KeyCode::Down);
+        key(&mut app, KeyCode::Down);
+        key(&mut app, KeyCode::Enter);
+        focus(&mut app, Focus::SplitN);
+        key(&mut app, KeyCode::Down); // Share count is already one.
+        focus(&mut app, Focus::SplitK);
+        key(&mut app, KeyCode::Up); // Threshold cannot exceed Share count.
+        focus(&mut app, Focus::SplitShares);
+        ctrl(&mut app, 'c');
+        assert_eq!(status_message(&app), "copied to clipboard");
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("secret.bin");
+        fs::write(&path, b"synthetic file Secret").unwrap();
+        ctrl(&mut app, 'l');
+        submit_path(&mut app, &path);
+        key(&mut app, KeyCode::Enter);
+        focus(&mut app, Focus::SplitSecret);
+        key(&mut app, KeyCode::Home);
+        key(&mut app, KeyCode::Backspace); // Empty editor: keep file input.
+        app.clipboard.set_text("").unwrap();
+        ctrl(&mut app, 'v');
+        assert_eq!(app.split_secret_file.as_ref(), Some(&path));
+        key(&mut app, KeyCode::Enter);
+        assert_eq!(status_message(&app), "split ok");
+        ctrl(&mut app, 'c');
+        assert_eq!(status_message(&app), "copied to clipboard");
+        focus(&mut app, Focus::SplitSecret);
+        key(&mut app, KeyCode::Char('x'));
+        assert!(app.split_secret_file.is_none());
+        assert_split_unavailable(&mut app);
     }
 
     #[test]
