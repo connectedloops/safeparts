@@ -106,7 +106,7 @@ test.describe('Split result lifetime @smoke', () => {
     const englishStatus = splitPanel(page).getByRole('status')
     await expect(englishStatus).toHaveText('3 Recovery shares ready.')
     await expect(englishStatus).not.toContainText(secret)
-    const firstShare = await splitPanel(page).locator('div[dir="ltr"].input .sr-only').first().textContent()
+    const firstShare = await splitPanel(page).locator('div[dir="ltr"].input').first().textContent()
     expect(firstShare).toBeTruthy()
     await expect(englishStatus).not.toContainText(firstShare ?? 'unexpected-empty-share')
 

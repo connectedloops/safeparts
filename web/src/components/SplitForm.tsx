@@ -19,7 +19,6 @@ import {
   type Encoding,
   type EncodingOption,
 } from "./ui/encoding-selector";
-import { EncryptedText } from "./ui/encrypted-text";
 
 type SplitFormProps = {
   strings: Strings;
@@ -496,18 +495,9 @@ export function SplitForm({ strings }: SplitFormProps) {
 
                 <div
                   dir="ltr"
-                  className="input mt-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words"
+                  className="input mt-2 font-mono text-xs text-slate-200 leading-relaxed whitespace-pre-wrap break-words"
                 >
-                  <EncryptedText
-                    text={s}
-                    revealDelayMs={Math.max(
-                      4,
-                      Math.min(24, Math.floor(1100 / Math.max(1, s.length))),
-                    )}
-                    flipDelayMs={35}
-                    encryptedClassName="text-emerald-300/45"
-                    revealedClassName="text-slate-200"
-                  />
+                  {s}
                 </div>
               </div>
             ))}

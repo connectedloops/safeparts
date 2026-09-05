@@ -21,11 +21,14 @@ It owns:
 - Keep Recovery share and Secret handling in memory. Do not add server calls for Split or Combine.
 - Keep the changelog link in the footer rather than primary navigation. It follows the help URL and opens a separate, opener-isolated tab without discarding form input.
 - Remove generated Recovery shares as soon as the Secret, Threshold, Share count, Share encoding, or Passphrase protection changes. A pending Split must not restore an invalid result.
-- Preserve keyboard access, live-region feedback, and labels when changing forms. Split success announcements may report the Recovery share count, but must not include Secret or Recovery share text.
+- Render Recovery shares and recovered Secrets as complete text on the first result render. Preserve Unicode and whitespace, and keep each value selectable exactly once. Reserve character animation for branding.
+- Copy from result state. The recovered-Secret shortcut activates the same `CopyButton` as a click through `data-shortcut="copy-result"`; it does not read presentation markup. Split has only individual Recovery-share Copy buttons.
+- Preserve keyboard access and labels when changing forms. Result text stays accessible outside live regions. Announce success or the Recovery share count without Secret or Recovery share contents.
+- Test actual browser Selection and clipboard writes, including a synthetic 4 KiB Secret, both languages, and both motion preferences in `web/tests/readable-output.e2e.spec.ts`.
 - Derive cheap values during render. Use memoization only when computation cost or reference identity requires it.
 - Keep generated modules and application boundaries typed instead of using file-wide type-check suppressions or `any` casts.
 - Use local browser automation through the project browser tooling for manual checks. Playwright remains the CI runner.
-- If a product UI change should exist in desktop, update desktop parity or record why not.
+- If a product UI change should exist in desktop, update desktop parity or record why not. Issue #88 explicitly limits stable output and shortcut changes to web; the desktop mirror remains unchanged and the parity gate reports that conflict.
 - Treat the tested `web/dist` plus help output as one release unit. Netlify and Cloudflare must consume the retained artifact instead of rebuilding source.
 
 ## Useful checks

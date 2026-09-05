@@ -10,6 +10,7 @@ type CopyButtonProps = {
   className?: string
   announceCopied?: string
   keytip?: string
+  shortcut?: 'copy-result'
 }
 
 function CopyIcon() {
@@ -81,6 +82,7 @@ export function CopyButton({
   className,
   announceCopied,
   keytip,
+  shortcut,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
   const { announce } = useAnnouncement()
@@ -107,6 +109,7 @@ export function CopyButton({
     <button
       type="button"
       data-keytip={keytip}
+      data-shortcut={shortcut}
       aria-label={accessibleLabel}
       className={`btn-secondary px-3 py-2.5 text-xs min-h-[44px] min-w-[44px] ${className ? className : ''}`}
       onClick={onCopy}
