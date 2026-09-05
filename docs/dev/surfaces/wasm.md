@@ -12,11 +12,31 @@ It should:
 - delegate split/combine, packet parsing, and encoding behavior to `safeparts_core`
 - return browser-friendly values
 - report the detected concrete encoding when an inspection request uses `auto`
-- route Rust failures through one shared `Display` to `JsValue` conversion so exports use the same string mapping
+- map recovery failures from typed `CoreError` variants to the stable objects below; keep split and inspection string errors compatible
 - keep error messages useful without including share text or secrets
 - zeroize Rust-owned passphrase, encoded-share, and recovered-secret copies when they leave scope
 - preserve the API shape consumed by `web/src/wasm.ts`
 - type the browser loader with `typeof import(...)` from the generated module, then cache that typed module
+
+## Recovery error contract
+
+`combine_shares` and `combine_share_input` throw plain JavaScript objects. Consumers branch on `code`, not error prose. These objects contain no message, share text, set ID, passphrase, crypto salt/nonce, or recovered bytes.
+
+| `code` | Safe fields | Guidance |
+| --- | --- | --- |
+| `invalid_share` | None | Check complete shares and the selected encoding; use a compatible version for newer packets. |
+| `insufficient_shares` | `required`: integer threshold (1..255); `provided`: nonnegative integer below `required` | Add `required - provided` shares from the same set. |
+| `duplicate_share` | `coordinate`: integer share coordinate (1..255), not a UI field number | Replace repeated shares with distinct shares from the same set. |
+| `inconsistent_shares` | None | Use shares from one Split operation. Includes mismatched crypto metadata and excess shares. |
+| `passphrase_required` | None | Supply the original passphrase. |
+| `decryption_failed` | None | Check both passphrase and intact encrypted data; the failure cannot distinguish wrong passphrases from changed data. |
+| `unsupported_parameters` | None | Use a compatible version for unsupported packet flags or crypto policy parameters. Never edit the parameters. |
+| `unsupported_encoding` | None | Select a supported share encoding. The rejected name is redacted. |
+| `recovery_failed` | None | Safe fallback for unexpected core/crypto failures. |
+
+Core groups unsupported packet versions with malformed packets, so those produce `invalid_share`; its guidance covers version compatibility. No packet format or core/CLI/TUI error contract changes are required.
+
+Split, threshold, and inspection exports retain string errors for compatibility. Web recovery can still call the legacy array-based `combine_shares` export if `combine_share_input` is absent. Older generated packages that throw strings receive the localized fallback, not prose parsing. Unknown codes, malformed numeric fields, module-load failures, and unexpected exceptions also use that fallback without displaying or logging exception text. Only validated missing-share counts drive empty-field feedback; coordinates are never treated as field positions.
 
 ## Generated package
 

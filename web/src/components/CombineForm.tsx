@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useAnnouncement } from "../context/LiveRegionContext";
 import type { Lang, Strings } from "../i18n";
+import { recoveryFeedback } from "../lib/recovery-error";
 import { ensureWasm, recoveredSecretText } from "../wasm";
 
 import { ClearButton } from "./ClearButton";
@@ -36,33 +37,6 @@ function MinusIcon() {
       />
     </svg>
   );
-}
-
-function rawErrorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
-function notEnoughSharesMatch(message: string): RegExpExecArray | null {
-  return /need at least k shares: need (\d+), got (\d+)/i.exec(message);
-}
-
-function toErrorMessage(err: unknown, strings: Strings): string {
-  const message = err instanceof Error ? err.message : String(err);
-  if (/wasm_pkg|safeparts_wasm|Cannot find module/i.test(message))
-    return strings.errorWasmMissing;
-  if (/^(invalid packet|encoding error):/i.test(message))
-    return strings.errorInvalidShare;
-
-  const notEnoughShares = notEnoughSharesMatch(message);
-  if (notEnoughShares) {
-    const k = Number(notEnoughShares[1]);
-    const got = Number(notEnoughShares[2]);
-    const missing = Math.max(0, k - got);
-    if (missing === 1) return strings.errorNotEnoughSharesOne;
-    return strings.errorNotEnoughSharesMany.replace("{missing}", String(missing));
-  }
-
-  return message;
 }
 
 function parseSharesFromBox(text: string): string[] {
@@ -285,6 +259,7 @@ export function CombineForm({ lang, strings }: CombineFormProps) {
     setBusy(true);
     setError(null);
     setSecret("");
+    setInvalidShareBoxIds([]);
 
     try {
       const wasm = await ensureWasm();
@@ -316,22 +291,13 @@ export function CombineForm({ lang, strings }: CombineFormProps) {
     } catch (e) {
       if (recoveryVersion !== recoveryInputVersionRef.current) return;
 
-      const rawMessage = rawErrorMessage(e);
-      const message = toErrorMessage(e, strings);
+      const { message, missing } = recoveryFeedback(e, strings);
       setError(message);
-
-      const m = notEnoughSharesMatch(rawMessage);
-      if (m) {
-        const k = Number(m[1]);
-        const got = Number(m[2]);
-        const missing = Math.max(0, k - got);
-
-        if (missing > 0) {
-          const emptyBoxIds = shareBoxes
-            .filter((b) => parseSharesFromBox(b.value).length === 0)
-            .map((b) => b.id);
-          setInvalidShareBoxIds(emptyBoxIds.slice(0, missing));
-        }
+      if (missing !== undefined) {
+        const emptyBoxIds = shareBoxes
+          .filter((b) => parseSharesFromBox(b.value).length === 0)
+          .map((b) => b.id);
+        setInvalidShareBoxIds(emptyBoxIds.slice(0, missing));
       }
     } finally {
       if (recoveryVersion === recoveryInputVersionRef.current) {
@@ -408,7 +374,7 @@ export function CombineForm({ lang, strings }: CombineFormProps) {
               return (
                 <div key={box.id} className="py-4 first:pt-0 last:pb-0">
                   <div className="dir-row items-center justify-between gap-3">
-                    <div className="text-start text-xs font-semibold text-slate-200">
+                    <div id={`share-${box.id}-label`} className="text-start text-xs font-semibold text-slate-200">
                       {strings.shareNumber} {i + 1}
                     </div>
 
@@ -446,7 +412,7 @@ export function CombineForm({ lang, strings }: CombineFormProps) {
                           ? "border-rose-400 focus:border-rose-400 focus:ring-rose-500/15"
                           : ""
                       } ${isFlashing ? "border-emerald-300/70 bg-emerald-500/15" : ""}`}
-                      aria-labelledby="shares-label"
+                      aria-labelledby={`share-${box.id}-label`}
                       aria-describedby={
                         isInvalid ? `share-${box.id}-error` : "shares-hint"
                       }
