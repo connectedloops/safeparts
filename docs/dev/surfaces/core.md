@@ -7,7 +7,7 @@ Nearest contract: [`crates/safeparts_core/AGENTS.md`](../../../crates/safeparts_
 
 - Shamir-style split/combine over GF(256).
 - Share packet versioning and strict parsing.
-- Share encodings and auto-detection rules.
+- Share encodings and auto-detection rules, including strict line-or-paragraph mnemonic parsing for TUI input. See the [parser contract](../manuals/rust-library.md) for framing and line endings.
 - Optional passphrase protection.
 - Typed errors for core behavior.
 

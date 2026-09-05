@@ -77,7 +77,7 @@ fn recover_from_paste(input: &str) -> CoreResult<Vec<u8>> {
 }
 ```
 
-Use `parse_share_packets_wrapped_mnemonics` for text areas where one mnemonic share may wrap across multiple lines. Blank lines separate wrapped mnemonic shares.
+Use `parse_share_packets_wrapped_mnemonics` for text areas and mnemonic files. It accepts one complete Recovery share per line when every nonempty line strictly decodes, including CLI output. Otherwise, it decodes each blank-line-separated paragraph as one wrapped Recovery share. It accepts LF and CRLF with Auto or explicit encoding and rejects malformed input without skipping words or frames.
 
 ## Add passphrase protection
 

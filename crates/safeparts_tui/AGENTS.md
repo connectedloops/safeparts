@@ -14,6 +14,7 @@ Owns the `safeparts-tui` interactive terminal UI.
 ## Local Contracts
 
 - Keep split/combine and encoding rules in `safeparts_core`.
+- File loading and pasted mnemonic input use the core wrapped parser: accept CLI files with one complete Recovery share per line as well as blank-line-separated wrapped shares, with Auto or explicit encoding.
 - Keep the TUI keyboard-first.
 - Treat clipboard contents, shares, passphrases, and recovered secrets as sensitive.
 - Split clipboard actions must copy only the selected Recovery share, never a multi-share payload.
@@ -30,7 +31,7 @@ Owns the `safeparts-tui` interactive terminal UI.
 
 ## Verification
 
-- `cargo test -p safeparts_tui`
+- `cargo test -p safeparts_tui` (the CLI-to-TUI file regression invokes Cargo to run the local `safeparts` producer)
 - `cargo run -p safeparts_tui` for manual smoke when UI behavior changes
 - `cargo fmt --all -- --check`
 - `cargo clippy --all-targets --all-features -- -D warnings`

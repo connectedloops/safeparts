@@ -37,7 +37,7 @@ fn recover_from_paste(input: &str) -> CoreResult<Vec<u8>> {
 }
 ```
 
-For UI text areas where long mnemonic shares may wrap across lines, use `parse_share_packets_wrapped_mnemonics`. Blank lines still separate mnemonic shares.
+For UI text areas and CLI mnemonic files, use `parse_share_packets_wrapped_mnemonics`. It first tries strict decoding of every nonempty line as a complete Recovery share. If that fails, blank lines separate wrapped Recovery shares. Both layouts accept LF and CRLF. Invalid words and frames, including empty BIP-39 frames, cause an error rather than being skipped.
 
 ## Supported encodings
 

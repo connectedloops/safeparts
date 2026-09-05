@@ -128,6 +128,14 @@ pub fn parse_share_packets(input: &str, encoding: Encoding) -> CoreResult<Parsed
     parse_share_packets_with_mnemonic_lines(input, encoding, MnemonicLineMode::Shares)
 }
 
+/// Parse share text that may contain wrapped mnemonic Recovery shares.
+///
+/// For mnemonic encodings, first accept one complete, strictly decoded packet
+/// per nonempty line (including CLI output). If that fails, decode each
+/// blank-line-separated paragraph as one wrapped packet. Both attempts consume
+/// all nonempty input; invalid lines, words, and frames are never skipped.
+/// LF and CRLF line endings are accepted. Compact encodings use whitespace
+/// separators, as in [`parse_share_packets`].
 pub fn parse_share_packets_wrapped_mnemonics(
     input: &str,
     encoding: Encoding,
@@ -215,6 +223,18 @@ fn decode_share_packets_known(
     encoding: Encoding,
     mnemonic_line_mode: MnemonicLineMode,
 ) -> CoreResult<Vec<SharePacket>> {
+    if matches!(mnemonic_line_mode, MnemonicLineMode::WrappedShare)
+        && matches!(encoding, Encoding::MnemoWords | Encoding::MnemoBip39)
+    {
+        let line_packets = nonempty_lines(input)
+            .iter()
+            .map(|line| decode_packet(line, encoding))
+            .collect::<CoreResult<Vec<_>>>();
+        if let Ok(packets) = line_packets {
+            return Ok(packets);
+        }
+    }
+
     match encoding {
         Encoding::Auto => Err(CoreError::CouldNotDetectEncoding),
         Encoding::MnemoWords => split_mnemonic_input(input, mnemonic_line_mode)

@@ -18,6 +18,17 @@ Use the TUI when you want a guided terminal workflow, offline operation, clipboa
 - Loading secrets or share files.
 - Exporting one file per share or saving recovered bytes.
 
+## Recovery share input
+
+In the combine tab, paste Recovery shares or press <kbd>Ctrl</kbd>+<kbd>L</kbd> to load share files. For <span class="token">mnemo-words</span> and <span class="token">mnemo-bip39</span>, the TUI accepts:
+
+- One complete Recovery share per line, including a CLI output file. You do not need to add blank lines or rewrite the file.
+- A Recovery share wrapped across several lines. Separate multiple wrapped Recovery shares with a blank line.
+
+Both layouts work with Auto encoding or the matching explicit encoding, with LF or CRLF line endings. You can supply the Threshold number of Recovery shares or more from the same set. The TUI rejects malformed or duplicate Recovery shares and mixed sets rather than skipping them.
+
+For <span class="token">base64url</span> and <span class="token">base58check</span>, separate Recovery shares with whitespace.
+
 ## Offline workflow
 
 <Steps>

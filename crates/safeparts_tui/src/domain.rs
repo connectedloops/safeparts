@@ -109,6 +109,30 @@ mod tests {
     }
 
     #[test]
+    fn mnemonic_recovery_rejects_bad_extra_shares_without_echoing_input() {
+        for encoding in [Encoding::MnemoWords, Encoding::MnemoBip39] {
+            let (_, shares) = split_secret(b"synthetic primary set", 2, 3, encoding, None).unwrap();
+            let (_, other) = split_secret(b"synthetic another set", 2, 3, encoding, None).unwrap();
+            let words = shares[2].split_whitespace().collect::<Vec<_>>();
+            let truncated = words[..words.len() - 1].join(" ");
+            let corrupted = format!("SENSITIVE-INVALID-WORD {}", words[1..].join(" "));
+            for bad in [&shares[0], &other[2], &truncated, &corrupted] {
+                for separator in ["\n", "\n\n", "\r\n", "\r\n\r\n"] {
+                    let input = [shares[0].as_str(), shares[1].as_str(), bad].join(separator);
+                    for mode in [Encoding::Auto, encoding] {
+                        let error = combine_shares(&input, mode, None).unwrap_err();
+                        let message = format!("{error:#}");
+                        assert!(!message.contains("SENSITIVE-INVALID-WORD"));
+                        for share in &shares {
+                            assert!(!message.contains(share));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn malformed_share_errors_do_not_echo_input() {
         let sensitive = "SECRET-SHARE-TEXT";
         let error = combine_shares(sensitive, Encoding::MnemoWords, None)

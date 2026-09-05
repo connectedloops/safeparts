@@ -77,7 +77,7 @@ fn recover_from_paste(input: &str) -> CoreResult<Vec<u8>> {
 }
 ```
 
-For UIs that allow wrapped mnemonic lines, use `parse_share_packets_wrapped_mnemonics`. That mode treats multiple non-empty lines as one wrapped mnemonic share unless blank lines split shares.
+For UIs that allow wrapped mnemonic lines, use `parse_share_packets_wrapped_mnemonics`. It first tries to strictly decode every nonempty line as a complete Recovery share, so CLI mnemonic output can be loaded unchanged. If that fails, it treats each blank-line-separated paragraph as one wrapped Recovery share. Both attempts consume all nonempty input, including every word and BIP-39 frame; empty BIP-39 frames are errors. It accepts LF and CRLF line endings with Auto encoding or an explicit mnemonic encoding. Compact encodings still use whitespace separators.
 
 ```rust
 use safeparts_core::encoding::{self, Encoding};

@@ -16,7 +16,8 @@ It owns:
 
 ## Change rules
 
-- Keep secret-sharing behavior in core.
+- Keep secret-sharing behavior in core. Mnemonic input uses `parse_share_packets_wrapped_mnemonics`: complete Recovery shares per line (including CLI output files), or wrapped Recovery shares separated by blank lines. Auto and explicit encoding accept LF and CRLF.
+- Keep the CLI-to-TUI file-loading regression: produce real CLI mnemonic output, load both a Threshold-sized selection and the full file into the headless TUI, and compare recovered bytes.
 - Keep keyboard operation reliable before adding mouse-only affordances.
 - Treat clipboard contents as sensitive. Split clipboard actions copy only the selected Recovery share; they never gather multiple Recovery shares.
 - Avoid writing share text or recovered secrets to logs.
