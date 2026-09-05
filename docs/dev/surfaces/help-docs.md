@@ -32,6 +32,8 @@ bun install --frozen-lockfile
 bun run build
 ```
 
+This standalone build replaces `web/dist/help/` with English and Arabic help but does not build the root app. A later app build deletes it. For a complete site, run `mise run web:build:site` or `bash web/scripts/build-site.sh` from the repository root. See [output semantics](../verification.md#output-semantics).
+
 For route parity and accessibility coverage:
 
 ```bash

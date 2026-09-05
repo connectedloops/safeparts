@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Behavior and workflow-policy tests for the Web deployment artifact."""
+"""Behavior and workflow-policy tests for local Web builds and deployment artifacts."""
 
 from __future__ import annotations
 
@@ -7,11 +7,14 @@ import functools
 import hashlib
 import http.server
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -301,6 +304,94 @@ class DeployArtifactTests(unittest.TestCase):
                 expected=1,
             )
             self.assertIn("40-character lowercase hexadecimal", failure.stdout)
+
+
+class LocalBuildTests(unittest.TestCase):
+    def test_local_verification_has_one_combined_site_writer(self) -> None:
+        tasks = tomllib.loads((REPO_ROOT / "mise.toml").read_text())["tasks"]
+        # Sibling dependencies may finish in either order. Keep both standalone
+        # writers out of verify and delegate to a sequential combined command.
+        self.assertIn("web:build:site", tasks["verify"]["depends"])
+        self.assertNotIn("web:build", tasks["verify"]["depends"])
+        self.assertNotIn("docs:build", tasks["verify"]["depends"])
+        site = tasks["web:build:site"]
+        self.assertFalse(site.get("depends"))
+        self.assertEqual("bash web/scripts/build-site.sh", site["run"])
+
+    def test_combined_build_orders_destructive_writers_and_checks_final_routes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            web = root / "web"
+            (web / "scripts").mkdir(parents=True)
+            (web / "help").mkdir()
+            shutil.copy2(
+                REPO_ROOT / "web" / "scripts" / "build-site.sh",
+                web / "scripts" / "build-site.sh",
+            )
+            tools = root / "bin"
+            tools.mkdir()
+            bun = tools / "bun"
+            # This stub models Vite's destructive write. Help-first execution
+            # deterministically loses help; no sleeps or scheduler luck needed.
+            bun.write_text(
+                "#!/usr/bin/env python3\n"
+                "import os, shutil, sys\n"
+                "from pathlib import Path\n"
+                "cwd = Path.cwd()\n"
+                "if sys.argv[1:] != ['run', 'build']: sys.exit(0)\n"
+                "if cwd.name == 'help':\n"
+                "    site = cwd.parent / 'dist'\n"
+                "    routes = ['help/index.html', 'help/ar/index.html']\n"
+                "else:\n"
+                "    site = cwd / 'dist'\n"
+                "    shutil.rmtree(site, ignore_errors=True)\n"
+                "    routes = ['index.html']\n"
+                "for route in routes:\n"
+                "    if route == os.environ.get('OMIT_ROUTE'): continue\n"
+                "    path = site / route\n"
+                "    path.parent.mkdir(parents=True, exist_ok=True)\n"
+                "    path.write_text('Synthetic static page')\n",
+                encoding="utf-8",
+            )
+            bun.chmod(0o755)
+            env = {**os.environ, "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}"}
+            # Rehearse the formerly legal help-before-app schedule explicitly.
+            subprocess.run([str(bun), "run", "build"], cwd=web / "help", env=env, check=True)
+            subprocess.run([str(bun), "run", "build"], cwd=web, env=env, check=True)
+            self.assertFalse((web / "dist" / "help" / "index.html").exists())
+            self.assertFalse((web / "dist" / "help" / "ar" / "index.html").exists())
+            shutil.rmtree(web / "dist")
+
+            for scenario in ("clean", "repeated", "after standalone app rebuild"):
+                with self.subTest(scenario=scenario):
+                    if scenario == "after standalone app rebuild":
+                        subprocess.run([str(bun), "run", "build"], cwd=web, env=env, check=True)
+                    result = subprocess.run(
+                        ["bash", str(web / "scripts" / "build-site.sh")],
+                        cwd=root,
+                        env=env,
+                        text=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        check=False,
+                    )
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    for route in ("index.html", "help/index.html", "help/ar/index.html"):
+                        self.assertEqual("Synthetic static page", (web / "dist" / route).read_text())
+
+            for missing in ("index.html", "help/index.html", "help/ar/index.html"):
+                with self.subTest(missing=missing):
+                    result = subprocess.run(
+                        ["bash", str(web / "scripts" / "build-site.sh")],
+                        cwd=root,
+                        env={**env, "OMIT_ROUTE": missing},
+                        text=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        check=False,
+                    )
+                    self.assertNotEqual(0, result.returncode, result.stdout)
+                    self.assertIn(missing, result.stdout)
 
 
 class WorkflowPolicyTests(unittest.TestCase):

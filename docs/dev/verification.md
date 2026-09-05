@@ -78,7 +78,28 @@ Then run the core security properties and the full Rust gate.
 
 ## Web app
 
-From `web/`:
+Build the complete static site from the repository root:
+
+```bash
+mise run web:build:site
+# Same command without the task runner, using installed tools:
+bash web/scripts/build-site.sh
+```
+
+This builds WASM, type-checks the app, builds Vite, then builds English and Arabic help. It fails if any build fails or if `web/dist/index.html`, `web/dist/help/index.html`, or `web/dist/help/ar/index.html` is missing or empty. `mise run verify` uses this combined task rather than running the app and help builds as siblings.
+
+### Output semantics
+
+| Command | Output |
+| --- | --- |
+| `mise run web:build` | Rebuilds WASM, type-checks, and replaces `web/dist/` with the app only. Deletes previously built help. |
+| `(cd web && bun run build)` | Same app-only output; expects generated WASM to exist and does not type-check. |
+| `mise run docs:build` or `(cd web/help && bun run build)` | Replaces only `web/dist/help/` with English and Arabic help. Does not build or verify the root app. `bun run help:build` from `web/` is an alias. |
+| `mise run web:build:site` | Replaces `web/dist/` with the complete app and help, then checks the required routes. |
+
+Use the combined command for publishable local output, including after an app-only rebuild. Do not run standalone app/help builds concurrently with it: they share the same output directory. This command does not publish, create deployment evidence, or run browser tests.
+
+Additional focused checks from `web/`:
 
 ```bash
 bun install --frozen-lockfile
