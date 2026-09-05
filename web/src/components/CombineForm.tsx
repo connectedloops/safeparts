@@ -429,6 +429,9 @@ export function CombineForm({ lang, strings }: CombineFormProps) {
                     <textarea
                       ref={(textarea) => setShareTextareaRef(box.id, textarea)}
                       dir="ltr"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
                       value={box.value}
                       onChange={(e) => {
                         setShareBoxValue(box.id, e.target.value);

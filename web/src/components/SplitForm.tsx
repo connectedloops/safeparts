@@ -218,6 +218,9 @@ export function SplitForm({ strings }: SplitFormProps) {
           <div className="relative mt-3">
             <textarea
               ref={setSecretTextareaRef}
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
               value={secret}
               onChange={(e) => {
                 updateSecret(e.target.value);

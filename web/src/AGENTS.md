@@ -25,6 +25,7 @@ Owns the Vite + React browser application source and generated WASM package boun
 - Generated Recovery shares are valid only while the Secret, Threshold, Share count, Share encoding, and Passphrase protection match the completed Split operation; input changes must also reject late results.
 - Display and copy recovered output only when it is valid UTF-8, and invalidate it whenever Recovery shares, Share encoding, or Passphrase protection changes.
 - Keep changelog discovery unobtrusive in the footer. Use the existing help base/locale and a separate tab with opener isolation so in-progress input stays in place.
+- Secret, Recovery-share (including dynamically added fields), and passphrase inputs explicitly disable spellchecking, autocorrection, and autocapitalization in both languages. Preserve entered text; browser settings are a mitigation, not a guarantee against extensions, provider features, or clipboard exposure.
 - Desktop UI parity depends on copied files from this subtree.
 
 ## Work Guidance
