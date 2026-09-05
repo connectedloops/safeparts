@@ -17,12 +17,15 @@ Owns the `safeparts-tui` interactive terminal UI.
 - Keep the TUI keyboard-first.
 - Treat clipboard contents, shares, passphrases, and recovered secrets as sensitive.
 - Split clipboard actions must copy only the selected Recovery share, never a multi-share payload.
+- Results belong to the inputs that produced them. Changes to Secret/Recovery-share text, Threshold, Share count, Share encoding, or passphrase clear that operation's output and result metadata before copy/export/save can use it. Successful Secret file loading also clears Split output; Recovery file loading clears output when its text changes.
+- Clear an operation's previous result before attempting it, including early rejection and IO failure. Only success makes output available again.
+- Preserve valid results for focus movement, Recovery-share selection, cancelled loading, and edits that leave input values unchanged. Keep file input selected until a text edit actually changes the editor.
 - Do not add logging that includes secret material.
 
 ## Work Guidance
 
 - Follow `docs/agents/conventions.md` and `docs/dev/surfaces/tui.md`.
-- Add domain/state tests when changing behavior that can be tested without terminal rendering.
+- Add domain/state tests when changing behavior that can be tested without terminal rendering. Test result lifetime through headless key events, recording clipboard reads/writes, and temporary-file load/save/export outcomes with synthetic data.
 - Keep terminal messages actionable and short.
 
 ## Verification

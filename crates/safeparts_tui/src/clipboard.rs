@@ -39,6 +39,11 @@ impl Clipboard {
     }
 
     pub fn get_text(&mut self) -> Result<String> {
+        #[cfg(test)]
+        if let Some(writes) = self.writes.as_ref() {
+            return writes.last().cloned().context("clipboard unavailable");
+        }
+
         let Some(clipboard) = self.inner.as_mut() else {
             anyhow::bail!("clipboard unavailable");
         };
