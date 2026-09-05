@@ -86,7 +86,12 @@ export function SplitForm({ strings }: SplitFormProps) {
   function selectAllOnFocus(e: FocusEvent<HTMLInputElement>) {
     if (!isCoarsePointer) return;
     // Makes it easy to replace the value on mobile.
-    requestAnimationFrame(() => e.currentTarget.select());
+    const input = e.currentTarget;
+    requestAnimationFrame(() => {
+      if (input.isConnected && input.ownerDocument.activeElement === input) {
+        input.select();
+      }
+    });
   }
 
   function selectAllOnClick(e: ReactMouseEvent<HTMLInputElement>) {

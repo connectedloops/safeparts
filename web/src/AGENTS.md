@@ -29,6 +29,7 @@ Owns the Vite + React browser application source and generated WASM package boun
 - Recovery guidance uses validated WASM error codes and safe counts, never English prose matching or raw exception display/logging. Legacy string errors and unknown failures use a localized fallback.
 - Each Recovery-share textarea is named by its localized visible field number; numbering follows current field order after add/remove.
 - Desktop UI parity depends on copied files from this subtree. Approved web-only changes leave the excluded desktop mirror unchanged; report the parity conflict without relaxing the check.
+- Coarse-pointer Threshold and Share count focus selects the current value after dispatch only while the original input remains connected and focused; fine-pointer caret behavior stays native.
 
 ## Work Guidance
 
