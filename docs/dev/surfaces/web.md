@@ -31,6 +31,7 @@ It owns:
 - Use local browser automation through the project browser tooling for manual checks. Playwright remains the CI runner.
 - Recovery errors use the [WASM error contract](wasm.md#recovery-error-contract) and English/Arabic guidance. Recovery-share fields have distinct localized names that follow visible numbering. Unknown failures use a safe localized fallback; invalid UTF-8 keeps its separate file-recovery guidance.
 - If a product UI change should exist in desktop, update desktop parity or record why not. The approved web-only review fixes leave the excluded desktop mirror unchanged. Report the resulting parity failure; keep the gate intact.
+- Threshold and Share count select their current value on coarse-pointer focus only while that input remains connected and focused. Fine-pointer focus keeps native caret behavior. `web/tests/split-touch-focus.e2e.spec.ts` covers replacement, blur/unmount, steppers, bounds, result invalidation, and English/Arabic layouts.
 - Treat the tested `web/dist` plus help output as one release unit. Netlify and Cloudflare must consume the retained artifact instead of rebuilding source.
 
 ## Useful checks
