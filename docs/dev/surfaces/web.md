@@ -25,6 +25,7 @@ It owns:
 - Copy from result state. The recovered-Secret shortcut activates the same `CopyButton` as a click through `data-shortcut="copy-result"`; it does not read presentation markup. Split has only individual Recovery-share Copy buttons.
 - Preserve keyboard access and labels when changing forms. Result text stays accessible outside live regions. Announce success or the Recovery share count without Secret or Recovery share contents.
 - Test actual browser Selection and clipboard writes, including a synthetic 4 KiB Secret, both languages, and both motion preferences in `web/tests/readable-output.e2e.spec.ts`.
+- Explicitly disable spellchecking, autocorrection, and autocapitalization on Secret, Recovery-share, and passphrase inputs in both languages, including dynamically added fields. Preserve entered text. These browser requests cannot guarantee safe extensions, provider features, or clipboard handling; see the English/Arabic security help.
 - Derive cheap values during render. Use memoization only when computation cost or reference identity requires it.
 - Keep generated modules and application boundaries typed instead of using file-wide type-check suppressions or `any` casts.
 - Use local browser automation through the project browser tooling for manual checks. Playwright remains the CI runner.

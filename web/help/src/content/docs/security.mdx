@@ -44,6 +44,12 @@ The web app performs split and combine in your browser through WASM. The desktop
 
 Safeparts does not upload secrets by default. Secrets can still leak if you paste them into another service, use a modified build, save them to an unsafe location, or let logs and screen recorders capture them.
 
+### Browser writing assistance
+
+The web app asks browsers to disable spellchecking, autocorrection, and automatic capitalization in Secret, Recovery-share, and passphrase fields. These settings reduce exposure to writing-assistance services and help keep your input unchanged.
+
+They do not guarantee a trustworthy browser, extension environment, or clipboard. Safeparts cannot control extensions or all browser-provider features. Use a browser and device you trust, review writing-assistance settings, and avoid clipboard sync or history for sensitive text. This mitigation does not mean that a disclosure was observed.
+
 ## If something goes wrong
 
 - If one share is lost, check whether enough shares still remain. If yes, recover, rotate the underlying secret, and create a new split.
