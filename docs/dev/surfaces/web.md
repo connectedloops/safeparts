@@ -34,6 +34,8 @@ It owns:
 
 ## Useful checks
 
+For a complete static site, run `mise run web:build:site` or `bash web/scripts/build-site.sh` from the repository root. It builds the app before help and checks the final routes. The standalone app build below clears `web/dist/`, including any help output. See [output semantics](../verification.md#output-semantics).
+
 ```bash
 cd web
 bun install --frozen-lockfile

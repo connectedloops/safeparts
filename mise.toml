@@ -64,7 +64,7 @@ depends = ["verify:rust"]
 
 [tasks.verify]
 description = "Run the full local verification gate."
-depends = ["verify:rust", "web:build", "docs:build", "desktop:check", "macos:check", "dx:verify", "workflow:check"]
+depends = ["verify:rust", "web:build:site", "desktop:check", "macos:check", "dx:verify", "workflow:check"]
 
 [tasks."workflow:check"]
 description = "Test release policy and lint GitHub Actions workflows."
@@ -102,9 +102,13 @@ dir = "web"
 run = "bun run typecheck"
 
 [tasks."web:build"]
-description = "Build WASM and the web app."
+description = "Build WASM and app-only web/dist (clears existing help)."
 dir = "web"
 run = ["bun run build:wasm", "bun run typecheck", "bun run build"]
+
+[tasks."web:build:site"]
+description = "Build and verify the complete static app with English and Arabic help."
+run = "bash web/scripts/build-site.sh"
 
 [tasks."web:test:smoke"]
 description = "Run web smoke tests."
@@ -130,7 +134,7 @@ dir = "web/help"
 run = "bun run dev"
 
 [tasks."docs:build"]
-description = "Build the help docs."
+description = "Replace web/dist/help with English and Arabic help only."
 dir = "web/help"
 run = "bun run build"
 

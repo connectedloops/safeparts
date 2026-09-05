@@ -168,6 +168,7 @@ Use the single-context domain model in `CONTEXT.md` and relevant records under `
 - Update `docs/dev/feature-matrix.md` when feature behavior changes across core, CLI, TUI, WASM, web, desktop, help docs, or release packaging.
 - Local DX diagnostics: `mise run doctor`, `mise run dx:verify`.
 - Keep full root `CHANGELOG.md` and both help changelogs generated together from main and published releases. Read `scripts/dev/README.md#changelog-snapshots` when changing their generator or CI. Only the configured CI writer may publish automatically; agent pushes still require explicit permission.
+- `mise run verify` uses `web:build:site` for the complete static site; keep standalone app/help writers out of its parallel dependencies. Build ordering and final-route checks are owned by `web/scripts/`.
 - Release workflow policy and action lint: `mise run workflow:check`.
 
 ## Release packaging

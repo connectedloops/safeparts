@@ -13,7 +13,7 @@ Owns local developer-experience diagnostics and verification helpers.
 - `test_rust_coverage.py`: unit tests for coverage filtering and floor diagnostics.
 - `rustsec_audit.py`: Cargo audit runner and exact policy-exception gate.
 - `test_rustsec_audit.py`: unit tests for RustSec finding classification.
-- `test_web_deploy.py`: behavioral artifact and immutable Web workflow policy tests.
+- `test_web_deploy.py`: local build graph, destructive-writer rehearsal, final-route checks, deployment artifact behavior, and immutable Web workflow policy tests.
 - `workflow_policy.py`: release workflow input, tag-only publication, and permission policy gate.
 - `test_workflow_policy.py`: public-behavior tests for the release workflow policy.
 - `changelog.py`: main-history/release collector and renderer for the three committed changelog snapshots.

@@ -35,12 +35,13 @@ cd web
 bun run build:wasm
 ```
 
-Web build output:
+Complete web and help output:
 
 ```bash
-cd web
-bun run build
+bash web/scripts/build-site.sh
 ```
+
+Run this from the repository root. The app build clears `web/dist/`; the combined command builds help afterward and checks the final routes. For app-only and help-only commands, see [output semantics](verification.md#output-semantics).
 
 Web deployment evidence is prepared only after WASM, application, help, and browser checks pass. See [`../deployment/web-artifact.md`](../deployment/web-artifact.md) for the credential-free package command. Netlify and Cloudflare consume this package without rebuilding source.
 
