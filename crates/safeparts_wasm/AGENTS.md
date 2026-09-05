@@ -11,7 +11,8 @@ Owns the wasm-bindgen facade consumed by the browser web app.
 ## Local Contracts
 
 - Delegate split/combine, packets, encodings, and crypto behavior to `safeparts_core`.
-- Keep exported errors useful without including share input or secret material.
+- Recovery exports (`combine_shares`, `combine_share_input`) throw plain objects with stable `code` values and allowlisted numeric fields; see `docs/dev/surfaces/wasm.md`. Never carry core prose or input text in these objects.
+- Split and inspection exports retain their existing string-error compatibility contract.
 - Preserve the API shape expected by `web/src/wasm.ts` unless the web app is updated in the same change.
 - `web/src/wasm_pkg/` is generated from this crate and should not be hand-edited.
 

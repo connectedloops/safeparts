@@ -29,7 +29,8 @@ It owns:
 - Derive cheap values during render. Use memoization only when computation cost or reference identity requires it.
 - Keep generated modules and application boundaries typed instead of using file-wide type-check suppressions or `any` casts.
 - Use local browser automation through the project browser tooling for manual checks. Playwright remains the CI runner.
-- If a product UI change should exist in desktop, update desktop parity or record why not. Issue #88 explicitly limits stable output and shortcut changes to web; the desktop mirror remains unchanged and the parity gate reports that conflict.
+- Recovery errors use the [WASM error contract](wasm.md#recovery-error-contract) and English/Arabic guidance. Recovery-share fields have distinct localized names that follow visible numbering. Unknown failures use a safe localized fallback; invalid UTF-8 keeps its separate file-recovery guidance.
+- If a product UI change should exist in desktop, update desktop parity or record why not. The approved web-only review fixes leave the excluded desktop mirror unchanged. Report the resulting parity failure; keep the gate intact.
 - Treat the tested `web/dist` plus help output as one release unit. Netlify and Cloudflare must consume the retained artifact instead of rebuilding source.
 
 ## Useful checks

@@ -10,6 +10,10 @@ use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
+fn error_json(error: &JsValue) -> String {
+    js_sys::JSON::stringify(error).unwrap().as_string().unwrap()
+}
+
 #[wasm_bindgen_test]
 fn every_encoding_round_trips_binary_secrets() {
     let secret = [0, 255, 3, 128];
@@ -42,33 +46,20 @@ fn passphrase_failures_and_success_are_reported() {
         values
     };
 
-    let first_share = shares.get(0).as_string().unwrap();
+    let missing = combine_shares(selected(), "auto", None).unwrap_err();
+    assert_eq!(error_json(&missing), r#"{"code":"passphrase_required"}"#);
 
-    let missing = combine_shares(selected(), "auto", None)
-        .unwrap_err()
-        .as_string()
-        .unwrap();
-    assert!(missing.contains("passphrase required"), "{missing}");
-    assert!(!missing.contains(&first_share));
-
-    let wrong = combine_shares(selected(), "auto", Some("wrong".to_string()))
-        .unwrap_err()
-        .as_string()
-        .unwrap();
-    assert!(wrong.contains("decryption failed"));
-    assert!(!wrong.contains(&first_share));
+    let wrong = combine_shares(selected(), "auto", Some("wrong".to_string())).unwrap_err();
+    assert_eq!(error_json(&wrong), r#"{"code":"decryption_failed"}"#);
 
     let insufficient = Array::new();
     insufficient.push(&shares.get(0));
-    let insufficient = combine_shares(insufficient, "auto", Some("correct".to_string()))
-        .unwrap_err()
-        .as_string()
-        .unwrap();
-    assert!(
-        insufficient.contains("need at least k shares"),
-        "{insufficient}"
+    let insufficient =
+        combine_shares(insufficient, "auto", Some("correct".to_string())).unwrap_err();
+    assert_eq!(
+        error_json(&insufficient),
+        r#"{"code":"insufficient_shares","required":2,"provided":1}"#
     );
-    assert!(!insufficient.contains(&first_share));
 
     assert_eq!(
         combine_shares(selected(), "auto", Some("correct".to_string()))
@@ -108,12 +99,8 @@ fn malformed_values_and_share_text_are_rejected_safely() {
     assert!(combine_shares(values, "auto", None).is_err());
 
     let sensitive = "SECRET-SHARE-TEXT";
-    let error = combine_share_input(sensitive, "mnemo-words", None)
-        .unwrap_err()
-        .as_string()
-        .unwrap();
-    assert!(!error.contains(sensitive));
-    assert!(error.contains("could not be decoded"));
+    let error = combine_share_input(sensitive, "mnemo-words", None).unwrap_err();
+    assert_eq!(error_json(&error), r#"{"code":"invalid_share"}"#);
 }
 
 #[wasm_bindgen_test]

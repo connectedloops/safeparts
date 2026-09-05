@@ -16,7 +16,7 @@ Most combine failures come from one of these causes:
 - shares came from different split sets;
 - share text was corrupted or entered with the wrong encoding;
 - the split used a passphrase and none was provided;
-- the passphrase is wrong.
+- the passphrase is wrong or the encrypted data has changed.
 
 <Steps>
 1. Confirm the threshold and count how many unique shares you have.
@@ -26,7 +26,18 @@ Most combine failures come from one of these causes:
 5. If possible, run the same procedure with a synthetic secret to isolate the process from the data.
 </Steps>
 
-## Common error messages
+## Web recovery guidance
+
+The web app explains recovery errors in your selected language. Each input has a numbered Recovery-share label, including for screen readers. These numbers identify fields, not the share's stored index.
+
+- For incomplete or malformed shares, paste the full saved text and check the selected encoding.
+- For missing shares, add the number requested. Highlighted empty fields show where you can paste them.
+- For duplicates or inconsistent sets, use distinct shares from the same Split operation. Do not edit their contents.
+- For missing passphrases, enter the original passphrase. A decryption failure can mean a wrong passphrase or changed encrypted data; Safeparts cannot tell which. Check both rather than assuming the passphrase is wrong.
+- For unsupported packet or encryption parameters, use a compatible Safeparts version. Do not change the parameters in the shares. Shares from an unsupported packet version may appear as malformed input.
+- If recovery cannot finish for an unknown reason, check your shares and retry. Before reloading the app, make sure you have saved copies to re-enter. Never send the shares or passphrase with a bug report.
+
+## Common CLI/TUI error messages
 
 | Message | Meaning | What to do |
 | --- | --- | --- |

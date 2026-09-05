@@ -89,7 +89,14 @@ export const STRINGS = {
     wasmCommand: "bun run build:wasm",
 
     errorWasmMissing: "WASM module not found. Run bun run build:wasm.",
-    errorInvalidShare: "Invalid share",
+    errorInvalidShare: "Check that each Recovery share is complete and uses the selected encoding. If it came from a newer Safeparts version, use a compatible version to recover it.",
+    errorDuplicateShare: "Each Recovery share must be different. Replace repeated shares with other shares from the same set.",
+    errorInconsistentShares: "These Recovery shares do not form one consistent set. Use shares from the same Split operation without changing their contents.",
+    errorPassphraseRequired: "Enter the passphrase used to protect these Recovery shares. Safeparts cannot reset it.",
+    errorDecryptionFailed: "The passphrase may be wrong or the encrypted data may have been changed. Check the passphrase and use intact Recovery shares from the same set.",
+    errorUnsupportedParameters: "These Recovery shares use unsupported packet or encryption parameters. Use a compatible Safeparts version; do not edit the shares or their parameters.",
+    errorUnsupportedEncoding: "Select the encoding used for these Recovery shares and try again.",
+    errorRecoveryFailed: "Recovery could not finish. Check your Recovery shares and try again. If it still fails, reload Safeparts and re-enter the shares from your saved copies.",
     errorRecoveredSecretNotText:
       "This recovered Secret is not valid UTF-8 text. Use the CLI, TUI, or a native file workflow to recover the exact bytes.",
     errorNotEnoughSharesOne: "Add 1 more share to recover this secret.",
@@ -191,7 +198,14 @@ export const STRINGS = {
     wasmCommand: "bun run build:wasm",
 
     errorWasmMissing: "لم يتم العثور على WASM. شغل bun run build:wasm.",
-    errorInvalidShare: "حصة غير صالحة",
+    errorInvalidShare: "تحقق من اكتمال كل حصة استرداد ومن مطابقتها للصيغة المختارة. إذا أُنشئت بإصدار أحدث من Safeparts، فاستخدم إصدارًا متوافقًا لاستعادتها.",
+    errorDuplicateShare: "يجب أن تكون كل حصة استرداد مختلفة. استبدل الحصص المكررة بحصص أخرى من المجموعة نفسها.",
+    errorInconsistentShares: "حصص الاسترداد هذه لا تنتمي إلى مجموعة متسقة واحدة. استخدم حصصًا من عملية التقسيم نفسها دون تغيير محتواها.",
+    errorPassphraseRequired: "أدخل عبارة المرور المستخدمة لحماية حصص الاسترداد هذه. لا يستطيع Safeparts إعادة تعيينها.",
+    errorDecryptionFailed: "قد تكون عبارة المرور خاطئة أو ربما تغيرت البيانات المشفرة. تحقق من عبارة المرور واستخدم حصص استرداد سليمة من المجموعة نفسها.",
+    errorUnsupportedParameters: "تستخدم حصص الاسترداد هذه معاملات غير مدعومة للحزمة أو التشفير. استخدم إصدارًا متوافقًا من Safeparts ولا تعدّل الحصص أو معاملاتها.",
+    errorUnsupportedEncoding: "اختر الصيغة المستخدمة لحصص الاسترداد هذه ثم حاول مرة أخرى.",
+    errorRecoveryFailed: "تعذر إكمال الاستعادة. تحقق من حصص الاسترداد وحاول مرة أخرى. إذا استمر الخطأ، فأعد تحميل Safeparts وأدخل الحصص من نسخك المحفوظة.",
     errorRecoveredSecretNotText:
       "السر المستعاد ليس نصًا صالحًا بترميز UTF-8. استخدم CLI أو TUI أو سير عمل ملفات أصليًا لاستعادة البايتات بدقة.",
     errorNotEnoughSharesOne: "أضف حصة واحدة أخرى لاستعادة هذا السر.",

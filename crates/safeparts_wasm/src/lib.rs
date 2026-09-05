@@ -50,9 +50,9 @@ pub fn combine_shares(
         let share_str = Zeroizing::new(
             share
                 .as_string()
-                .ok_or_else(|| JsValue::from_str("share must be a string"))?,
+                .ok_or_else(|| recovery_error("invalid_share"))?,
         );
-        let packet = decode_packet(&share_str, encoding).map_err(js_error)?;
+        let packet = decode_recovery_packet(&share_str, encoding).map_err(js_recovery_error)?;
         packets.push(packet);
     }
 
@@ -67,9 +67,9 @@ pub fn combine_share_input(
 ) -> Result<Uint8Array, JsValue> {
     let passphrase = passphrase.map(Zeroizing::new);
     let passphrase_bytes = passphrase.as_ref().map(|value| value.as_bytes());
-    let encoding = Encoding::parse_name(encoding).map_err(js_core_error)?;
-    let parsed =
-        encoding::parse_share_packets_wrapped_mnemonics(input, encoding).map_err(js_core_error)?;
+    let encoding = Encoding::parse_name(encoding).map_err(js_recovery_error)?;
+    let parsed = encoding::parse_share_packets_wrapped_mnemonics(input, encoding)
+        .map_err(js_recovery_error)?;
 
     combine_packets(&parsed.packets, passphrase_bytes)
 }
@@ -97,8 +97,9 @@ fn combine_packets(
     packets: &[SharePacket],
     passphrase: Option<&[u8]>,
 ) -> Result<Uint8Array, JsValue> {
-    let secret =
-        Zeroizing::new(safeparts_core::combine_shares(packets, passphrase).map_err(js_core_error)?);
+    let secret = Zeroizing::new(
+        safeparts_core::combine_shares(packets, passphrase).map_err(js_recovery_error)?,
+    );
 
     Ok(Uint8Array::from(secret.as_slice()))
 }
@@ -147,6 +148,62 @@ fn js_error(error: impl Display) -> JsValue {
     JsValue::from_str(&error.to_string())
 }
 
+fn recovery_error(code: &str) -> JsValue {
+    let obj = Object::new();
+    // Fresh plain objects have no setters; never include core Display text.
+    let _ = Reflect::set(&obj, &JsValue::from_str("code"), &JsValue::from_str(code));
+    obj.into()
+}
+
+fn js_recovery_error(error: CoreError) -> JsValue {
+    recovery_error(match error {
+        CoreError::InvalidPacket(_)
+        | CoreError::Encoding(_)
+        | CoreError::CouldNotDetectEncoding => "invalid_share",
+        CoreError::UnknownEncoding(_) | CoreError::AutoEncodingForOutput => "unsupported_encoding",
+        CoreError::NotEnoughShares { k, m } => {
+            let obj = recovery_error("insufficient_shares");
+            let _ = Reflect::set(
+                &obj,
+                &JsValue::from_str("required"),
+                &JsValue::from_f64(k as f64),
+            );
+            let _ = Reflect::set(
+                &obj,
+                &JsValue::from_str("provided"),
+                &JsValue::from_f64(m as f64),
+            );
+            return obj;
+        }
+        CoreError::DuplicateX { x } => {
+            let obj = recovery_error("duplicate_share");
+            let _ = Reflect::set(
+                &obj,
+                &JsValue::from_str("coordinate"),
+                &JsValue::from_f64(x as f64),
+            );
+            return obj;
+        }
+        CoreError::InconsistentMetadata
+        | CoreError::CryptoParamsMismatch
+        | CoreError::TooManyShares { .. } => "inconsistent_shares",
+        CoreError::PassphraseRequired => "passphrase_required",
+        CoreError::DecryptFailed => "decryption_failed",
+        CoreError::UnsupportedPacketFlags { .. } | CoreError::UnsupportedCryptoParams { .. } => {
+            "unsupported_parameters"
+        }
+        CoreError::EmptyShareInput
+        | CoreError::InvalidKAndN { .. }
+        | CoreError::InvalidX
+        | CoreError::InvalidShareIndex { .. }
+        | CoreError::InvalidCombinedLength { .. }
+        | CoreError::IntegrityCheckFailed => "invalid_share",
+        CoreError::DivisionByZero | CoreError::Crypto(_) | CoreError::EncryptFailed => {
+            "recovery_failed"
+        }
+    })
+}
+
 fn js_core_error(error: CoreError) -> JsValue {
     JsValue::from_str(&error.user_message())
 }
@@ -156,6 +213,21 @@ fn encode_packet(packet: &SharePacket, encoding: &str) -> Result<String, String>
     encoding::encode_packet(packet, encoding).map_err(|error| error.user_message())
 }
 
+fn decode_recovery_packet(input: &str, requested: &str) -> Result<SharePacket, CoreError> {
+    let requested = Encoding::parse_name(requested)?;
+    if !requested.is_auto() {
+        return encoding::decode_packet(input, requested);
+    }
+    let mut parsed = encoding::parse_share_packets(input, requested)?;
+    if parsed.packets.len() != 1 {
+        return Err(CoreError::InvalidPacket(
+            "expected one recovery share".to_string(),
+        ));
+    }
+    Ok(parsed.packets.remove(0))
+}
+
+// Inspection retains its legacy string-error contract.
 fn decode_packet(s: &str, encoding: &str) -> Result<SharePacket, String> {
     decode_packet_with_encoding(s, encoding).map(|(packet, _)| packet)
 }
