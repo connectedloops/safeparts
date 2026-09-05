@@ -23,6 +23,9 @@ Owns the `safeparts-tui` interactive terminal UI.
 - Clear an operation's previous result before attempting it, including early rejection and IO failure. Only success makes output available again.
 - Preserve valid results for focus movement, Recovery-share selection, cancelled loading, and edits that leave input values unchanged. Keep file input selected until a text edit actually changes the editor.
 - Do not add logging that includes secret material.
+- Expected file load/save and split-time reread failures stay in-app with actionable, sanitized status messages. Show operation/file ordinal and partial export count, never paths or underlying error chains that may contain sensitive input.
+- Failed loads preserve prior Secret/file selection and Recovery-share input; failed saves preserve generated/recovered output. Close the file modal and allow Ctrl+L/Ctrl+S to reopen and retry in the same App.
+- Keep per-file private atomic writes; batch export may leave completed files. Terminal setup, drawing, and event-read errors still propagate through terminal-session restoration.
 
 ## Work Guidance
 

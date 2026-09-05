@@ -573,7 +573,10 @@ impl App {
 
             let kind = modal.kind;
             self.modal = None;
-            self.apply_modal(kind, text)?;
+            if let Err(error) = self.apply_modal(kind, text) {
+                // Only the sanitized operation context, never the IO error chain or paths.
+                self.set_err(error.to_string());
+            }
             return Ok(false);
         }
 
@@ -585,7 +588,9 @@ impl App {
         match kind {
             ModalKind::LoadSecretFile => {
                 let p = PathBuf::from(text);
-                let bytes = fs::read(&p).with_context(|| format!("read {}", p.display()))?;
+                let bytes = Zeroizing::new(fs::read(&p).context(
+                    "load Secret failed; check file path and read permissions, then Ctrl+L to retry",
+                )?);
                 self.invalidate_split();
                 self.split_secret_file_len = Some(bytes.len());
                 self.split_secret_file = Some(p);
@@ -598,11 +603,22 @@ impl App {
                 self.set_ok("loaded secret file");
             }
             ModalKind::LoadShareFiles => {
+                anyhow::ensure!(
+                    !text.trim().is_empty(),
+                    "Recovery share file path required; Ctrl+L to retry"
+                );
                 let mut combined = String::new();
-                for line in text.lines().map(str::trim).filter(|l| !l.is_empty()) {
+                for (index, line) in text
+                    .lines()
+                    .map(str::trim)
+                    .filter(|l| !l.is_empty())
+                    .enumerate()
+                {
                     let p = PathBuf::from(line);
-                    let s =
-                        fs::read_to_string(&p).with_context(|| format!("read {}", p.display()))?;
+                    let s = fs::read_to_string(&p).with_context(|| format!(
+                        "load Recovery share file {} failed; check path, read permissions and UTF-8 text, then Ctrl+L to retry",
+                        index + 1,
+                    ))?;
                     combined.push_str(s.trim());
                     combined.push_str("\n\n");
                 }
@@ -619,8 +635,9 @@ impl App {
                 } else {
                     PathBuf::from(text)
                 };
-                fs::create_dir_all(&dir)
-                    .with_context(|| format!("create dir {}", dir.display()))?;
+                fs::create_dir_all(&dir).context(
+                    "export Recovery shares failed; check directory and write permissions, then Ctrl+S to retry",
+                )?;
 
                 let set_id = set_id_hex(&self.split_packets).unwrap_or_else(|| "unknown".into());
                 let n = self.split_shares.len();
@@ -629,7 +646,9 @@ impl App {
                     let i = idx + 1;
                     let filename = format!("safeparts-{set_id}-share-{i}-of-{n}.txt");
                     let path = dir.join(filename);
-                    crate::private_file::write(&path, format!("{share}\n").as_bytes())?;
+                    crate::private_file::write(&path, format!("{share}\n").as_bytes()).with_context(|| format!(
+                        "export Recovery share {i} of {n} failed; {idx} saved; check destination and write permissions, then Ctrl+S to retry",
+                    ))?;
                 }
 
                 self.set_ok(format!("saved {n} share files"));
@@ -646,7 +665,9 @@ impl App {
                 }
 
                 let path = PathBuf::from(text);
-                crate::private_file::write(&path, bytes.as_slice())?;
+                crate::private_file::write(&path, bytes.as_slice()).context(
+                    "save Secret failed; check destination and write permissions, then Ctrl+S to retry",
+                )?;
                 self.set_ok("saved recovered secret");
             }
         }
@@ -657,7 +678,13 @@ impl App {
     fn do_split(&mut self) -> Result<()> {
         self.invalidate_split();
         let secret_bytes = if let Some(path) = self.split_secret_file.as_ref() {
-            fs::read(path).with_context(|| format!("read {}", path.display()))?
+            match fs::read(path) {
+                Ok(bytes) => bytes,
+                Err(_) => {
+                    self.set_err("read Secret failed; check file and permissions, then Enter to retry or Ctrl+L to load another");
+                    return Ok(());
+                }
+            }
         } else {
             self.split_secret_text.lines().join("\n").into_bytes()
         };
@@ -783,7 +810,8 @@ impl App {
             .constraints([
                 Constraint::Length(3),
                 Constraint::Min(0),
-                Constraint::Length(5),
+                // Borders plus wrapped status and editor-safe shortcuts.
+                Constraint::Length(if self.status.is_some() { 6 } else { 5 }),
             ])
             .split(area);
 
@@ -1572,9 +1600,10 @@ mod tests {
             } else {
                 fs::remove_file(&path).unwrap();
                 assert!(
-                    app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
-                        .is_err()
+                    !app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+                        .unwrap()
                 );
+                assert!(status_message(&app).contains("read Secret failed"));
             }
             assert_split_unavailable(&mut app);
         }
@@ -2333,6 +2362,231 @@ mod tests {
             assert!(app.combine_recovered_text.is_none());
             assert!(app.combine_used_encoding.is_none());
         }
+    }
+
+    fn submit_file_operation(app: &mut App, shortcut: char, path: &str) {
+        assert!(
+            !app.on_key(KeyEvent::new(
+                KeyCode::Char(shortcut),
+                KeyModifiers::CONTROL
+            ))
+            .unwrap()
+        );
+        app.modal.as_mut().unwrap().input.insert_str(path);
+        assert!(
+            !app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn failed_secret_load_preserves_input_and_allows_retry() {
+        let directory = tempfile::tempdir().unwrap();
+        let valid = directory.path().join("secret.bin");
+        fs::write(&valid, b"synthetic file Secret").unwrap();
+        let mut app = App::new();
+        app.split_secret_text.insert_str("synthetic prior Secret");
+        app.split_passphrase.push_str("synthetic passphrase");
+        for path in [
+            directory.path().join("missing"),
+            directory.path().to_path_buf(),
+            PathBuf::from("invalid\0path"),
+        ] {
+            submit_file_operation(&mut app, 'l', &path.display().to_string());
+            assert_eq!(app.status.as_ref().unwrap().kind, StatusKind::Error);
+            assert!(status_message(&app).contains("load Secret failed"));
+            assert!(!status_message(&app).contains("synthetic"));
+            assert_eq!(app.split_secret_text.lines(), ["synthetic prior Secret"]);
+            assert!(app.split_secret_file.is_none());
+        }
+        submit_file_operation(&mut app, 'l', &valid.display().to_string());
+        assert_eq!(app.split_secret_file.as_ref(), Some(&valid));
+        submit_file_operation(&mut app, 'l', "missing-again");
+        assert_eq!(app.split_secret_file.as_ref(), Some(&valid));
+        assert_eq!(app.split_secret_file_len, Some(21));
+        assert_eq!(app.split_passphrase.as_str(), "synthetic passphrase");
+        app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+            .unwrap();
+        assert_eq!(app.split_shares.len(), 3);
+    }
+
+    #[test]
+    fn failed_share_batch_load_preserves_prior_input_and_retries() {
+        let directory = tempfile::tempdir().unwrap();
+        let first = directory.path().join("first.txt");
+        let second = directory.path().join("synthetic-sensitive-path.txt");
+        let (_, shares) =
+            split_secret(b"synthetic batch Secret", 2, 3, Encoding::Base64url, None).unwrap();
+        fs::write(&first, &shares[0]).unwrap();
+        let paths = format!("{}\n{}", first.display(), second.display());
+        let mut app = App::new();
+        app.next_tab();
+        app.combine_shares_text
+            .insert_str("synthetic prior Recovery shares");
+        for contents in [None, Some(vec![0xff])] {
+            if let Some(contents) = contents {
+                fs::write(&second, contents).unwrap();
+            }
+            submit_file_operation(&mut app, 'l', &paths);
+            assert_eq!(app.status.as_ref().unwrap().kind, StatusKind::Error);
+            assert!(status_message(&app).contains("load Recovery share file 2 failed"));
+            assert!(!status_message(&app).contains("synthetic"));
+            assert!(!status_message(&app).contains(&shares[0]));
+            assert_eq!(
+                app.combine_shares_text.lines(),
+                ["synthetic prior Recovery shares"]
+            );
+        }
+        fs::write(&second, &shares[1]).unwrap();
+        submit_file_operation(&mut app, 'l', &paths);
+        app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+            .unwrap();
+        assert_eq!(
+            app.combine_recovered.as_deref().map(Vec::as_slice),
+            Some(b"synthetic batch Secret".as_slice())
+        );
+    }
+
+    #[test]
+    fn failed_secret_save_retains_output_and_retries() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut app = App::new();
+        app.next_tab();
+        app.combine_recovered = Some(Zeroizing::new(b"synthetic recovered Secret\0\xff".to_vec()));
+        for path in [
+            directory.path().to_path_buf(),
+            directory.path().join("missing/output"),
+            PathBuf::from("synthetic-sensitive\0path"),
+        ] {
+            submit_file_operation(&mut app, 's', &path.display().to_string());
+            assert_eq!(app.status.as_ref().unwrap().kind, StatusKind::Error);
+            assert!(status_message(&app).contains("save Secret failed"));
+            assert!(!status_message(&app).contains("synthetic"));
+            assert_eq!(
+                app.combine_recovered.as_deref().map(Vec::as_slice),
+                Some(b"synthetic recovered Secret\0\xff".as_slice())
+            );
+        }
+        let output = directory.path().join("output.bin");
+        submit_file_operation(&mut app, 's', &output.display().to_string());
+        assert_eq!(
+            fs::read(output).unwrap(),
+            b"synthetic recovered Secret\0\xff"
+        );
+        assert_eq!(status_message(&app), "saved recovered secret");
+    }
+
+    #[test]
+    fn failed_share_export_reports_partial_batch_and_retries() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut app = App::new();
+        app.split_secret_text.insert_str("synthetic export Secret");
+        app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+            .unwrap();
+        let shares = app.split_shares.clone();
+        let set_id = set_id_hex(&app.split_packets).unwrap();
+        let paths: Vec<_> = (1..=3)
+            .map(|i| {
+                directory
+                    .path()
+                    .join(format!("safeparts-{set_id}-share-{i}-of-3.txt"))
+            })
+            .collect();
+        let blocked_dir = directory.path().join("synthetic-sensitive-path");
+        fs::write(&blocked_dir, b"synthetic existing file").unwrap();
+        submit_file_operation(&mut app, 's', &blocked_dir.display().to_string());
+        assert_eq!(app.status.as_ref().unwrap().kind, StatusKind::Error);
+        assert!(status_message(&app).contains("export Recovery shares failed"));
+        assert!(!status_message(&app).contains("synthetic"));
+        fs::create_dir(&paths[1]).unwrap();
+        submit_file_operation(&mut app, 's', &directory.path().display().to_string());
+        assert_eq!(app.status.as_ref().unwrap().kind, StatusKind::Error);
+        assert!(status_message(&app).contains("export Recovery share 2 of 3 failed; 1 saved"));
+        assert!(!status_message(&app).contains("saved 3 share files"));
+        for share in &shares {
+            assert!(!status_message(&app).contains(share));
+        }
+        assert_eq!(app.split_shares, shares);
+        assert_eq!(
+            fs::read_to_string(&paths[0]).unwrap(),
+            format!("{}\n", shares[0])
+        );
+        assert!(paths[1].is_dir());
+        assert!(!paths[2].exists());
+        fs::remove_dir(&paths[1]).unwrap();
+        submit_file_operation(&mut app, 's', &directory.path().display().to_string());
+        assert_eq!(status_message(&app), "saved 3 share files");
+        for (path, share) in paths.iter().zip(&shares) {
+            assert_eq!(fs::read_to_string(path).unwrap(), format!("{share}\n"));
+        }
+    }
+
+    #[test]
+    fn disappearing_secret_file_during_split_keeps_session_for_retry() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("synthetic-sensitive-path");
+        fs::write(&path, b"synthetic retry Secret").unwrap();
+        let mut app = App::new();
+        submit_file_operation(&mut app, 'l', &path.display().to_string());
+        app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+            .unwrap();
+        assert!(!app.split_shares.is_empty());
+        fs::remove_file(&path).unwrap();
+        assert!(
+            !app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+                .unwrap()
+        );
+        assert_eq!(app.status.as_ref().unwrap().kind, StatusKind::Error);
+        assert!(status_message(&app).contains("read Secret failed"));
+        assert!(!status_message(&app).contains("synthetic"));
+        assert!(app.split_shares.is_empty());
+        assert!(app.split_packets.is_empty());
+        assert_eq!(app.split_secret_file.as_ref(), Some(&path));
+        fs::write(&path, b"synthetic retry Secret").unwrap();
+        app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+            .unwrap();
+        let input = combine_input(&app.split_shares[..2]);
+        app.next_tab();
+        app.combine_shares_text.insert_str(input);
+        app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+            .unwrap();
+        assert_eq!(
+            app.combine_recovered.as_deref().map(Vec::as_slice),
+            Some(b"synthetic retry Secret".as_slice())
+        );
+    }
+
+    #[test]
+    fn empty_share_load_requires_paths_without_clearing_input() {
+        let mut app = App::new();
+        app.next_tab();
+        app.combine_shares_text
+            .insert_str("synthetic prior Recovery shares");
+        submit_file_operation(&mut app, 'l', " \n ");
+        assert_eq!(app.status.as_ref().unwrap().kind, StatusKind::Error);
+        assert_eq!(
+            app.combine_shares_text.lines(),
+            ["synthetic prior Recovery shares"]
+        );
+        assert!(status_message(&app).contains("path required"));
+    }
+
+    #[test]
+    fn file_error_and_retry_guidance_are_visible_in_terminal() {
+        let mut app = App::new();
+        submit_file_operation(&mut app, 'l', "invalid\0path");
+        let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
+        terminal.draw(|frame| app.render(frame)).unwrap();
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect();
+        assert!(rendered.contains("load Secret failed"));
+        assert!(rendered.contains("Ctrl+L"));
+        assert!(rendered.contains("retry"));
     }
 
     #[test]
