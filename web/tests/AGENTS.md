@@ -19,6 +19,7 @@ Owns browser smoke, end-to-end, docs route, accessibility, and mirrored Tauri UI
 - Keep test fixtures synthetic. Do not paste real secrets or real shares into tests.
 - Sensitive-input coverage inspects live effective spellchecking and writing-assistance attributes in English and Arabic, including added Recovery-share fields, and checks exact input/paste content and Share encoding detection with synthetic data.
 - Rendered Tauri tests mock the public command boundary, not React state or component internals.
+- Generated WASM module mocks must match both `/src/wasm_pkg/safeparts_wasm.js` in dev and `/assets/safeparts_wasm-<hash>.js` in built artifacts, allow query strings, and assert interception. Match the public module URL without hardcoding hashes or minifier internals.
 - Accessibility tests should fail on serious, critical, and total axe violations unless a task explicitly changes the policy.
 
 ## Work Guidance

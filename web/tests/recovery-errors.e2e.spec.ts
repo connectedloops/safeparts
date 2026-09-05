@@ -35,12 +35,18 @@ for (const locale of ['en', 'ar'] as const) {
       { code: 'insufficient_shares', required: 'SECRET', provided: 1 },
       { code: 'insufficient_shares', required: 999, provided: -1 },
     ]
+    const wasmModuleUrl = /\/(?:src\/wasm_pkg\/safeparts_wasm|assets\/safeparts_wasm-[^/]+)\.js(?:\?.*)?$/
     for (const error of errors) {
-      await page.route('**/src/wasm_pkg/safeparts_wasm.js*', route => route.fulfill({
-        contentType: 'application/javascript',
-        body: `export default async function init() {}\nexport function combine_share_input() { throw ${JSON.stringify(error)}; }`,
-      }))
+      let intercepted = false
+      await page.route(wasmModuleUrl, async route => {
+        await route.fulfill({
+          contentType: 'application/javascript',
+          body: `export default async function init() {}\nexport function combine_share_input() { throw ${JSON.stringify(error)}; }`,
+        })
+        intercepted = true
+      })
       await page.goto('/')
+      await expect.poll(() => intercepted, { message: 'Generated WASM module mock must be intercepted' }).toBe(true)
       if (locale === 'ar') await page.getByRole('button', { name: 'العربية' }).click()
       await page.getByRole('tab', { name: /combine|استعادة/i }).click()
       const panel = page.locator('#combine-panel')
@@ -49,7 +55,7 @@ for (const locale of ['en', 'ar'] as const) {
       await expect(panel.locator('.alert-error')).toContainText(locale === 'en' ? 'Recovery could not finish' : 'تعذر إكمال الاستعادة')
       await expect(panel.locator('.alert-error')).not.toContainText('SECRET')
       await expect(panel.locator('textarea[aria-invalid="true"]')).toHaveCount(0)
-      await page.unroute('**/src/wasm_pkg/safeparts_wasm.js*')
+      await page.unroute(wasmModuleUrl)
     }
   })
 
