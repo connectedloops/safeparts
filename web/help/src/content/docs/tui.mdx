@@ -42,6 +42,16 @@ For <span class="token">base64url</span> and <span class="token">base58check</sp
 
 Offline execution only helps if custody stays separated. Keep fewer Recovery shares than the Threshold in every account, device, location, administrator domain, and transport channel.
 
+## If a file operation fails
+
+A missing or unreadable file, invalid path, or unwritable destination shows an error in the TUI instead of closing your session. Check the path and file permissions, then press <kbd>Ctrl</kbd>+<kbd>L</kbd> to reopen loading or <kbd>Ctrl</kbd>+<kbd>S</kbd> to choose a save destination and retry.
+
+A failed load keeps your previous Secret input or Recovery-share input. If you load several Recovery-share files, the error identifies the failed file by its position in your list; the TUI replaces the input only after reading every file. Recovery-share files must contain UTF-8 text.
+
+A failed save keeps your generated Recovery shares or recovered Secret. If an export stops partway through, the error gives the failed Recovery share number and the count already saved. Those files remain on disk. Each file is written atomically, but the batch is not a single transaction. Check for completed files before retrying, and keep their custody separated.
+
+The TUI reads a loaded Secret file again when you split. If that read fails, restore the file and press <kbd>Enter</kbd> to retry, or load another file. File-error messages omit paths and sensitive contents. Fatal terminal failures still end the session and attempt to restore terminal settings.
+
 ## Keyboard shortcuts
 
 When a text field has focus, printable characters such as <kbd>?</kbd> go into that field. In the Secret and Recovery-share editors, arrow keys move the cursor through the text. Passphrase fields support typing, Backspace, and clearing with <kbd>Ctrl</kbd>+<kbd>U</kbd>.

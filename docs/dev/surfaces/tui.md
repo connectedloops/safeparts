@@ -28,6 +28,9 @@ It owns:
 - Loading a Secret file clears Split output, including when reloading a path whose contents may have changed. Loading Recovery-share files clears recovered output when the input text changes.
 - Preserve results when users move focus, select a Recovery share, cancel a file dialog, or make an edit that leaves the input unchanged. Cursor movement in an empty Secret editor must not switch away from file input.
 - Add headless app-state tests for split/recovery workflows, recovery failures, focus wrapping, modal and status transitions, keyboard shortcuts, cyclic settings, and rendering. Result-lifetime tests must check clipboard writes and file outcomes, including adding Passphrase protection after an unprotected Split.
+- Handle expected file failures inside the App. Preserve prior input on failed loads and output on failed saves; close the modal and offer Ctrl+L/Ctrl+S to retry. A failed split-time file read preserves input for retry, but starting that Split attempt clears its previous result.
+- Display sanitized operation context, file ordinals, and completed export counts rather than paths or IO error chains. Batch exports can leave completed files; only individual writes are atomic.
+- Test failures and successful retries through keyboard events in the same App, including rendered error guidance. Reserve enough footer space for wrapped status text and borders.
 - Use manual terminal smoke tests for rendering, clipboard integration, and other host behavior.
 - Keep terminal setup behind an RAII session guard so raw mode, alternate-screen state, and cursor visibility are restored on every exit path.
 
