@@ -20,7 +20,7 @@ safeparts split \
   --out shares.txt
 ```
 
-Distribute each share from `shares.txt` to its assigned holder or location. Do not keep `shares.txt` as a long-term artifact unless it is protected like the original secret.
+Distribute each share from `shares.txt` to its assigned holder or location. Read back those saved copies for verification. Remove the aggregate export after the checkpoint; it is not a long-term backup artifact.
 
 ## Combine selected shares
 
@@ -74,9 +74,9 @@ Store the passphrase through a separate policy path. Do not put it next to enoug
 3. Define the working directory and cleanup commands.
 4. Split a synthetic secret with the same commands.
 5. Split the real secret.
-6. Verify recovery if policy allows it.
-7. Distribute shares and record custody without recording share text.
-8. Delete temporary files that contain plaintext, all shares, passphrases, or recovered output.
+6. Save and distribute shares, and record custody without recording share text.
+7. Complete the [saved-backup checkpoint](../break-glass/#verify-saved-backup), including every saved Recovery share and the intended Passphrase protection. Synthetic practice does not validate the real backup.
+8. Only after success, restore separated custody and clean up temporary material before retiring the working copy or declaring the backup established. On failure, keep a known-good working copy, correct or recreate the backup, and repeat verification.
 9. Schedule a drill and a custody review.
 </Steps>
 
@@ -84,7 +84,7 @@ Store the passphrase through a separate policy path. Do not put it next to enoug
 
 Avoid retaining:
 
-- the original plaintext file;
+- the original plaintext working file after the saved-backup checkpoint succeeds;
 - a file containing all shares;
 - passphrase files outside the approved passphrase path;
 - recovered secret files after the secret has been imported or rotated;

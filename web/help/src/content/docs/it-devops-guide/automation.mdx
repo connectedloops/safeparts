@@ -13,7 +13,7 @@ Run recurring CI checks with synthetic secrets. Do not put production shares, pa
 - Use stdin and files rather than command-line literals for secret material.
 - Prefer `--passphrase-file` over `--passphrase`.
 - Create temporary files under a private directory with `umask 077`.
-- Do not store enough shares to recover in one CI secret store, artifact bucket, repository, or identity domain unless that risk is explicitly accepted.
+- Keep fewer shares than the Threshold in each CI secret store, artifact bucket, repository, and identity domain. Temporary aggregation belongs only in an approved, controlled session with cleanup.
 - Do not print recovered secrets. Compare files or pass bytes directly to one controlled step.
 
 ## Local synthetic drill
@@ -46,7 +46,7 @@ safeparts combine \
 cmp "$workdir/secret.bin" "$workdir/recovered.bin"
 ```
 
-Use this pattern for smoke tests and drills. Replace the synthetic input only inside a reviewed recovery procedure.
+This drill teaches split and combine. It does not validate a real backup. Before retiring a working copy, follow the [saved-backup checkpoint](../break-glass/#verify-saved-backup). Keep the examples here synthetic.
 
 ## Passphrase-protected drill
 
@@ -78,6 +78,75 @@ safeparts combine \
 
 cmp "$workdir/secret.bin" "$workdir/recovered.bin"
 ```
+
+<h2 id="saved-backup-rehearsal">Synthetic saved-backup rehearsal</h2>
+
+Run this with Bash, the installed CLI, and standard Unix tools. It uses only synthetic data, including a binary Secret with a NUL byte. It reads back three saved files and checks subsets 1/2 and 1/3 with Passphrase protection. Then it rehearses a wrong Passphrase and a saved backup of the wrong Secret: even valid Recovery shares can recover bytes that do not match the source.
+
+All custody files sit in one temporary directory here only because this is a synthetic rehearsal. For real material, use the checkpoint's controlled session and separated custody, not this directory layout. The script keeps the synthetic working copy on each expected failure, corrects the saved backup, and verifies every saved share again before retirement. Its exit trap deletes the entire synthetic fixture; do not use that trap for a real source working copy that must survive a failed check.
+
+```bash
+# Synthetic saved-backup rehearsal
+set -euo pipefail
+set +x
+umask 077
+workdir="$(mktemp -d)"
+trap 'rm -rf "$workdir"' EXIT
+
+printf 'synthetic source\000with binary bytes\n' > "$workdir/source.bin"
+printf '%s' 'synthetic rehearsal Passphrase' > "$workdir/passphrase.txt"
+printf '%s' 'synthetic wrong Passphrase' > "$workdir/wrong-passphrase.txt"
+
+save_copies() {
+  # base64url CLI output has one Recovery share per line.
+  for index in 1 2 3; do
+    sed -n "${index}p" "$workdir/export.txt" > "$workdir/saved-$index.txt"
+  done
+  rm "$workdir/export.txt"
+}
+create_backup() {
+  safeparts split -k 2 -n 3 -e base64url \
+    -P "$workdir/passphrase.txt" -i "$1" -o "$workdir/export.txt"
+  save_copies
+}
+verify_saved() {
+  local passphrase_file="$1" other status
+  for other in 2 3; do
+    cat "$workdir/saved-1.txt" "$workdir/saved-$other.txt" > "$workdir/selected.txt"
+    rm -f "$workdir/recovered.bin"
+    status=0
+    if safeparts combine -P "$passphrase_file" \
+      -i "$workdir/selected.txt" -o "$workdir/recovered.bin" >/dev/null 2>&1; then
+      cmp -s "$workdir/source.bin" "$workdir/recovered.bin" || status=$?
+    else
+      status=1
+    fi
+    rm -f "$workdir/selected.txt" "$workdir/recovered.bin"
+    if [ "$status" -ne 0 ]; then return 1; fi
+  done
+}
+
+create_backup "$workdir/source.bin"
+verify_saved "$workdir/passphrase.txt"
+printf '%s\n' 'PASS: saved shares 1,2,3 verified'
+
+if verify_saved "$workdir/wrong-passphrase.txt"; then exit 1; fi
+test -f "$workdir/source.bin"
+printf '%s\n' 'PASS: wrong Passphrase blocked; working copy kept'
+
+printf '%s' 'synthetic wrong source' > "$workdir/wrong-source.bin"
+create_backup "$workdir/wrong-source.bin"
+if verify_saved "$workdir/passphrase.txt"; then exit 1; fi
+test -f "$workdir/source.bin"
+printf '%s\n' 'PASS: saved-copy mismatch blocked; working copy kept'
+
+create_backup "$workdir/source.bin"
+verify_saved "$workdir/passphrase.txt"
+rm "$workdir/source.bin"
+printf '%s\n' 'PASS: corrected backup reverified before retirement'
+```
+
+Only fixed status messages should appear. A missing PASS line or a nonzero script exit means the rehearsal did not complete. This exercises the procedure through existing commands; it is not a backup-verification feature or evidence about your real Recovery shares.
 
 ## CI drill
 
@@ -123,7 +192,7 @@ If a job must combine real shares:
 
 - trigger it manually;
 - use a hardened or self-hosted runner;
-- avoid storing enough shares to recover in one secret backend unless accepted by policy;
+- gather shares only for the approved session, then restore separated custody; never retain enough shares in one secret backend;
 - mask variables, but do not rely on masking as the primary control;
 - write recovered output to a private file;
 - pass the file to one reviewed step;

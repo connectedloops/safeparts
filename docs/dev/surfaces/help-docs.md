@@ -15,6 +15,7 @@ This developer guide is only for contributors working on that site.
 - Keep English and Arabic route structures aligned.
 - Preserve `/help/` base path behavior.
 - Keep examples synthetic. Do not include real secrets or real share packets.
+- Keep setup instructions linked to the bilingual saved-backup checkpoint in `it-devops-guide/break-glass.mdx`. Practice drills do not validate real saved Recovery shares; the checkpoint must precede working-copy retirement.
 - Update `web/help/DOCS_MAP.md` for navigation or structure changes.
 - Update `web/help/DOCS_STYLE.md` for style rules.
 
@@ -33,6 +34,15 @@ bun run build
 ```
 
 This standalone build replaces `web/dist/help/` with English and Arabic help but does not build the root app. A later app build deletes it. For a complete site, run `mise run web:build:site` or `bash web/scripts/build-site.sh` from the repository root. See [output semantics](../verification.md#output-semantics).
+
+To execute the synthetic saved-backup rehearsal from both locale pages through the existing CLI, run from the repository root:
+
+```bash
+cargo build -p safeparts
+PATH="${CARGO_TARGET_DIR:-$PWD/target}/debug:$PATH" python3 scripts/dev/test_backup_rehearsal.py
+```
+
+The check runs only synthetic data, requires Bash and standard Unix tools, and verifies fixed status output and temporary-file cleanup. It does not certify a production backup or its custody environment.
 
 For route parity and accessibility coverage:
 

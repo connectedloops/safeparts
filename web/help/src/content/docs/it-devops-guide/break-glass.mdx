@@ -24,25 +24,29 @@ Three independent participants are required. One unavailable person does not blo
 ## Setup procedure
 
 <Steps>
-1. Generate or export the credential in a controlled environment.
-2. Split it with the chosen threshold, encoding, and passphrase policy.
-3. Give each custodian only their own share.
-4. Record custody, holder contacts, threshold, and encoding.
-5. Run a synthetic drill with the same process.
-6. Destroy temporary files that contain the credential or all shares together.
+1. Learn the workflow with a synthetic drill, including a failed verification. This does not validate the real backup.
+2. Generate or export the source Secret in a controlled environment. Keep a known-good working copy until verification succeeds.
+3. Split it with the chosen Threshold, Share encoding, and Passphrase protection policy. Save each Recovery share on its intended custody medium and give each custodian only their own share.
+4. Record custody, holder contacts, Threshold, and Share encoding without recording sensitive material.
+5. Complete the [saved-backup checkpoint](#verify-saved-backup) below using the actual saved material.
+6. Restore separated custody and clean up verification material. Only then treat the backup as established and retire the working copy according to policy.
 </Steps>
 
-Example command:
+<h2 id="verify-saved-backup">Verify the saved backup</h2>
 
-```bash
-safeparts split \
-  -k 3 \
-  -n 5 \
-  -e mnemo-words \
-  --passphrase-file passphrase.txt \
-  --in cloud-admin-recovery.txt \
-  --out shares.txt
-```
+This checkpoint applies to personal backups too. A synthetic drill teaches the process; only recovery from the actual saved Recovery shares can check the real backup. A successful combine or integrity check alone does not prove that you backed up the intended Secret.
+
+1. Approve a short verification session on a trusted, access-restricted machine, offline where practical. Use a private workspace on encrypted temporary storage, outside sync and backup folders. Disable shell tracing, session recording, screen capture, and clipboard history. Do not use shared CI, support tools, or online comparison services. If policy cannot permit this session, keep the working copy and leave setup incomplete until a safe procedure is approved.
+2. Read back the files actually exported to custody media, or transcribe the actual paper or metal copies. Do not reuse only the original in-memory split output or its aggregate export. If a Recovery share has multiple custody copies, exercise each copy in turn. Keep the source Secret unchanged in a separate private file for comparison.
+3. Temporarily bring together exactly the Threshold number of distinct Recovery shares from the same split in this workspace. This is an approved, time-limited aggregation, not a storage plan. Retrieve the intended Passphrase through its separate recovery path if Passphrase protection was used. Recover with that protection intact, using CLI file input and `--out` to a fresh private file rather than terminal output. Never overwrite the source.
+4. Compare exact bytes locally with `cmp -s` on the source and recovered files. Exit status 0 means identical, 1 means different, and any other status is an error; only 0 passes. Do not open the recovered file to inspect it visually. Do not print, log, screenshot, or upload the Secret, Recovery shares, Passphrase, recovered bytes, or hashes. Record only the result, non-sensitive share identifiers, approvals, and time.
+5. Exercise every Recovery share intended for custody. For Threshold <var>k</var> and Share count <var>n</var>, first verify shares 1 through <var>k</var>. Keep the first <var>k</var> minus 1 verified shares as anchors; replace the last share with each remaining share, recovering and comparing again each time. This takes <span class="token" dir="ltr">n - k + 1</span> checks, not all possible subsets. For 3 of 5, check 1/2/3, then 1/2/4, then 1/2/5. For 1 of <var>n</var>, check each share alone. Remove each temporary selection and recovered file before the next check. One passing subset says nothing about untested shares; these checks exercise every saved share but do not prove every possible combination or future readability.
+6. On any read error, combine failure, wrong Passphrase, byte mismatch, or comparison error, stop. Keep the known-good working copy, correct the saved copy or recreate the backup from the source, and repeat the full checkpoint with the corrected saved material before proceeding. Do not bypass Passphrase protection to make a check pass. Recreated splits need fresh custody copies; retire superseded shares only after the replacement passes. Before leaving a failed session, remove its temporary aggregation and recovered output and restore separated custody as in step 7, while preserving the known-good source.
+7. After success, return custody media to their separate holders and remove temporary selections, aggregate exports, recovered files, and temporary Passphrase copies. Clear clipboard history and close the verification tools. File deletion alone does not guarantee erasure on SSDs, snapshots, or backups; use your approved encrypted-workspace disposal procedure. Confirm that no account, device, administrator domain, or transport channel retains enough Recovery shares to recover. Keep the Passphrase on its separate custody path. Then retire the source working copy under policy.
+
+Verification necessarily exposes the Secret and a Threshold-sized selection inside the controlled session. If that environment or its cleanup is suspect, treat the Secret as exposed, rotate it, and verify a fresh backup. Routine synthetic drills remain useful after setup, but never replace this checkpoint for a new or rewritten backup.
+
+Practice both outcomes with the [synthetic saved-backup rehearsal](../automation/#saved-backup-rehearsal).
 
 ## Recovery procedure
 
@@ -56,14 +60,7 @@ safeparts split \
 7. Create a new Safeparts split for the replacement credential.
 </Steps>
 
-Example command:
-
-```bash
-safeparts combine \
-  --passphrase-file passphrase.txt \
-  --in selected-shares.txt \
-  --out recovered-cloud-admin.txt
-```
+For synthetic command examples, see [automation patterns](../automation/).
 
 :::danger
 After break-glass recovery, assume the gathered shares were exposed. Rotate the underlying credential and issue a fresh split.
