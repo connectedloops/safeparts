@@ -37,7 +37,7 @@ fn recover_from_paste(input: &str) -> CoreResult<Vec<u8>> {
 }
 ```
 
-في واجهات النص حيث قد تلتف حصة mnemonic طويلة على عدة أسطر، استخدم `parse_share_packets_wrapped_mnemonics`. تظل الأسطر الفارغة فاصلاً بين حصص mnemonic.
+لمناطق النص وملفات حصص CLI بالكلمات، استخدم `parse_share_packets_wrapped_mnemonics`. تحاول الدالة أولاً فك ترميز كل سطر غير فارغ كحصة استرداد كاملة مع التحقق الصارم. إذا فشل ذلك، تفصل الأسطر الفارغة بين حصص الاسترداد الموزعة على عدة أسطر. تقبل الطريقتان نهايات الأسطر <span class="token" dir="ltr">LF</span> و<span class="token" dir="ltr">CRLF</span>. تؤدي الكلمات والإطارات غير الصالحة، بما فيها إطارات <span class="token" dir="ltr">BIP-39</span> الفارغة، إلى خطأ بدلاً من تجاهلها.
 
 ## الترميزات المدعومة
 

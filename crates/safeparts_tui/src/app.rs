@@ -170,7 +170,7 @@ impl App {
     fn new_combine_shares_text() -> TextArea<'static> {
         let mut combine_shares_text = TextArea::default();
         combine_shares_text.set_placeholder_text(
-            "Paste shares here.\n\n- base64url/base58check: whitespace-separated\n- mnemonics: one share per paragraph (blank-line separated)",
+            "Paste shares here.\n\n- base64url/base58check: whitespace-separated\n- mnemonics: one complete share per line (CLI files), or wrapped shares separated by blank lines",
         );
         combine_shares_text
     }
@@ -1170,7 +1170,8 @@ impl App {
                 Style::default().add_modifier(Modifier::BOLD),
             )),
             Line::from("  base64url/base58check: whitespace-separated shares"),
-            Line::from("  mnemonics: one share per paragraph (blank-line separated)"),
+            Line::from("  mnemonics: one complete share per line (including CLI files)"),
+            Line::from("  wrapped mnemonics: separate shares with a blank line"),
         ];
 
         let p = Paragraph::new(content)
@@ -2050,6 +2051,63 @@ mod tests {
 
         assert_eq!(fs::read(recovered_path).unwrap(), secret);
         assert_eq!(status_message(&app), "saved recovered secret");
+    }
+
+    #[test]
+    fn cli_mnemonic_files_recover_through_tui_loading() {
+        let directory = tempfile::tempdir().unwrap();
+        let secret = b"synthetic CLI to TUI secret\0\xff";
+        let secret_path = directory.path().join("secret.bin");
+        fs::write(&secret_path, secret).unwrap();
+
+        for encoding in [Encoding::MnemoWords, Encoding::MnemoBip39] {
+            let output_path = directory.path().join("cli-shares.txt");
+            // Run the real producer; do not recreate its output framing here.
+            let output = std::process::Command::new(env!("CARGO"))
+                .args(["run", "--quiet", "--manifest-path"])
+                .arg(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../safeparts/Cargo.toml"
+                ))
+                .args([
+                    "--",
+                    "split",
+                    "-k",
+                    "2",
+                    "-n",
+                    "3",
+                    "-e",
+                    encoding.label(),
+                    "-i",
+                ])
+                .arg(&secret_path)
+                .arg("-o")
+                .arg(&output_path)
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "CLI split failed");
+            let cli_text = fs::read_to_string(&output_path).unwrap();
+            assert_eq!(cli_text.lines().count(), 3);
+            let selection_path = directory.path().join("threshold.txt");
+            fs::write(
+                &selection_path,
+                cli_text.lines().take(2).collect::<Vec<_>>().join("\n"),
+            )
+            .unwrap();
+
+            for path in [&selection_path, &output_path] {
+                for input_encoding in [Encoding::Auto, encoding] {
+                    let mut app = App::new();
+                    app.next_tab();
+                    app.combine_encoding = input_encoding;
+                    app.apply_modal(ModalKind::LoadShareFiles, path.display().to_string())
+                        .unwrap();
+                    app.do_combine().unwrap();
+                    assert_eq!(app.combine_recovered.as_ref().unwrap().as_slice(), secret);
+                    assert_eq!(app.combine_used_encoding, Some(encoding));
+                }
+            }
+        }
     }
 
     #[test]

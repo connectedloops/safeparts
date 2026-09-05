@@ -17,7 +17,8 @@ Owns the core library for secret splitting, combining, packets, encodings, integ
 
 - Keep cryptographic and encoding rules here; front-ends adapt IO and presentation only.
 - Do not log or fixture real secrets, share packets, passphrases, or reconstructed secrets.
-- Preserve strict validation and typed errors for malformed input.
+- Preserve strict validation and typed errors for malformed input, including empty BIP-39 frames.
+- `parse_share_packets_wrapped_mnemonics` accepts complete mnemonic packets per line only when every nonempty line strictly decodes; otherwise it decodes blank-line-separated wrapped packets. Consume all input in either framing.
 - Retain decoding for every released Share packet version unless an explicit migration decision changes the policy.
 - Treat `tests/fixtures/share_compatibility/` as immutable evidence: add new versioned fixtures without regenerating released expected data.
 - Workspace lint policy forbids `unsafe`; do not weaken it.

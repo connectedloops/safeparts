@@ -36,14 +36,10 @@ pub fn encode_packet(packet: &SharePacket) -> CoreResult<String> {
 }
 
 pub fn decode_packet(s: &str) -> CoreResult<SharePacket> {
-    let phrases: Vec<&str> = s
-        .split('/')
-        .map(str::trim)
-        .filter(|p| !p.is_empty())
-        .collect();
+    let phrases: Vec<&str> = s.split('/').map(str::trim).collect();
 
-    if phrases.is_empty() {
-        return Err(CoreError::Encoding("no bip39 phrases provided".to_string()));
+    if phrases.iter().any(|phrase| phrase.is_empty()) {
+        return Err(CoreError::Encoding("empty bip39 frame".to_string()));
     }
 
     let mut expected_count: Option<u16> = None;
