@@ -243,7 +243,7 @@ impl App {
             return Ok(true);
         }
 
-        if key.code == KeyCode::F(1) || key.code == KeyCode::Char('?') {
+        if key.code == KeyCode::F(1) {
             self.show_help = true;
             return Ok(false);
         }
@@ -279,11 +279,11 @@ impl App {
         }
 
         match key.code {
-            KeyCode::Left => {
+            KeyCode::Left if key.modifiers == KeyModifiers::ALT => {
                 self.prev_tab();
                 Ok(false)
             }
-            KeyCode::Right => {
+            KeyCode::Right if key.modifiers == KeyModifiers::ALT => {
                 self.next_tab();
                 Ok(false)
             }
@@ -291,11 +291,11 @@ impl App {
                 self.on_enter()?;
                 Ok(false)
             }
-            KeyCode::Up => {
+            KeyCode::Up if !matches!(self.focus, Focus::SplitSecret | Focus::CombineShares) => {
                 self.on_up();
                 Ok(false)
             }
-            KeyCode::Down => {
+            KeyCode::Down if !matches!(self.focus, Focus::SplitSecret | Focus::CombineShares) => {
                 self.on_down();
                 Ok(false)
             }
@@ -783,7 +783,7 @@ impl App {
             .constraints([
                 Constraint::Length(3),
                 Constraint::Min(0),
-                Constraint::Length(2),
+                Constraint::Length(5),
             ])
             .split(area);
 
@@ -836,10 +836,10 @@ impl App {
     fn render_footer(&self, f: &mut Frame, area: Rect) {
         let shortcuts = match self.tab {
             TabId::Split => {
-                "Enter split • Ctrl+L load • Ctrl+S export • Ctrl+C copy selected share • Tab focus • ? help • Ctrl+Q quit"
+                "F1 help • Alt+Left/Right operation • Tab focus • Enter split • Ctrl+L load • Ctrl+S export • Ctrl+C copy selected share • Ctrl+Q quit"
             }
             TabId::Combine => {
-                "Enter combine • Ctrl+L load • Ctrl+S save • Ctrl+C copy • Tab focus • ? help • Ctrl+Q quit"
+                "F1 help • Alt+Left/Right operation • Tab focus • Enter combine • Ctrl+L load • Ctrl+S save • Ctrl+C copy • Ctrl+Q quit"
             }
         };
 
@@ -1150,8 +1150,12 @@ impl App {
                 "Navigation",
                 Style::default().add_modifier(Modifier::BOLD),
             )),
-            Line::from("  Left/Right: switch Split/Combine"),
+            Line::from("  Alt+Left/Right: switch Split/Combine"),
             Line::from("  Tab / Shift+Tab: change focus"),
+            Line::from("  Arrows: move cursor in multiline editors"),
+            Line::from("  Up/Down: adjust focused setting or select Recovery share"),
+            Line::from("  F1: open help"),
+            Line::from("  Esc: close help or cancel a modal"),
             Line::from(""),
             Line::from(Span::styled(
                 "Actions",
@@ -1427,7 +1431,8 @@ mod tests {
     fn recover_app() -> App {
         let mut app = split_app();
         let input = combine_input(&app.split_shares[..2]);
-        key(&mut app, KeyCode::Right);
+        app.on_key(KeyEvent::new(KeyCode::Right, KeyModifiers::ALT))
+            .unwrap();
         for c in input.chars() {
             key(&mut app, KeyCode::Char(c));
         }
@@ -1481,7 +1486,8 @@ mod tests {
             ctrl(&mut app, 'v');
             assert_recovery_unavailable(&mut app);
             // Editing Recover must not discard the Split result.
-            key(&mut app, KeyCode::Left);
+            app.on_key(KeyEvent::new(KeyCode::Left, KeyModifiers::ALT))
+                .unwrap();
             focus(&mut app, Focus::SplitShares);
             ctrl(&mut app, 'c');
             assert_eq!(status_message(&app), "copied to clipboard");
@@ -1596,7 +1602,8 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(shares.len(), 3);
         app.clipboard.set_text(&shares.join("\n")).unwrap();
-        key(&mut app, KeyCode::Right);
+        app.on_key(KeyEvent::new(KeyCode::Right, KeyModifiers::ALT))
+            .unwrap();
         ctrl(&mut app, 'v');
         key(&mut app, KeyCode::Enter);
         assert!(status_message(&app).starts_with("combine error:"));
@@ -1626,7 +1633,8 @@ mod tests {
         assert!(status_message(&app).starts_with("combine error:"));
         assert_recovery_unavailable(&mut app);
 
-        key(&mut app, KeyCode::Left);
+        app.on_key(KeyEvent::new(KeyCode::Left, KeyModifiers::ALT))
+            .unwrap();
         focus(&mut app, Focus::SplitPassphrase);
         key(&mut app, KeyCode::Backspace);
         assert_split_unavailable(&mut app);
@@ -1780,6 +1788,327 @@ mod tests {
         key(&mut app, KeyCode::Char('x'));
         assert!(app.split_secret_file.is_none());
         assert_split_unavailable(&mut app);
+    }
+
+    #[test]
+    fn focused_editors_keep_printable_text_including_question_marks() {
+        for (tab, focus) in [
+            (TabId::Split, Focus::SplitSecret),
+            (TabId::Split, Focus::SplitPassphrase),
+            (TabId::Combine, Focus::CombineShares),
+            (TabId::Combine, Focus::CombinePassphrase),
+        ] {
+            let mut app = App::new();
+            app.tab = tab;
+            app.focus = focus;
+            for c in "abc?def !ع".chars() {
+                let modifiers = if c == '?' || c == '!' {
+                    KeyModifiers::SHIFT
+                } else {
+                    KeyModifiers::NONE
+                };
+                app.on_key(KeyEvent::new(KeyCode::Char(c), modifiers))
+                    .unwrap();
+            }
+            let entered = match focus {
+                Focus::SplitSecret => app.split_secret_text.lines().join("\n"),
+                Focus::CombineShares => app.combine_shares_text.lines().join("\n"),
+                Focus::SplitPassphrase => app.split_passphrase.to_string(),
+                Focus::CombinePassphrase => app.combine_passphrase.to_string(),
+                _ => unreachable!(),
+            };
+            assert_eq!(entered, "abc?def !ع", "{focus:?}");
+            assert!(!app.show_help);
+            assert_eq!(app.tab, tab);
+        }
+    }
+
+    #[test]
+    fn multiline_editor_arrows_move_the_cursor_without_switching_operations() {
+        for (tab, focus) in [
+            (TabId::Split, Focus::SplitSecret),
+            (TabId::Combine, Focus::CombineShares),
+        ] {
+            let mut app = App::new();
+            app.tab = tab;
+            app.focus = focus;
+            // Start with synthetic multiline content, as from a paste.
+            match focus {
+                Focus::SplitSecret => app.split_secret_text.insert_str("abc\ndef"),
+                Focus::CombineShares => app.combine_shares_text.insert_str("abc\ndef"),
+                _ => unreachable!(),
+            };
+            for (code, expected_cursor) in [
+                (KeyCode::Left, (1, 2)),
+                (KeyCode::Up, (0, 2)),
+                (KeyCode::Right, (0, 3)),
+                (KeyCode::Down, (1, 3)),
+                (KeyCode::Home, (1, 0)),
+                (KeyCode::End, (1, 3)),
+            ] {
+                app.on_key(KeyEvent::new(code, KeyModifiers::NONE)).unwrap();
+                assert_eq!(app.tab, tab, "{focus:?}: {code:?}");
+                assert_eq!(app.focus, focus);
+                let editor = match focus {
+                    Focus::SplitSecret => &app.split_secret_text,
+                    Focus::CombineShares => &app.combine_shares_text,
+                    _ => unreachable!(),
+                };
+                assert_eq!(editor.cursor(), expected_cursor, "{focus:?}: {code:?}");
+                assert_eq!(editor.lines(), ["abc", "def"]);
+            }
+            app.on_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE))
+                .unwrap();
+            app.on_key(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE))
+                .unwrap();
+            let editor = if tab == TabId::Split {
+                &app.split_secret_text
+            } else {
+                &app.combine_shares_text
+            };
+            assert_eq!(editor.lines(), ["abc", "de?f"]);
+            assert_eq!((app.split_k, app.split_n), (2, 3));
+            assert_eq!(app.split_encoding, Encoding::Base64url);
+            assert_eq!(app.combine_encoding, Encoding::Auto);
+        }
+    }
+
+    #[test]
+    fn help_and_operation_shortcuts_are_available_from_every_normal_focus() {
+        for (tab, focuses) in [
+            (
+                TabId::Split,
+                &[
+                    Focus::SplitSecret,
+                    Focus::SplitK,
+                    Focus::SplitN,
+                    Focus::SplitEncoding,
+                    Focus::SplitPassphrase,
+                    Focus::SplitShares,
+                ][..],
+            ),
+            (
+                TabId::Combine,
+                &[
+                    Focus::CombineShares,
+                    Focus::CombineEncoding,
+                    Focus::CombinePassphrase,
+                ][..],
+            ),
+        ] {
+            for &focus in focuses {
+                for direction in [KeyCode::Left, KeyCode::Right] {
+                    let mut app = App::new();
+                    app.tab = tab;
+                    app.focus = focus;
+                    app.on_key(KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE))
+                        .unwrap();
+                    assert!(app.show_help, "{focus:?}");
+                    app.on_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE))
+                        .unwrap();
+                    assert!(!app.show_help);
+                    assert_eq!(app.focus, focus);
+                    app.on_key(KeyEvent::new(direction, KeyModifiers::ALT))
+                        .unwrap();
+                    assert_eq!(
+                        app.tab,
+                        if tab == TabId::Split {
+                            TabId::Combine
+                        } else {
+                            TabId::Split
+                        }
+                    );
+                    assert_eq!(
+                        app.focus,
+                        if tab == TabId::Split {
+                            Focus::CombineShares
+                        } else {
+                            Focus::SplitSecret
+                        }
+                    );
+                    app.on_key(KeyEvent::new(direction, KeyModifiers::ALT))
+                        .unwrap();
+                    assert_eq!(app.tab, tab);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rendered_shortcuts_describe_editor_safe_navigation_and_help() {
+        let mut app = App::new();
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        for tab in [TabId::Split, TabId::Combine] {
+            app.tab = tab;
+            terminal.draw(|frame| app.render(frame)).unwrap();
+            let screen = terminal
+                .backend()
+                .buffer()
+                .content
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect::<String>();
+            assert!(screen.contains("F1 help"));
+            assert!(screen.contains("Alt+Left/Right"));
+            assert!(!screen.contains("? help"));
+        }
+        app.on_key(KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE))
+            .unwrap();
+        terminal.draw(|frame| app.render(frame)).unwrap();
+        let screen = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(screen.contains("Alt+Left/Right: switch Split/Combine"));
+        assert!(screen.contains("Arrows: move cursor in multiline editors"));
+        assert!(screen.contains("F1: open help"));
+        assert!(screen.contains("Esc: close help or cancel a modal"));
+    }
+
+    #[test]
+    fn navigating_secret_editor_keeps_loaded_file_until_text_is_edited() {
+        let mut app = App::new();
+        app.split_secret_file = Some(PathBuf::from("synthetic-secret.bin"));
+        app.split_secret_file_len = Some(7);
+        for code in [KeyCode::Left, KeyCode::Right, KeyCode::Up, KeyCode::Down] {
+            app.on_key(KeyEvent::new(code, KeyModifiers::NONE)).unwrap();
+            assert_eq!(
+                app.split_secret_file.as_deref(),
+                Some(std::path::Path::new("synthetic-secret.bin"))
+            );
+            assert_eq!(app.split_secret_file_len, Some(7));
+        }
+        app.on_key(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE))
+            .unwrap();
+        assert!(app.split_secret_file.is_none());
+        assert!(app.split_secret_file_len.is_none());
+        assert_eq!(app.split_secret_text.lines(), ["?"]);
+    }
+
+    #[test]
+    fn focused_controls_retain_up_down_behavior() {
+        let mut app = App::new();
+        for (focus, expected_up, expected_down) in [
+            (Focus::SplitK, (3, 3), (2, 3)),
+            (Focus::SplitN, (2, 4), (2, 3)),
+        ] {
+            app.focus = focus;
+            app.on_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE))
+                .unwrap();
+            assert_eq!((app.split_k, app.split_n), expected_up);
+            app.on_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE))
+                .unwrap();
+            assert_eq!((app.split_k, app.split_n), expected_down);
+            assert_eq!(app.tab, TabId::Split);
+        }
+        for (tab, focus, original) in [
+            (TabId::Split, Focus::SplitEncoding, Encoding::Base64url),
+            (TabId::Combine, Focus::CombineEncoding, Encoding::Auto),
+        ] {
+            app.tab = tab;
+            app.focus = focus;
+            for (code, expected) in [
+                (KeyCode::Up, Encoding::MnemoBip39),
+                (KeyCode::Down, original),
+            ] {
+                app.on_key(KeyEvent::new(code, KeyModifiers::NONE)).unwrap();
+                assert_eq!(
+                    if tab == TabId::Split {
+                        app.split_encoding
+                    } else {
+                        app.combine_encoding
+                    },
+                    expected
+                );
+                assert_eq!(app.tab, tab);
+            }
+        }
+        app.tab = TabId::Split;
+        app.focus = Focus::SplitShares;
+        app.split_shares = vec!["synthetic one".into(), "synthetic two".into()];
+        for (code, selected) in [
+            (KeyCode::Up, 0),
+            (KeyCode::Down, 1),
+            (KeyCode::Down, 1),
+            (KeyCode::Up, 0),
+        ] {
+            app.on_key(KeyEvent::new(code, KeyModifiers::NONE)).unwrap();
+            assert_eq!(app.split_selected_share, selected);
+            assert_eq!(app.focus, Focus::SplitShares);
+            assert_eq!(app.tab, TabId::Split);
+        }
+    }
+
+    #[test]
+    fn editor_shortcuts_keep_submit_clear_paste_failure_and_modal_cancellation_usable() {
+        let mut app = App::new();
+        app.clipboard = Clipboard::recording();
+        for c in "abc?def".chars() {
+            app.on_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE))
+                .unwrap();
+        }
+        app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+            .unwrap();
+        assert_eq!(app.split_shares.len(), 3);
+        let recovery_input = combine_input(&app.split_shares[..2]);
+        app.on_key(KeyEvent::new(KeyCode::Right, KeyModifiers::ALT))
+            .unwrap();
+        app.combine_shares_text.insert_str(recovery_input);
+        app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+            .unwrap();
+        assert_eq!(
+            app.combine_recovered
+                .as_deref()
+                .map(|bytes| bytes.as_slice()),
+            Some(b"abc?def".as_slice())
+        );
+
+        for (tab, focus) in [
+            (TabId::Split, Focus::SplitPassphrase),
+            (TabId::Combine, Focus::CombinePassphrase),
+        ] {
+            app.tab = tab;
+            app.focus = focus;
+            for c in "abc?def".chars() {
+                app.on_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE))
+                    .unwrap();
+            }
+            app.on_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE))
+                .unwrap();
+            assert_eq!(
+                if tab == TabId::Split {
+                    app.split_passphrase.as_str()
+                } else {
+                    app.combine_passphrase.as_str()
+                },
+                "abc?de"
+            );
+            app.on_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL))
+                .unwrap();
+            assert!(app.split_passphrase.is_empty());
+            assert!(app.combine_passphrase.is_empty());
+            app.on_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::CONTROL))
+                .unwrap();
+            assert_eq!(status_message(&app), "paste unavailable");
+            app.on_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::CONTROL))
+                .unwrap();
+            for c in "abc?def".chars() {
+                app.on_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE))
+                    .unwrap();
+            }
+            assert_eq!(app.modal.as_ref().unwrap().input.lines(), ["abc?def"]);
+            assert!(!app.show_help);
+            app.on_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE))
+                .unwrap();
+            assert!(app.modal.is_none());
+            assert!(
+                app.on_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::CONTROL))
+                    .unwrap()
+            );
+        }
     }
 
     #[test]
@@ -2129,7 +2458,7 @@ mod tests {
             .unwrap();
         assert!(app.split_passphrase.is_empty());
 
-        app.on_key(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE))
+        app.on_key(KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE))
             .unwrap();
         assert!(app.show_help);
         app.on_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE))

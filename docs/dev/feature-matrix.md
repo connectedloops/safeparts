@@ -21,6 +21,7 @@ Status keys:
 | Split result provenance | N/A | N/A | N/A | N/A | Yes | Yes | Yes | Yes | N/A | Rendered Web and Tauri workflows, browser clipboard/status checks, and native application-model tests | Web, desktop, and native application models |
 | CLI/TUI private atomic file output | N/A | Yes | Yes | N/A | N/A | N/A | N/A | N/A | N/A | CLI e2e and TUI file tests | CLI and TUI guides |
 | TUI Split/Recover result lifetime | N/A | N/A | Input changes and new attempts clear output; focus and no-op edits preserve it | N/A | N/A | N/A | N/A | N/A | N/A | Headless key events, clipboard reads/writes, file load/export/save, and protected-export recovery | TUI state contract and guide |
+| TUI editor-owned text and navigation | N/A | N/A | Yes; F1 help, Alt+Left/Right operations | N/A | N/A | N/A | N/A | N/A | English + Arabic shortcuts | Headless key events, exact Secret/passphrase values, cursor navigation, focused controls, rendered shortcuts | TUI interaction contract, surface guide, and bilingual TUI help |
 | TUI terminal-state restoration | N/A | N/A | Yes | N/A | N/A | N/A | N/A | N/A | N/A | Injected setup, cleanup, and panic-path tests | TUI guide |
 | Threshold range `1 <= k <= n <= 255` | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Core packet metadata and mutation properties, Windows model, and native-bridge negative tests | Core, CLI, TUI, WASM, web, desktop, native apps |
 | BLAKE3 integrity tag | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Core | Yes | Core corruption and deterministic mutation properties | Core and technical docs |

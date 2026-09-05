@@ -15,7 +15,8 @@ Owns the `safeparts-tui` interactive terminal UI.
 
 - Keep split/combine and encoding rules in `safeparts_core`.
 - File loading and pasted mnemonic input use the core wrapped parser: accept CLI files with one complete Recovery share per line as well as blank-line-separated wrapped shares, with Auto or explicit encoding.
-- Keep the TUI keyboard-first.
+- Keep the TUI keyboard-first. Focused editors own printable text (including `?`) and multiline text-navigation keys. Reserve Alt+Left/Right for operation switching and F1 for help from normal focus; keep Enter submission and explicit Ctrl action shortcuts.
+- Up/Down adjust numeric settings, Share encoding, or Recovery-share selection only when those controls have focus. Navigating the Secret editor preserves its loaded-file source; editing text switches to text input. Keep on-screen shortcuts and English/Arabic TUI help aligned with routing.
 - Treat clipboard contents, shares, passphrases, and recovered secrets as sensitive.
 - Split clipboard actions must copy only the selected Recovery share, never a multi-share payload.
 - Results belong to the inputs that produced them. Changes to Secret/Recovery-share text, Threshold, Share count, Share encoding, or passphrase clear that operation's output and result metadata before copy/export/save can use it. Successful Secret file loading also clears Split output; Recovery file loading clears output when its text changes.

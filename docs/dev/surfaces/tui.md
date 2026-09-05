@@ -19,6 +19,8 @@ It owns:
 - Keep secret-sharing behavior in core. Mnemonic input uses `parse_share_packets_wrapped_mnemonics`: complete Recovery shares per line (including CLI output files), or wrapped Recovery shares separated by blank lines. Auto and explicit encoding accept LF and CRLF.
 - Keep the CLI-to-TUI file-loading regression: produce real CLI mnemonic output, load both a Threshold-sized selection and the full file into the headless TUI, and compare recovered bytes.
 - Keep keyboard operation reliable before adding mouse-only affordances.
+- Route printable input, including `?`, to the focused editor. Multiline editors own unmodified arrows and other text-navigation keys; Up/Down still adjust focused settings or select a Recovery share.
+- Use Alt+Left/Right to switch operations and F1 to open help from normal focus. Keep Enter submission, explicit Ctrl actions, and Esc modal cancellation intact. Check rendered shortcuts and both language versions of the TUI help page when changing keys.
 - Treat clipboard contents as sensitive. Split clipboard actions copy only the selected Recovery share; they never gather multiple Recovery shares.
 - Avoid writing share text or recovered secrets to logs.
 - Save recovery shares and reconstructed secrets through atomic private-file output. On Unix, exported files must be owner-only.
