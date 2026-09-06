@@ -7,8 +7,10 @@ on:
     paths:
       - 'Cargo.lock'
       - 'Cargo.toml'
-      - 'crates/**/Cargo.toml'
-      - 'desktop/src-tauri/Cargo.toml'
+      - 'crates/safeparts/Cargo.toml'
+      - 'crates/safeparts_core/Cargo.toml'
+      - 'crates/safeparts_tui/Cargo.toml'
+      - 'crates/safeparts_wasm/Cargo.toml'
       - 'rustsec-policy.toml'
       - 'scripts/dev/rustsec_audit.py'
       - '.github/workflows/rustsec.yml'

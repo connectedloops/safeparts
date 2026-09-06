@@ -17,6 +17,6 @@ Open a minimal issue without sensitive material, or contact the maintainer priva
 - [ ] CLI
 - [ ] TUI
 - [ ] Web UI
-- [ ] Desktop app
+- [ ] WASM
 - [ ] Docs
 - [ ] Release packaging

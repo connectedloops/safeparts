@@ -19,7 +19,6 @@ What should this help a user or developer do?
 - [ ] TUI
 - [ ] WASM
 - [ ] Web UI
-- [ ] Desktop app
 - [ ] Help docs
 - [ ] Release packaging
 

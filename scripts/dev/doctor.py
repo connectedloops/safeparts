@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import os
-import platform
 import shutil
 import subprocess
 import sys
@@ -95,7 +94,6 @@ def check_js(report: Report) -> None:
     expected = [
         REPO_ROOT / "web" / "bun.lock",
         REPO_ROOT / "web" / "help" / "bun.lock",
-        REPO_ROOT / "desktop" / "bun.lock",
     ]
     for path in expected:
         if path.exists():
@@ -110,9 +108,6 @@ def check_js(report: Report) -> None:
         REPO_ROOT / "web" / "help" / "package-lock.json",
         REPO_ROOT / "web" / "help" / "pnpm-lock.yaml",
         REPO_ROOT / "web" / "help" / "yarn.lock",
-        REPO_ROOT / "desktop" / "package-lock.json",
-        REPO_ROOT / "desktop" / "pnpm-lock.yaml",
-        REPO_ROOT / "desktop" / "yarn.lock",
     ]
     for path in ambiguous:
         if path.exists():
@@ -130,22 +125,6 @@ def check_wasm_tools(report: Report) -> None:
         report.warn("generated WASM package missing; run `cd web && bun run build:wasm`")
 
 
-def check_tauri_linux_deps(report: Report) -> None:
-    if platform.system() != "Linux":
-        return
-    if shutil.which("pkg-config") is None:
-        report.warn("pkg-config missing; Linux desktop dependency checks skipped")
-        return
-
-    packages = ["webkit2gtk-4.1", "ayatana-appindicator3-0.1", "openssl", "librsvg-2.0"]
-    for package in packages:
-        code, _ = run(["pkg-config", "--exists", package])
-        if code == 0:
-            report.ok(f"Linux desktop dependency available: {package}")
-        else:
-            report.warn(f"Linux desktop dependency may be missing: {package}")
-
-
 def main() -> int:
     os.chdir(REPO_ROOT)
     report = Report()
@@ -154,7 +133,6 @@ def main() -> int:
     check_rust(report)
     check_js(report)
     check_wasm_tools(report)
-    check_tauri_linux_deps(report)
 
     print()
     if report.errors:

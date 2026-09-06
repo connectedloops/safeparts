@@ -18,7 +18,6 @@ REQUIRED_FEATURE_MATRIX_COLUMNS = [
     "TUI",
     "WASM",
     "Web",
-    "Desktop",
     "Help docs",
     "Tests",
     "Update when changed",
@@ -31,9 +30,6 @@ NON_BUN_LOCKS = [
     "web/help/package-lock.json",
     "web/help/pnpm-lock.yaml",
     "web/help/yarn.lock",
-    "desktop/package-lock.json",
-    "desktop/pnpm-lock.yaml",
-    "desktop/yarn.lock",
 ]
 
 GENERATED_PREFIXES = [
@@ -41,8 +37,6 @@ GENERATED_PREFIXES = [
     "web/dist/",
     "web/help/dist/",
     "web/help/.astro/",
-    "desktop/dist/",
-    "desktop/src-tauri/gen/schemas/",
     "target/",
     "dist/",
 ]
@@ -167,10 +161,8 @@ def check_surface_guides(result: CheckResult) -> None:
         "tui.md",
         "wasm.md",
         "web.md",
-        "desktop.md",
         "help-docs.md",
         "release.md",
-        "mobile.md",
     ]
     base = REPO_ROOT / "docs" / "dev" / "surfaces"
     for name in required:
@@ -197,7 +189,7 @@ def check_developer_manuals(result: CheckResult) -> None:
 
 
 def check_lockfiles(result: CheckResult) -> None:
-    for rel in ["web/bun.lock", "web/help/bun.lock", "desktop/bun.lock"]:
+    for rel in ["web/bun.lock", "web/help/bun.lock"]:
         if (REPO_ROOT / rel).exists():
             result.ok(f"Bun lockfile present: {rel}")
         else:
@@ -236,20 +228,6 @@ def check_web_deploy_policy(result: CheckResult) -> None:
         result.error("Web deployment artifact and workflow policy check failed")
 
 
-def check_desktop_parity(result: CheckResult) -> None:
-    code, out = run([sys.executable, "scripts/dev/check_desktop_parity.py"])
-    if out:
-        for line in out.splitlines():
-            if line.startswith("error:"):
-                result.error(line[len("error:") :].strip())
-            elif line.startswith("review:"):
-                result.warn(line[len("review:") :].strip())
-            elif line.startswith("ok:"):
-                result.ok(line[len("ok:") :].strip())
-    if code != 0:
-        result.error("desktop parity check failed")
-
-
 def main() -> int:
     os.chdir(REPO_ROOT)
     result = CheckResult()
@@ -261,7 +239,6 @@ def main() -> int:
     check_lockfiles(result)
     check_generated_status(result)
     check_web_deploy_policy(result)
-    check_desktop_parity(result)
 
     print()
     if result.errors:
