@@ -37,6 +37,11 @@ for (const locale of ['', 'ar/']) {
     await expect(main).toContainText(locale ? 'لا يبطل حصص الاسترداد' : 'does not invalidate existing Recovery shares')
     await expect(main).toContainText(locale ? 'عبارات المرور' : 'passphrases')
     await expect(main).toContainText('UTF-8')
+    for (const encoding of ['base64url', 'mnemo-words']) {
+      const token = main.getByText(encoding, { exact: true })
+      await expect(token).toHaveClass(/\btoken\b/)
+      await expect(token).toHaveAttribute('dir', 'ltr')
+    }
     await expect(main).toContainText(locale ? 'البايتات بدقة' : 'exact bytes')
     for (const slug of ['web-ui', 'cli', 'tui', 'it-devops-guide/break-glass']) {
       await expect(main.locator(`a[href*="${slug}/"]`).first()).toBeVisible()
