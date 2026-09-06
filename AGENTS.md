@@ -90,14 +90,14 @@ Default section order:
 - `crates/`: Rust workspace crates for core algorithms, CLI, TUI, and WASM bindings.
 - `web/`: Vite + React web app, WASM build integration, browser tests, and docs child site.
   - `web/help/`: Astro + Starlight help docs served under `/help/`.
-- `desktop/`: standalone Tauri desktop app with React UI and Rust command layer.
-- `macos/`: native macOS 14+ SwiftUI app using the platform-neutral UniFFI bridge.
-- `windows/`: native Windows 11 WinUI app, UI-free model and tests, generated C# UniFFI binding, and Windows validation scripts.
+- `desktop/`: retired Tauri app, retained as dormant source reference.
+- `macos/`: retired SwiftUI app, retained as dormant source reference.
+- `windows/`: retired WinUI app and native tooling, retained as dormant source reference.
 - `docs/`: internal repository docs for agents and developers.
 - `openspec/`: OpenSpec project context, active/archived changes, and accepted specs.
 - `scripts/`: repository automation scripts, including release packaging.
 - `explainer/`: explainer media sources and generated media outputs.
-- `mobile/`: mobile prototype/native artifacts.
+- `mobile/`: dormant prototype/native artifacts, not a supported product.
 
 Top-level files not covered by a child AGENTS.md remain owned here, including `README.md`, `CHANGELOG.md`, `PRD.md`, `CONTEXT.md`, `Cargo.toml`, lockfiles, and CI config under `.github/`.
 <!-- end DOX -->
@@ -123,10 +123,15 @@ Use the single-context domain model in `CONTEXT.md` and relevant records under `
   - `crates/safeparts/` (CLI wrapper; binary: `safeparts`)
   - `crates/safeparts_tui/` (interactive terminal UI; binary: `safeparts-tui`)
   - `crates/safeparts_wasm/` (wasm-bindgen exports for the web UI)
-  - `crates/safeparts_uniffi/` (platform-neutral UniFFI exports consumed by native Swift and C# bindings)
 - Web app: `web/` (Vite + React) which expects a WASM build step.
-- Desktop app: `desktop/` (Tauri + React) with Rust commands over `safeparts_core`; release CI packages it for Linux and Windows while native Windows remains in preview.
 - Help/docs: `web/help/` (Astro + Starlight), deployed under `/help/`.
+
+## Supported product scope
+
+- Support core, CLI, TUI, WASM, web, and help. CLI/TUI remain supported on Linux, macOS, and Windows.
+- Tauri, native macOS, native Windows, and their dedicated `crates/safeparts_uniffi/` bridge are retired. Retain their source as dormant reference; exclude them from supported setup, workspace builds, tests, coverage, releases, and UI parity requirements.
+- Do not port active web changes into retired apps or restore their automation. A replacement or reinstatement requires a separate explicit decision.
+- Retiring applications does not invalidate existing Recovery shares. Keep compatibility guarantees and direct users to supported recovery tools. Historical release assets remain unchanged.
 
 ## Context
 
@@ -165,7 +170,7 @@ Use the single-context domain model in `CONTEXT.md` and relevant records under `
 ## Developer experience
 
 - Keep developer-only guidance in `docs/dev/` and agent instructions in `AGENTS.md` / `docs/agents/`.
-- Update `docs/dev/feature-matrix.md` when feature behavior changes across core, CLI, TUI, WASM, web, desktop, help docs, or release packaging.
+- Update `docs/dev/feature-matrix.md` when feature behavior changes across core, CLI, TUI, WASM, web, help docs, or release packaging.
 - Local DX diagnostics: `mise run doctor`, `mise run dx:verify`.
 - Keep full root `CHANGELOG.md` and both help changelogs generated together from main and published releases. Read `scripts/dev/README.md#changelog-snapshots` when changing their generator or CI. Only the configured CI writer may publish automatically; agent pushes still require explicit permission.
 - `mise run verify` uses `web:build:site` for the complete static site; keep standalone app/help writers out of its parallel dependencies. Build ordering and final-route checks are owned by `web/scripts/`.
@@ -174,8 +179,7 @@ Use the single-context domain model in `CONTEXT.md` and relevant records under `
 ## Release packaging
 
 - Local release-style archives and platform ownership: `scripts/release/README.md`
-- Release CI packages Tauri for Linux and Windows, native SwiftUI for macOS 14+, and native WinUI preview archives for Windows 11 x64 and ARM64.
-- The native macOS DMG is unsigned and unnotarized until Apple release credentials are configured.
+- Release CI packages CLI/TUI archives for Linux, Windows, and macOS. GUI/native installers are not published. Keep checksum verification and tag-only publication intact.
 
 ## OpenSpec tooling
 
