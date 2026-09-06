@@ -99,7 +99,7 @@ Default section order:
 - `explainer/`: explainer media sources and generated media outputs.
 - `mobile/`: mobile prototype/native artifacts.
 
-Top-level files not covered by a child AGENTS.md remain owned here, including `README.md`, `PRD.md`, `CONTEXT.md`, `Cargo.toml`, lockfiles, and CI config under `.github/`.
+Top-level files not covered by a child AGENTS.md remain owned here, including `README.md`, `CHANGELOG.md`, `PRD.md`, `CONTEXT.md`, `Cargo.toml`, lockfiles, and CI config under `.github/`.
 <!-- end DOX -->
 
 ## Agent skills
@@ -167,6 +167,7 @@ Use the single-context domain model in `CONTEXT.md` and relevant records under `
 - Keep developer-only guidance in `docs/dev/` and agent instructions in `AGENTS.md` / `docs/agents/`.
 - Update `docs/dev/feature-matrix.md` when feature behavior changes across core, CLI, TUI, WASM, web, desktop, help docs, or release packaging.
 - Local DX diagnostics: `mise run doctor`, `mise run dx:verify`.
+- Keep full root `CHANGELOG.md` and both help changelogs generated together from main and published releases. Read `scripts/dev/README.md#changelog-snapshots` when changing their generator or CI. Only the configured CI writer may publish automatically; agent pushes still require explicit permission.
 - Release workflow policy and action lint: `mise run workflow:check`.
 
 ## Release packaging

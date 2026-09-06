@@ -1,0 +1,74 @@
+name: changelog
+
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: changelog-main
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    if: >-
+      github.repository == 'connectedloops/safeparts' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'schedule' ||
+       github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Check out trusted complete main history
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Test history and workflow contracts
+        run: |
+          python3 scripts/dev/test_changelog.py
+          python3 scripts/dev/test_changelog_workflow.py
+
+      - name: Regenerate, publish snapshots, and request tested Web artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --paginate --slurp "repos/$REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+          python3 scripts/dev/changelog.py --main-ref main --releases-json "$RUNNER_TEMP/releases.json"
+          paths=(CHANGELOG.md web/help/src/content/docs/changelog.md web/help/src/content/docs/ar/changelog.md)
+          git add -- "${paths[@]}"
+          changed=false
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'chore(changelog): update generated history'
+            # A concurrent main update rejects this push. The next run regenerates;
+            # never rebase generated history or overwrite newer main work.
+            git push origin HEAD:refs/heads/main
+            changed=true
+          fi
+          # Token pushes do not trigger push workflows. Repair runs also retry a
+          # previously failed dispatch, even when the snapshots are unchanged.
+          if [ "$changed" = true ] || [ "$EVENT_NAME" = schedule ] || [ "$EVENT_NAME" = workflow_dispatch ]; then
+            gh workflow run web-ci.yml --ref main
+          fi

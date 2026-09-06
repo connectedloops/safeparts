@@ -7,6 +7,7 @@ Owns browser smoke, end-to-end, docs route, accessibility, and mirrored Tauri UI
 ## Ownership
 
 - `*.spec.ts`: Playwright and axe coverage used by CI, including rendered desktop tests backed by a synthetic Tauri command boundary.
+- `docs.smoke.spec.ts` and `docs.a11y.spec.ts`: bilingual help route/accessibility coverage, including generated changelog navigation, literal history text, and LTR isolation.
 - `container-smoke.sh`: clean image build and offline runtime HTTP checks used by CI.
 - `a11y-utils.ts`: shared accessibility and WASM-ready helpers.
 - `tsconfig.json`: test TypeScript settings.

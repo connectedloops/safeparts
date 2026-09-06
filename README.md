@@ -10,6 +10,7 @@ You split one secret into *n* recovery shares, then later recover it from any *k
 - Web app: https://safeparts.netlify.app
 - Docs: https://safeparts.netlify.app/help/ (English) and https://safeparts.netlify.app/help/ar/ (Arabic)
 - Releases: https://github.com/connectedloops/safeparts/releases
+- Changelog: [repository](CHANGELOG.md) or [docs page](https://safeparts.netlify.app/help/changelog/)
 
 ## What it's for
 

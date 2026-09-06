@@ -14,6 +14,8 @@ on:
       - '.dockerignore'
       - 'scripts/dev/check_desktop_parity.py'
       - 'scripts/dev/test_web_deploy.py'
+      - 'scripts/dev/*changelog*.py'
+      - '.github/workflows/changelog.yml'
       - 'mise.toml'
       - 'netlify.toml'
       - 'wrangler.jsonc'
@@ -32,6 +34,8 @@ on:
       - '.dockerignore'
       - 'scripts/dev/check_desktop_parity.py'
       - 'scripts/dev/test_web_deploy.py'
+      - 'scripts/dev/*changelog*.py'
+      - '.github/workflows/changelog.yml'
       - 'mise.toml'
       - 'netlify.toml'
       - 'wrangler.jsonc'
@@ -106,7 +110,10 @@ jobs:
         working-directory: desktop
 
       - name: Test deployment artifact behavior and workflow policy
-        run: python3 scripts/dev/test_web_deploy.py
+        run: |
+          python3 scripts/dev/test_web_deploy.py
+          python3 scripts/dev/test_changelog.py
+          python3 scripts/dev/test_changelog_workflow.py
 
       - name: Build application WASM
         run: bun run build:wasm
@@ -207,7 +214,7 @@ jobs:
 
   deploy_netlify:
     name: deploy tested artifact to Netlify
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: [build_test_package, container_smoke]
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
@@ -269,7 +276,7 @@ jobs:
 
   deploy_cloudflare:
     name: deploy tested artifact to Cloudflare Workers
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: [build_test_package, container_smoke]
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:

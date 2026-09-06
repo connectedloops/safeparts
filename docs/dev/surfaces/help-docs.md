@@ -18,6 +18,12 @@ This developer guide is only for contributors working on that site.
 - Update `web/help/DOCS_MAP.md` for navigation or structure changes.
 - Update `web/help/DOCS_STYLE.md` for style rules.
 
+## Generated changelog
+
+The English and Arabic changelog pages contain full main-branch and published-release history, also available in root `CHANGELOG.md`. Run `mise run changelog:generate` from the repository root to refresh all three. Do not edit the generated pages or translate commit subjects. Normal builds use the committed pages without Git or network access.
+
+See [the generator guide](../../../scripts/dev/README.md#changelog-snapshots) for inputs, CI updates, and retry behavior.
+
 ## Useful checks
 
 ```bash

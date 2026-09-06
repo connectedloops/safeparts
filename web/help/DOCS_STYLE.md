@@ -24,7 +24,7 @@ If a page cannot answer those questions, merge it, cut it, or narrow it.
 
 ## Non-redundancy
 
-- One canonical home for each concept.
+- One canonical home for each concept. The full root and bilingual changelogs intentionally duplicate generated history; `scripts/dev/changelog.py` owns their content.
 - Repeat only the local action, not the whole explanation.
 - Use links for background instead of restating previous pages.
 - Do not keep a section because an older version had it.
@@ -67,7 +67,7 @@ Avoid decorative components and long procedural bullet lists.
 
 ## Bilingual parity
 
-- Keep a 1:1 file map: `docs/<slug>.mdx` and `docs/ar/<slug>.mdx`.
+- Keep a 1:1 file map: `docs/<slug>.mdx` and `docs/ar/<slug>.mdx`; generated changelogs use matching `.md` files.
 - Keep section intent aligned. Arabic is not a summary of English.
 - Keep navigation locale-relative.
 - Preserve RTL quality and add `dir="ltr"` where needed.

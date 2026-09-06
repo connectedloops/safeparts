@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test'
 
 import { expectNoA11yViolations } from './a11y-utils'
 
-const MDX_EXTENSION = '.mdx'
+const DOCS_EXTENSIONS = ['.md', '.mdx']
 
 type DocsRouteSets = {
   english: string[]
@@ -14,7 +14,7 @@ type DocsRouteSets = {
   arabicSlugs: string[]
 }
 
-function listMdxSlugs(dir: string): string[] {
+function listDocsSlugs(dir: string): string[] {
   const out: string[] = []
 
   const walk = (currentDir: string, prefix: string) => {
@@ -27,9 +27,10 @@ function listMdxSlugs(dir: string): string[] {
         continue
       }
 
-      if (!entry.isFile() || !entry.name.endsWith(MDX_EXTENSION)) continue
+      const extension = DOCS_EXTENSIONS.find((ext) => entry.name.endsWith(ext))
+      if (!entry.isFile() || !extension) continue
 
-      const name = entry.name.slice(0, -MDX_EXTENSION.length)
+      const name = entry.name.slice(0, -extension.length)
       const slug = prefix ? `${prefix}/${name}` : name
       out.push(slug)
     }
@@ -44,8 +45,8 @@ function getDocsRouteSets(): DocsRouteSets {
   const docsRoot = path.resolve(process.cwd(), 'help/src/content/docs')
   const arRoot = path.join(docsRoot, 'ar')
 
-  const englishSlugs = listMdxSlugs(docsRoot).filter((slug) => !slug.startsWith('ar/'))
-  const arabicSlugs = listMdxSlugs(arRoot)
+  const englishSlugs = listDocsSlugs(docsRoot).filter((slug) => !slug.startsWith('ar/'))
+  const arabicSlugs = listDocsSlugs(arRoot)
 
   const toRoute = (base: string, slug: string) => {
     if (slug === 'index') return `${base}/`
