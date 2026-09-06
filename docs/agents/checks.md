@@ -4,6 +4,10 @@ Source of truth:
 
 - `.github/workflows/rust-ci.yml`
 - `.github/workflows/web-ci.yml`
+- `.github/workflows/release.yml`
+- `.github/workflows/rustsec.yml`
+
+Supported checks cover core, CLI, TUI, WASM, web, and help. CLI/TUI archives retain Linux, macOS, and Windows host support. Retired applications and their dedicated UniFFI bridge are excluded from supported setup, workspace, coverage, dependency policy, verification, and future release packaging.
 
 ## Shortcut tasks
 
@@ -78,28 +82,9 @@ The policy gate rejects mutable action references, moving build inputs, and writ
 
 - `cargo bench`
 
-## Desktop app (Tauri + React)
+## Dormant application reference
 
-**Location**: `desktop/`
-
-**Package manager**
-
-- Install deps: `bun install`
-
-**Run / Build**
-
-- Dev app: `bun run tauri:dev`
-- Frontend type check: `bun run typecheck`
-- Frontend build: `bun run build`
-- Tauri adapter tests: `bun run test:adapter`
-- Desktop/web UI parity: `mise run desktop:parity`
-- Native release compile without bundling/signing: `bun run tauri:build -- --no-bundle`
-- Native bundle for the host platform: `bun run tauri:build`
-
-**Notes**
-
-- Runtime must stay local-first: no server, CLI sidecar, node process, or telemetry.
-- Full installer signing/notarization is platform-specific and belongs in release CI or local release packaging.
+Tauri, SwiftUI, WinUI, and dedicated UniFFI source and tests remain reference only. Existing native commands are not supported after workspace exclusion. There is no copied-UI parity, binding-refresh, or native promotion gate. Preserve user-owned files and secret-handling safeguards; see `docs/dev/README.md#dormant-reference`.
 
 ## React / TypeScript (Web UI)
 
@@ -135,7 +120,9 @@ The policy gate rejects mutable action references, moving build inputs, and writ
 
 ## Web tests (Playwright + axe a11y)
 
-- Tests live under `web/tests/`.
+- Tests live under `web/tests/`; follow that subtree's contract.
+- Run suites against an external server with `PLAYWRIGHT_BASE_URL`. Built-site checks use a plain static server, not Vite preview's `/help` proxy or retired desktop servers. See `docs/dev/verification.md`.
+- Manual browser checks use the browser skill / `browse` CLI in local mode rather than Playwright defaults.
 - Install browser (from `web/`): `bun run test:a11y:install`
 - Smoke suite (from `web/`): `bun run test:e2e:smoke`
 - Full suite (from `web/`): `bun run test:e2e:full`

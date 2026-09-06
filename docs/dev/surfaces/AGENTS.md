@@ -11,18 +11,19 @@ Owns focused contributor guides for each Safeparts surface.
 - `tui.md`: terminal UI workflow and interaction rules.
 - `wasm.md`: wasm-bindgen boundary consumed by the web app.
 - `web.md`: Vite/React app, WASM package boundary, and browser checks.
-- `desktop.md`: Tauri app, command layer, and web UI parity.
+- `desktop.md`: retired Tauri source notice and recovery pointers.
 - `help-docs.md`: Astro/Starlight help-site contributor notes.
 - `release.md`: release packaging and workflow notes.
 - `mobile.md`: dormant mobile prototype expectations.
-- `macos.md`: native SwiftUI app and shared UniFFI bridge workflow.
-- `windows.md`: native WinUI app, shared bridge, tests, and package workflow.
+- `macos.md`: retired SwiftUI and dedicated UniFFI reference notice.
+- `windows.md`: retired WinUI and dedicated UniFFI reference notice.
 
 ## Local Contracts
 
 - Keep these guides contributor-facing and implementation-focused.
 - Do not duplicate full API docs or user help pages.
 - Update a guide when the matching source subtree contract changes.
+- Dormant guides must not prescribe builds, tests, binding refresh, packaging, parity, or promotion. Preserve links for wayfinding; supported CLI/TUI host platforms still include Linux, macOS, and Windows.
 
 ## Work Guidance
 

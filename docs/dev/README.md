@@ -27,7 +27,7 @@ Start here when you work on Safeparts as a contributor or maintainer.
 ## What to read
 
 - [Onboarding](onboarding.md): first setup, common commands, and first PR flow.
-- [Architecture](architecture.md): how core, CLI, TUI, WASM, web, desktop, docs, and release packaging fit together.
+- [Architecture](architecture.md): how core, CLI, TUI, WASM, web, help, and release packaging fit together.
 - [Feature matrix](feature-matrix.md): the cross-surface map you update when behavior changes.
 - [Workflows](workflows.md): repeatable steps for features, bugs, encodings, UI work, docs, and releases.
 - [Developer manuals](manuals/README.md): longer guides for Rust library integration and CLI automation.
@@ -48,12 +48,18 @@ Start here when you work on Safeparts as a contributor or maintainer.
 - [TUI](surfaces/tui.md)
 - [WASM bindings](surfaces/wasm.md)
 - [Web app](surfaces/web.md)
-- [Desktop app](surfaces/desktop.md)
-- [Native macOS app](surfaces/macos.md)
-- [Native Windows interoperability](surfaces/windows.md)
 - [Help docs](surfaces/help-docs.md)
 - [Release packaging](surfaces/release.md)
-- [Mobile prototype](surfaces/mobile.md)
+
+## Dormant reference
+
+These sources are outside supported builds, tests, packaging, and parity maintenance. Existing native commands are not supported after workspace exclusion. There is no replacement plan or timeline; a replacement requires a new decision. CLI/TUI archives continue to support Linux, macOS, and Windows.
+
+- [Retired Tauri application](surfaces/desktop.md)
+- [Retired SwiftUI application](surfaces/macos.md)
+- [Retired WinUI application](surfaces/windows.md)
+- [Dedicated UniFFI bridge contract](../../crates/safeparts_uniffi/AGENTS.md)
+- [Dormant mobile prototype](surfaces/mobile.md)
 
 ## DX maintenance rule
 

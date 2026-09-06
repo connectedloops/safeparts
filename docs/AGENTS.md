@@ -13,7 +13,8 @@ Owns internal repository documentation for agents and developers.
 ## Local Contracts
 
 - Keep developer docs separate from end-user product docs in `README.md` and `web/help/`.
-- Update `dev/feature-matrix.md` when feature behavior changes across core, CLI, TUI, WASM, web, desktop, docs, or release packaging.
+- Supported scope is core, CLI, TUI, WASM, web, and help; CLI/TUI archives support Linux, macOS, and Windows. Update `dev/feature-matrix.md` when supported behavior or release packaging changes.
+- Retired Tauri, SwiftUI, WinUI, and dedicated UniFFI sources remain dormant reference. Their guides and old Tauri plans are notices, not build, test, packaging, parity, or promotion instructions. Preserve historical records and existing issues.
 - Apply the `humanizer` skill before finalizing contributor-facing prose in `dev/`.
 
 ## Work Guidance

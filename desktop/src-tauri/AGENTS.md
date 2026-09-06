@@ -1,38 +1,30 @@
-# AGENTS.md — Desktop Tauri Command Layer
+# AGENTS.md — Dormant Tauri command layer
 
 ## Purpose
 
-Owns the Tauri Rust crate, command layer, permissions, generated schemas, and packaging configuration for the desktop app.
+Owns the dormant Rust command layer and packaging configuration for the retired Tauri application.
 
 ## Ownership
 
-- `src/`: Tauri command implementation and command tests.
-- `capabilities/`: Tauri permissions used by the desktop app.
-- `tauri.conf.json`: app identity, window settings, CSP, and bundle config.
-- `gen/schemas/`: Tauri-generated schema files.
-- `icons/`: desktop bundle icons.
+- `src/`: retained commands and tests.
+- `capabilities/`, `tauri.conf.json`: permissions and application configuration.
+- `gen/schemas/`, `icons/`: retained generated schemas and assets.
 
 ## Local Contracts
 
-- Commands must call `safeparts_core` public APIs for split/combine behavior.
-- Do not add a backend, telemetry, CLI sidecar, node sidecar, or external service requirement.
-- Do not persist secrets, recovery shares, reconstructed bytes, or passphrases.
-- Sanitize parse errors so share input is not echoed back to the UI.
-- Return recovered bytes with explicit valid-UTF-8 metadata and lossless optional text so the frontend can fail closed for binary output.
+- This crate is excluded from the active Cargo workspace and supported builds, tests, and packages. Existing native build commands are not supported.
+- Preserve the reference's use of core public APIs, sanitized parse errors, and explicit valid-UTF-8 metadata with lossless optional text.
+- Preserve local-only operation without backend, telemetry, sidecars, or automatic persistence of Secrets, Recovery shares, reconstructed bytes, or passphrases.
+- Treat schemas as generated reference; leave them unchanged during supported-surface work.
 
 ## Work Guidance
 
-- Follow `docs/dev/surfaces/desktop.md` and `docs/agents/conventions.md`.
-- Add command tests for new command behavior and negative cases.
-- Treat schema changes as generated artifact changes. Review them deliberately.
+- See `docs/dev/surfaces/desktop.md` and `docs/agents/conventions.md`.
 
 ## Verification
 
-- `cargo test -p safeparts_desktop --lib`
-- `cargo fmt --all -- --check`
-- `cargo clippy --all-targets --all-features -- -D warnings`
-- `cd desktop && bun run tauri:build -- --no-bundle` when packaging/config changes
+- Retained command and packaging tests are dormant reference, not active gates.
 
 ## Child DOX Index
 
-- No child AGENTS.md files yet.
+- No child AGENTS.md files.
