@@ -46,7 +46,8 @@ def collect(repo: Path, main_ref: str, metadata: object) -> tuple[list, list]:
     if grafts.exists() and grafts.read_text().strip():
         raise ValueError('Grafted history is incomplete; remove grafts before generating.')
     tip = git(repo, 'rev-parse', '--verify', refs[main_ref] + '^{commit}')
-    rows = git(repo, 'log', '--topo-order', '--format=%H%x09%s', tip).splitlines()
+    # Git subjects can contain Unicode line separators; only NUL frames records.
+    rows = git(repo, 'log', '-z', '--topo-order', '--format=%H%x09%s', tip).rstrip('\0').split('\0')
     reachable = {row.split('\t', 1)[0] for row in rows}
     commits = []
     for row in rows:
@@ -95,7 +96,10 @@ def collect(repo: Path, main_ref: str, metadata: object) -> tuple[list, list]:
 
 def escape(text: str) -> str:
     """Entities keep untrusted punctuation literal in both Markdown and raw HTML."""
-    return ''.join(c if c.isalnum() or c == ' ' else f'&#{ord(c)};' for c in text)
+    # HTML numeric references remap C1 controls to Windows-1252 punctuation.
+    # Literal Unicode text preserves these characters without enabling markup.
+    return ''.join(c if c.isalnum() or c == ' ' or 0x80 <= ord(c) <= 0x9f
+                   else f'&#{ord(c)};' for c in text)
 
 
 def render(commits: list, releases: list, arabic: bool = False) -> str:

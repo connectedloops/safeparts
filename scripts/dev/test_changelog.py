@@ -144,6 +144,14 @@ class ChangelogTests(unittest.TestCase):
         (self.repo / '.git/shallow').write_text(self.git('rev-parse', 'HEAD') + '\n')
         self.assertIn('Shallow', self.generate([], expected=1))
 
+    def test_unicode_separators_are_subject_text_not_record_boundaries(self):
+        import html
+        subject = 'fix: preserve Unicode\u2028line\u2029paragraph\x85next-line separators'
+        sha = self.commit(subject)
+        for text in self.generate([]).values():
+            self.assertIn(subject, html.unescape(text))
+            self.assertEqual(1, text.count('/commit/' + sha))
+
     def test_empty_commit_subject_is_still_part_of_main_history(self):
         self.git('commit', '--allow-empty', '--allow-empty-message', '-m', '')
         sha = self.git('rev-parse', 'HEAD')
