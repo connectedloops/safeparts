@@ -40,9 +40,9 @@ Use these docs to choose a recovery plan, pick an interface, and avoid common ha
 		[Review security](security/)
 	</Card>
 	<Card title="Use an app or terminal" icon="laptop">
-		Use the web app, desktop app, CLI, or TUI depending on how you work.
+		Use the web app, CLI, or TUI depending on how you work.
 		
-		[Web app](web-ui/) · [Desktop](desktop/) · [CLI](cli/) · [TUI](tui/)
+		[Web app](web-ui/) · [CLI](cli/) · [TUI](tui/)
 	</Card>
 	<Card title="Run an operations process" icon="setting">
 		Build CLI runbooks for break-glass recovery, drills, and guarded automation.
@@ -63,6 +63,6 @@ For support requests, tests, and screenshots, use synthetic examples instead of 
 - Splits arbitrary bytes with Shamir-style threshold sharing over <span class="token token--mono">GF(256)</span>.
 - Adds a BLAKE3 integrity tag so recovery fails when shares are corrupted or mixed.
 - Can encrypt before splitting with Argon2id and ChaCha20-Poly1305 when you add a passphrase.
-- Exposes the same core through CLI, TUI, WASM, web, desktop, and Rust APIs.
+- Exposes the same core through CLI, TUI, WASM, web, and Rust APIs.
 
 Safeparts is not a vault, password manager, or wallet seed tool. Your storage plan is still the security boundary.

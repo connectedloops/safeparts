@@ -32,7 +32,8 @@ Keep English and Arabic routes aligned.
 ## Sidebar structure
 
 - Start: quickstart, recovery planning, security model.
-- Use Safeparts: web app, desktop app, CLI, TUI.
+- Use Safeparts: web app, CLI, TUI.
+- Desktop routes remain outside the sidebar as bilingual retirement and recovery notices.
 - Operations: operational model, CLI runbooks, break-glass, automation.
 - Reference: encodings, how it works, technical design, install/self-host, troubleshooting, changelog.
 - Developers: Rust library guide, API, packets, testing.
@@ -46,7 +47,7 @@ Keep English and Arabic routes aligned.
 | `/help/use-cases/` | Planners | Choose a practical recovery plan. | Threshold patterns, holder selection, drills. |
 | `/help/security/` | Users and reviewers | Understand risk boundaries. | Threat model, storage rules, passphrases, local execution. |
 | `/help/web-ui/` | Browser users | Use the web app safely. | Web-specific workflow and exposed encodings. |
-| `/help/desktop/` | Desktop users | Use and build the Tauri app. | Desktop-specific scope and local app commands. |
+| `/help/desktop/` | Existing desktop users | Move recovery to supported tools. | Retirement scope, retained shares/passphrases, exact-byte recovery, saved-backup verification. |
 | `/help/cli/` | CLI users | Run split/combine commands. | CLI syntax, encodings, passphrase file usage. |
 | `/help/tui/` | Terminal users | Use the interactive terminal UI. | TUI features, offline workflow, shortcuts. |
 | `/help/it-devops-guide/` | Operators | Decide where Safeparts belongs operationally. | Operational fit and minimum runbook questions. |
@@ -56,7 +57,7 @@ Keep English and Arabic routes aligned.
 | `/help/encodings/` | All users | Choose a share text format. | Encoding trade-offs and surface availability. |
 | `/help/project/` | Curious users | Understand the main mechanics. | Threshold sharing, packets, integrity, passphrases. |
 | `/help/technical-design/` | Engineers and reviewers | Review implementation design. | Data flow, packet format, crypto choices, limits. |
-| `/help/build-and-run/` | Installers and self-hosters | Install or build Safeparts. | Releases, Rust, web, desktop, Docker, docs. |
+| `/help/build-and-run/` | Installers and self-hosters | Install or build Safeparts. | CLI/TUI archives, historical installer distinction, Rust, web, Docker, docs. |
 | `/help/changelog/` | Users and contributors | Read main-branch and published-release history. | Generated release groups, original commit subjects, and source links; full copy also in root `CHANGELOG.md`. |
 | `/help/troubleshooting/` | Users with errors | Diagnose failures safely. | Common errors, WASM setup, build fixes. |
 | `/help/developer-guide/` | Rust integrators | Decide whether to use the library. | Library boundary and next pages. |

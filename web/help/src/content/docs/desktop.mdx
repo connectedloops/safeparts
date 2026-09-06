@@ -1,73 +1,20 @@
 ---
-title: Desktop app
-description: Use the Tauri desktop app or evaluate the native Windows preview without a web deployment.
+title: Desktop applications retired
+description: Recover with supported tools after retirement of the Tauri, native macOS, and native Windows applications.
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+The Tauri desktop app, native SwiftUI macOS app, and native WinUI Windows app are retired. They are no longer supported, verified, or packaged for future releases. Their source and dedicated UniFFI bridge remain dormant reference code. No replacement application or timeline is promised.
 
-The Tauri desktop app is released for Linux and Windows. Windows 11 users can also evaluate the native WinUI preview, while macOS 14+ uses the native SwiftUI app. Every desktop app runs locally without a Safeparts server, telemetry, or external service at runtime.
+Historical releases remain available, but their GUI installers are unsupported. This notice does not update or fix applications you already downloaded.
 
-## When to use it
+## Keep your Recovery shares
 
-Use the desktop app when you want:
+Retirement does not invalidate existing Recovery shares. Keep your saved shares and any passphrases used for Passphrase protection. Do not delete or overwrite them as part of changing tools.
 
-- an installed local workbench for Split and Recover;
-- exact binary file import and recovery on native Windows and macOS;
-- all four Share encodings and Auto recovery on native Windows and macOS;
-- local operation without a browser deployment.
+1. Choose a supported recovery tool:
+   - Use the [web app](../web-ui/) for UTF-8 text with `base64url` or `mnemo-words` shares.
+   - Use the [CLI](../cli/) or [TUI](../tui/) for all four Share encodings and file recovery that preserves the exact bytes. CLI/TUI archives remain available for Linux, Windows, and macOS through the [download guide](../build-and-run/).
+2. Gather at least the Threshold number of Recovery shares from the same set in a controlled recovery environment. Supply the original passphrase if Passphrase protection was used. Keep Secrets, shares, and passphrases out of online converters and logs.
+3. Verify recovery with the supported tool before relying on it. Follow the [saved-backup checkpoint](../it-devops-guide/break-glass/#verify-saved-backup) to check your actual saved copies, compare exact bytes, and restore separated custody after the check. A synthetic practice run alone does not verify your saved shares.
 
-Use the CLI or TUI when you need an exact-byte file workflow, all four Share encodings, or terminal-only operation.
-
-## Tauri scope
-
-The Linux and Windows Tauri UI exposes the same primary formats as the web app:
-
-- <span class="token">base64url</span>, shown as <span class="token">Letters</span>;
-- <span class="token">mnemo-words</span>, shown as <span class="token">Words</span>.
-
-The underlying core supports <span class="token">base58check</span> and <span class="token">mnemo-bip39</span>, but those are not exposed in the Tauri UI yet. Tauri displays and copies a recovered Secret only when it is valid UTF-8 text. For other bytes, use the CLI, TUI, or a native file workflow. The native Windows preview exposes all four Share encodings, exact file workflows, and Auto encoding recovery. It has a separate identity and does not replace an installed Tauri app.
-
-## Split
-
-<Steps>
-1. Open the app and choose <span class="token">Split</span>.
-2. Enter the secret.
-3. Choose how many shares are required, how many total shares to create, and the share format.
-4. If the recovery plan uses Passphrase protection, enter the passphrase twice and keep it separately from the Recovery shares.
-5. Split and copy each Recovery share to its assigned holder or location.
-</Steps>
-
-Passphrases are masked by default. Use the reveal button to check either entry. You will need the exact passphrase for recovery, and Safeparts cannot reset it.
-
-## Combine
-
-<Steps>
-1. Choose <span class="token">Combine</span>.
-2. Paste the required shares.
-3. Enter the passphrase if the split used one.
-4. Combine and move the recovered Secret only to its intended destination.
-</Steps>
-
-Changing a Recovery share, the Share encoding, or Passphrase protection clears the previous result. If Tauri reports that the recovered Secret is not valid UTF-8, it will not display or copy the bytes. Continue in an exact-byte CLI, TUI, or native file workflow instead.
-
-## Build locally
-
-```bash
-cd desktop
-bun install
-bun run tauri:dev
-```
-
-For a production frontend build:
-
-```bash
-bun run build
-```
-
-For a native bundle on the current platform:
-
-```bash
-bun run tauri:build
-```
-
-See [install and self-host](../build-and-run/) for release packages and project-wide build commands.
+If recovery fails, retain the original shares and passphrase records and consult [troubleshooting](../troubleshooting/). Do not replace them with incomplete or altered output.

@@ -250,7 +250,7 @@ test.describe('Web App E2E Smoke @smoke', () => {
     await recoverShares(page, shares, 'base64url')
 
     await expect(page.locator('#combine-panel .alert-error')).toContainText(
-      'This recovered Secret is not valid UTF-8 text. Use the CLI, TUI, or a native file workflow to recover the exact bytes.',
+      'This recovered Secret is not valid UTF-8 text. Use the CLI or TUI with file output to recover the exact bytes.',
     )
     await expect(page.getByRole('heading', { name: /recovered secret/i })).toHaveCount(0)
     await expect(
@@ -270,7 +270,7 @@ test.describe('Web App E2E Smoke @smoke', () => {
     await recoverShares(page, shares, 'base64url')
 
     await expect(page.locator('#combine-panel .alert-error')).toContainText(
-      'السر المستعاد ليس نصًا صالحًا بترميز UTF-8. استخدم CLI أو TUI أو سير عمل ملفات أصليًا لاستعادة البايتات بدقة.',
+      'السر المستعاد ليس نصًا صالحًا بترميز UTF-8. استخدم CLI أو TUI مع ملف إخراج لاستعادة البايتات بدقة.',
     )
     await expect(page.getByRole('heading', { name: /السر المستعاد/i })).toHaveCount(0)
   })

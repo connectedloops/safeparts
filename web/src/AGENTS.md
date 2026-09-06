@@ -28,7 +28,7 @@ Owns the Vite + React browser application source and generated WASM package boun
 - Secret, Recovery-share (including dynamically added fields), and passphrase inputs explicitly disable spellchecking, autocorrection, and autocapitalization in both languages. Preserve entered text; browser settings are a mitigation, not a guarantee against extensions, provider features, or clipboard exposure.
 - Recovery guidance uses validated WASM error codes and safe counts, never English prose matching or raw exception display/logging. Legacy string errors and unknown failures use a localized fallback.
 - Each Recovery-share textarea is named by its localized visible field number; numbering follows current field order after add/remove.
-- Desktop UI parity depends on copied files from this subtree. Approved web-only changes leave the excluded desktop mirror unchanged; report the parity conflict without relaxing the check.
+- Recovery of non-UTF-8 output directs users to CLI/TUI file output in both languages. Dormant desktop mirrors are not parity targets.
 - Coarse-pointer Threshold and Share count focus selects the current value after dispatch only while the original input remains connected and focused; fine-pointer caret behavior stays native.
 
 ## Work Guidance
@@ -43,7 +43,6 @@ Owns the Vite + React browser application source and generated WASM package boun
 - `cd web && bun run typecheck`
 - `cd web && bun run build`
 - `cd web && bun run test:e2e:smoke`
-- `mise run desktop:parity` when copied UI files change
 
 ## Child DOX Index
 

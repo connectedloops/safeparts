@@ -21,8 +21,6 @@ description: اختر صيغة نصية للحصة تناسب التخزين أ�
 | الواجهة | ناتج التقسيم | مدخلات الاسترداد |
 | --- | --- | --- |
 | تطبيق الويب | <span class="token" dir="ltr">base64url</span> و<span class="token" dir="ltr">mnemo-words</span> | الصيغتان نفسيهما، مع كشف best-effort عند اللصق. |
-| تطبيق Tauri لسطح المكتب | <span class="token" dir="ltr">base64url</span> و<span class="token" dir="ltr">mnemo-words</span> | الصيغتان نفسيهما، عبر أوامر Tauri محلية. |
-| تطبيق macOS الأصلي | كل الترميزات الأربعة الملموسة | يكتشف metadata تلقائياً أو يقبل صيغة محددة. |
 | CLI | كل الترميزات الأربعة الملموسة | كشف تلقائي عند حذف `--encoding`، أو اختيار ترميز محدد. |
 | TUI | كل الترميزات الأربعة الملموسة | كشف تلقائي أو اختيار ترميز محدد. |
 | مكتبة Rust | كل الترميزات الأربعة عبر `safeparts_core::encoding` | APIs للكشف التلقائي أو التحليل المحدد. |

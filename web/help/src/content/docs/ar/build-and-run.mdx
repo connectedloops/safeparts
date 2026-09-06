@@ -5,7 +5,7 @@ description: ثبّت مخرجات الإصدار وابن Safeparts من الم
 
 import { Steps } from '@astrojs/starlight/components';
 
-استخدم الإصدارات عندما تريد CLI أو TUI أو تطبيق سطح المكتب دون بناء المستودع. ابن من المصدر عندما تطوّر Safeparts أو تستضيف تطبيق الويب الثابت بنفسك.
+استخدم الإصدارات عندما تريد CLI أو TUI دون بناء المستودع. ابن من المصدر عندما تطوّر Safeparts أو تستضيف تطبيق الويب الثابت بنفسك.
 
 ## تنزيلات الإصدارات
 
@@ -13,12 +13,9 @@ import { Steps } from '@astrojs/starlight/components';
 
 - https://github.com/connectedloops/safeparts/releases
 
-تتضمن حزم الإصدار أرشيفات CLI وTUI للمنصات المدعومة، إضافة إلى تطبيقات سطح المكتب:
+نزّل أرشيفات CLI وTUI على Linux وWindows وmacOS. اختر الأرشيف المطابق لنظام التشغيل والمعمارية، وتحقق منه باستخدام `SHA256SUMS.txt` قبل تشغيل البرامج.
 
-- Linux: حزم Tauri بصيغ AppImage و`.deb` و`.rpm`
-- Windows: مثبتات Tauri بصيغ NSIS `.exe` وMSI
-- معاينة Windows 11: أرشيفات `.zip` ذاتية الاكتفاء لتطبيق WinUI الأصلي، بإصداري x64 وARM64، من دون توقيع
-- macOS 14 أو أحدث: ملف `.dmg` عام لتطبيق SwiftUI الأصلي، من دون توقيع
+مثبتات الواجهات الرسومية التاريخية غير مدعومة. يبقى سجل الإصدارات دون تغيير؛ تنزيلات سطح المكتب القديمة ليست توصيات حالية. على المستخدمين الحاليين قراءة [دليل توقف دعم سطح المكتب والاسترداد](../desktop/) قبل تغيير الأدوات.
 
 فحص سريع بعد تثبيت binaries الخاصة بـ CLI/TUI:
 
@@ -35,18 +32,6 @@ import { Steps } from '@astrojs/starlight/components';
 ```bash
 xattr -dr com.apple.quarantine /path/to/safeparts-release/
 ```
-
-أو أزلها من التطبيق الأصلي بعد نسخه إلى Applications:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/Safeparts.app
-```
-
-ملف DMG الأصلي غير موقّع وغير موثّق لدى Apple. لا تتجاوز Gatekeeper إلا إذا نزّلت الملف من إصدار المشروع وتحققت من checksum.
-
-### معاينة Windows الأصلية وSmartScreen
-
-اختر أرشيف المعاينة x64 أو ARM64 المطابق لجهاز Windows 11. الأرشيفات الأصلية غير موقعة، لذلك قد يعرض SmartScreen تحذيراً عند التشغيل الأول. تحقق من ملف zip باستخدام `SHA256SUMS.txt`، ثم فك الأرشيف كاملاً وأبق ملفات runtime بجوار `Safeparts.exe`. لا تستبدل المعاينة تطبيق Tauri المثبت.
 
 ## بناء binaries من المصدر
 
@@ -90,61 +75,6 @@ bun run dev
 ```
 
 افتح [http://localhost:5173](http://localhost:5173).
-
-## تطبيق Tauri لسطح المكتب
-
-يوجد تطبيق Tauri المستخدم في إصدارات Linux وWindows في <span class="token token--mono" dir="ltr">desktop/</span>.
-
-```bash
-cd desktop
-bun install
-bun run tauri:dev
-```
-
-لبناء الواجهة:
-
-```bash
-bun run build
-```
-
-لبناء حزمة Tauri لمنصتك:
-
-```bash
-bun run tauri:build
-```
-
-## تطبيق macOS الأصلي
-
-على macOS مع Xcode وSwift 6 وRust:
-
-```bash
-mise run macos:check
-swift run --package-path macos SafepartsMac
-```
-
-لبناء ملف DMG العام وغير الموقّع:
-
-```bash
-RELEASE_VERSION=v0.3.1 mise run macos:package
-```
-
-## معاينة تطبيق Windows الأصلي
-
-على Windows 11 مع .NET 10 وRust:
-
-```powershell
-python windows/scripts/prepare.py --check
-cargo build -p safeparts_uniffi
-dotnet run --project windows/Safeparts.App/Safeparts.App.csproj -p:Platform=x64 -p:RuntimeIdentifier=win-x64
-```
-
-تُبنى حزمة المعاينة على المعمارية المطابقة:
-
-```powershell
-python windows/scripts/package-release.py 0.3.1 x64
-# شغّل هذا الأمر على Windows ARM64 لبناء حزمة ARM64:
-python windows/scripts/package-release.py 0.3.1 arm64
-```
 
 ## استضافة تطبيق الويب ذاتيًا عبر Docker
 

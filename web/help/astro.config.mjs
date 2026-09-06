@@ -18,7 +18,7 @@ export default defineConfig({
 			// If you change `base`, update the explicit `/help/...` paths below.
 			title: { en: 'Safeparts Help', ar: 'مساعدة Safeparts' },
 			description:
-				'Recover critical secrets without keeping them in one place. Guides for web, desktop, CLI, and TUI.',
+				'Recover critical secrets without keeping them in one place. Guides for web, CLI, and TUI.',
 			defaultLocale: 'root',
 			locales: {
 				root: { label: 'English', lang: 'en' },
@@ -138,7 +138,7 @@ for (const a of document.querySelectorAll('a[href]')) {
 				{
 					label: 'Use Safeparts',
 					translations: { ar: 'استخدام Safeparts' },
-					items: [{ slug: 'web-ui' }, { slug: 'desktop' }, { slug: 'cli' }, { slug: 'tui' }],
+					items: [{ slug: 'web-ui' }, { slug: 'cli' }, { slug: 'tui' }],
 				},
 				{
 					label: 'Operations',
