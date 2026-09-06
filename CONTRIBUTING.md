@@ -4,6 +4,8 @@ Thanks for helping with Safeparts.
 
 Start with the developer docs: [`docs/dev/README.md`](docs/dev/README.md).
 
+Supported work covers core, CLI, TUI, WASM, web, and help. CLI/TUI archives support Linux, macOS, and Windows. Tauri, SwiftUI, WinUI, and their dedicated UniFFI bridge are retired, retained as dormant reference without build, test, packaging, or parity requirements. A replacement needs a new decision; there is no plan or timeline.
+
 ## Before you edit
 
 1. Read [`AGENTS.md`](AGENTS.md).

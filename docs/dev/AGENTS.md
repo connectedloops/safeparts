@@ -23,6 +23,7 @@ Owns contributor onboarding, local workflow docs, feature coverage maps, and sur
 - These docs are for contributors, not end users. Do not replace help-site content here.
 - Update `feature-matrix.md` whenever a change adds, removes, or changes a feature surface.
 - Keep every surface guide aligned with the nearest source `AGENTS.md` contract.
+- Active workflows cover core, CLI, TUI, WASM, web, help, and CLI/TUI releases for Linux/macOS/Windows. Retired application and UniFFI guides are concise dormant-reference notices; omit obsolete commands and parity obligations.
 - Apply the `humanizer` skill before finalizing prose edits.
 
 ## Work Guidance
@@ -39,4 +40,4 @@ Owns contributor onboarding, local workflow docs, feature coverage maps, and sur
 ## Child DOX Index
 
 - `manuals/`: long-form developer manuals for Rust library integration and CLI automation.
-- `surfaces/`: per-surface development guides for core, CLI, TUI, WASM, web, desktop, help docs, release, and mobile.
+- `surfaces/`: active guides for core, CLI, TUI, WASM, web, help docs, and release; dormant-reference notices for desktop, macOS, Windows, and mobile.

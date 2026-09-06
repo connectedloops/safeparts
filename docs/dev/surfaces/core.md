@@ -45,5 +45,5 @@ Update:
 
 - [`docs/dev/feature-matrix.md`](../feature-matrix.md)
 - [`docs/dev/manuals/rust-library.md`](../manuals/rust-library.md) for public API or integration changes
-- CLI/TUI/WASM/web/desktop callers if behavior is exposed
+- CLI/TUI/WASM/web callers if behavior is exposed
 - Help docs only when user-visible behavior changes and the task includes that scope

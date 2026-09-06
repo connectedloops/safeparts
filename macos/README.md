@@ -1,27 +1,11 @@
-# Native macOS app
+# Retired native macOS application
 
-This SwiftUI app is the downloadable Safeparts app for macOS 14 and later. It calls the Rust core through UniFFI, runs locally, and does not replace the Tauri source app used for Linux and Windows releases.
+This SwiftUI application and its dedicated UniFFI bridge are dormant reference. They are not supported, built, tested, packaged, or kept in parity with supported surfaces. The bridge is excluded from the root Cargo workspace, so old native build and binding-generation commands are not supported.
 
-## Build and test
+Keep the source, generated reference files, and user-owned local files. A replacement needs a new decision; there is no plan or timeline. Historical releases remain unchanged.
 
-You need Swift 6 and the repository Rust toolchain on macOS.
+CLI/TUI archives remain available for macOS, Linux, and Windows. Existing users should keep their recovery shares and passphrase and follow the [supported recovery guidance](../README.md#existing-desktop-users). The CLI and TUI support exact binary-file recovery and all Share encodings; the web app supports text workflows.
 
-```sh
-mise run macos:prepare
-swift build --package-path macos
-swift test --package-path macos
-```
+The retained app keeps operation state in memory, but Swift, Foundation, UniFFI, and the system clipboard may make copies that it cannot fully erase. Other apps may read clipboard contents.
 
-`prepare.sh` builds the bridge for the host architecture with a macOS 14 deployment target. It regenerates the checked-in Swift, C header, and module maps, then copies the generated Swift binding into the compiled source target. The compiled static library stays in ignored `macos/Native/`.
-
-Safeparts keeps operation state in memory and clears it when you choose Clear. Swift, Foundation, UniFFI, and the system clipboard may make copies that the app cannot fully erase. Copy only when needed because other apps can read clipboard contents.
-
-## Build the release DMG
-
-```sh
-RELEASE_VERSION=v0.2.0 mise run macos:package
-```
-
-The release task builds arm64 and x86_64 slices, assembles an app bundle, verifies the macOS 14 minimum and static Rust linkage, and creates an unsigned universal DMG under `dist/release/`.
-
-The package is not signed or notarized. Test downloaded artifacts with synthetic secrets before distributing them, and document the expected Gatekeeper warning in release notes.
+See [AGENTS.md](AGENTS.md) for the reference contract and the [developer notice](../docs/dev/surfaces/macos.md) for scope.

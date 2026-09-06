@@ -78,12 +78,13 @@ If you take one thing from this section: **Recovery shares are as sensitive as t
 Safeparts ships as a few different front-ends over the same core:
 
 - **Web UI** (WASM, runs entirely in your browser; no backend): easiest for one-off workflows.
-- **Desktop app** (Tauri, local webview): the released Linux app and the established Windows app during the native preview.
-- **Native Windows preview** (WinUI 3): local Split and Recover workbench for Windows 11 on x64 and ARM64.
-- **Native macOS app** (SwiftUI, macOS 14+): the downloadable macOS workbench, shipped as an unsigned universal DMG.
 - **CLI** (`safeparts`): script-friendly; good for runbooks and automation.
 - **TUI** (`safeparts-tui` or `safeparts tui`): interactive terminal workflow; nice for offline machines.
 - **Rust crate** (`safeparts_core`): core algorithms and packet formats.
+- **WASM bindings** (`safeparts_wasm`): core APIs for the browser app.
+- **Help site**: English and Arabic guidance under `/help/`.
+
+The CLI and TUI support Linux, macOS, and Windows. All desktop applications (Tauri, SwiftUI macOS, and WinUI Windows) are retired. Their source and dedicated UniFFI bridge remain dormant reference, outside supported builds, tests, releases, and feature parity. There is no replacement plan or timeline; a future replacement needs a new decision.
 
 ## Rust library
 
@@ -104,13 +105,7 @@ For text encodings, see `safeparts_core::ascii`, `safeparts_core::mnemo_words`, 
 
 ## Install
 
-Download a release archive from GitHub Releases. Each release includes:
-
-- `safeparts` (CLI)
-- `safeparts-tui` (terminal UI)
-- Tauri desktop installers for Linux and Windows
-- Native Windows 11 preview archives for x64 and ARM64
-- an unsigned universal native DMG for macOS 14+
+Download a CLI/TUI archive for Linux, macOS, or Windows from GitHub Releases. Supported releases include `safeparts` (CLI) and `safeparts-tui` (terminal UI), not desktop installers. Historical releases remain available unchanged; their desktop assets are unsupported.
 
 Platform-specific steps (and build-from-source notes) live in the docs:
 
@@ -167,54 +162,13 @@ safeparts tui
 
 For shortcuts and an offline workflow, see: https://safeparts.netlify.app/help/tui/
 
-## Desktop app (local)
+## Existing desktop users
 
-The desktop app is a Tauri + React version of the web UI that runs locally. It calls `safeparts_core` from the Tauri command layer and does not require a Safeparts server, CLI sidecar, or node process at runtime. Release CI packages this app for Linux and Windows. The native Windows app below is available as a preview.
+Keep your saved recovery shares and any passphrase. Retirement does not change the Share packet format or require you to split the secret again. Supported tools retain decoding for released Safeparts V1 and V2 shares.
 
-```bash
-cd desktop
-bun install
-bun run tauri:dev
-```
+Use the CLI or TUI for all share encodings and exact binary-file recovery. The web app is suitable for text workflows. Gather at least the threshold number of shares from the same set and supply the original passphrase if protection was enabled. Keep originals until you have checked the recovered bytes in your trusted environment; never send shares or passphrases to an issue or support chat.
 
-Build the frontend or package the Tauri app:
-
-```bash
-cd desktop
-bun run build
-bun run tauri:build
-```
-
-## Native macOS app (local)
-
-The SwiftUI app is a separate macOS 14+ interface with native file panels, menu commands, and clipboard controls. It calls `safeparts_core` through the Rust UniFFI bridge.
-
-```bash
-mise run macos:check
-swift run --package-path macos SafepartsMac
-```
-
-Build the same unsigned universal DMG used by release CI:
-
-```bash
-RELEASE_VERSION=v0.3.1 mise run macos:package
-```
-
-The DMG supports Intel and Apple Silicon Macs. It is not signed or notarized, so downloaded copies may trigger a Gatekeeper warning.
-
-## Native Windows preview
-
-The WinUI 3 preview is available for Windows 11 on x64 and ARM64. It supports the same native Split and Recover workflows as macOS, including exact binary files, all Share encodings, Auto recovery, optional Passphrase protection, explicit clipboard actions, and batch export.
-
-On Windows with .NET 10 and Rust installed:
-
-```powershell
-python windows/scripts/prepare.py --check
-cargo build -p safeparts_uniffi
-dotnet run --project windows/Safeparts.App/Safeparts.App.csproj -p:Platform=x64 -p:RuntimeIdentifier=win-x64
-```
-
-Release CI publishes separate self-contained preview archives for x64 and ARM64 beside the Tauri Windows installers. The archives are unsigned, so Windows may show a SmartScreen warning. Verify the archive against `SHA256SUMS.txt` before running it. The preview has a separate identity and does not replace an installed Tauri app.
+See the [build and recovery guidance](https://safeparts.netlify.app/help/build-and-run/) and its [Arabic version](https://safeparts.netlify.app/help/ar/build-and-run/). Dormant source is described in [developer reference notices](docs/dev/README.md#dormant-reference). Old native build commands are not supported after workspace exclusion.
 
 ## Web UI (local)
 
@@ -282,12 +236,13 @@ bun run test:a11y
 - `crates/safeparts/`: CLI wrapper (binary: `safeparts`)
 - `crates/safeparts_tui/`: terminal UI (binary: `safeparts-tui`)
 - `crates/safeparts_wasm/`: wasm-bindgen exports used by the web UI
-- `crates/safeparts_uniffi/`: UniFFI bridge shared by native Swift and C# bindings
+- `crates/safeparts_uniffi/`: dormant UniFFI bridge for retired native apps
 - `web/`: Vite + React app
 - `web/help/`: Astro + Starlight docs
-- `desktop/`: Tauri + React desktop app
-- `macos/`: native SwiftUI macOS app
-- `windows/`: native WinUI 3 Windows app, model, generated binding, and tests
+- `desktop/`: dormant Tauri + React reference source
+- `macos/`: dormant SwiftUI reference source
+- `windows/`: dormant WinUI reference source, model, bindings, and tests
+- `mobile/`: dormant prototype artifacts
 
 ## Stewardship
 

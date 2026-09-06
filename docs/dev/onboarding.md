@@ -14,7 +14,7 @@ The `AGENTS.md` files are the working contracts for this repo. If you add a dura
 
 ## 2. Install tools
 
-Safeparts uses Rust, Bun, wasm-pack, wasm-bindgen, and Tauri tooling. Native macOS work also needs Xcode with Swift 6. Native Windows work needs Windows and the .NET SDK selected by its `global.json`. The repo includes [`mise.toml`](../../mise.toml) with pinned local tool versions and shortcuts.
+Safeparts uses Rust, Bun, wasm-pack, and wasm-bindgen. The repo includes [`mise.toml`](../../mise.toml) with pinned local tool versions and shortcuts. Supported setup covers core, CLI, TUI, WASM, web, and help; it does not require retired application toolchains.
 
 ```bash
 mise install
@@ -39,28 +39,6 @@ mise run web:build
 mise run web:dev
 ```
 
-Tauri desktop app:
-
-```bash
-mise run desktop:build
-mise run desktop:dev
-```
-
-Native macOS app (on macOS):
-
-```bash
-mise run macos:check
-swift run --package-path macos SafepartsMac
-```
-
-Native Windows binding:
-
-```bash
-mise run windows:binding-check
-```
-
-C# compilation and DLL execution run in Windows CI.
-
 Help docs:
 
 ```bash
@@ -75,9 +53,6 @@ mise run docs:dev
 - Terminal workflow: [TUI](surfaces/tui.md)
 - Browser bindings: [WASM bindings](surfaces/wasm.md)
 - React browser UI: [Web app](surfaces/web.md)
-- Tauri app: [Desktop app](surfaces/desktop.md)
-- Native SwiftUI app: [Native macOS app](surfaces/macos.md)
-- Native C# binding or Windows DLL smoke: [Native Windows interoperability](surfaces/windows.md)
 - Help-site content: [Help docs](surfaces/help-docs.md)
 - Release archives or GitHub release assets: [Release packaging](surfaces/release.md)
 

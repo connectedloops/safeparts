@@ -1,50 +1,9 @@
-# Desktop app
+# Retired Tauri application
 
-Owner: `desktop/`
-Nearest contracts: [`desktop/AGENTS.md`](../../../desktop/AGENTS.md), [`desktop/src/AGENTS.md`](../../../desktop/src/AGENTS.md), [`desktop/src-tauri/AGENTS.md`](../../../desktop/src-tauri/AGENTS.md)
+The Tauri application in [`desktop/`](../../../desktop/) is dormant reference. It is not supported, built, tested, packaged, or kept in parity with the web UI. Its Rust crate is excluded from the root Cargo workspace; old build commands are not supported.
 
-## What belongs here
+Retain the source, generated reference files, and user-owned local files. A replacement requires a new decision; there is no plan or timeline.
 
-The desktop app is a Tauri + React local app. It mirrors the web UI and calls `safeparts_core` through Tauri commands. Release CI packages it for Linux and Windows during the native Windows preview. The SwiftUI app owns macOS releases.
+Owning contracts: [`desktop/AGENTS.md`](../../../desktop/AGENTS.md), [`src/AGENTS.md`](../../../desktop/src/AGENTS.md), and [`src-tauri/AGENTS.md`](../../../desktop/src-tauri/AGENTS.md).
 
-It owns:
-
-- desktop packaging configuration
-- Tauri command boundary and permissions
-- desktop adapter for the web UI API shape
-- desktop build and command tests
-
-## Change rules
-
-- Do not add a backend, telemetry, CLI sidecar, node sidecar, or external service requirement.
-- Do not persist shares, passphrases, or recovered secrets.
-- Wrap secret bytes and passphrase byte buffers in zeroizing storage before calling core.
-- Keep Tauri request and response types explicit in `commands.ts`. Keep `wasm.ts` as the typed adapter that matches the browser WASM call shape.
-- Do not expose desktop-only product features unless the web UI exposes them first.
-- Remove generated Recovery shares when any Split input changes, and reject a late Tauri Split result if its Secret, Threshold, Share count, Share encoding, or Passphrase protection no longer matches.
-- Keep command errors useful without echoing Recovery share input.
-- Run parity checks when copied UI files change.
-
-## Useful checks
-
-```bash
-cd desktop
-bun install --frozen-lockfile
-bun run typecheck
-bun run build
-bun run tauri:build -- --no-bundle
-```
-
-Rust command tests run from the repo root:
-
-```bash
-cargo test -p safeparts_desktop --lib
-```
-
-## When desktop changes
-
-Update:
-
-- [`docs/dev/feature-matrix.md`](../feature-matrix.md)
-- web parity notes if behavior intentionally differs
-- release guide if bundle targets, icons, identifiers, or packaging change
+Existing users should keep their recovery shares and passphrase and use supported tools. See [recovery guidance](../../../README.md#existing-desktop-users). CLI/TUI archives remain available for Linux, macOS, and Windows.

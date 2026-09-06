@@ -21,6 +21,11 @@ The project ships as a single repo with multiple deliverables:
 - Web UI (Vite + React): `web/`
 - Help website (Astro Starlight, i18n): `web/help/`
 
+CLI/TUI archives support Linux, macOS, and Windows. Tauri, native SwiftUI macOS,
+native WinUI Windows, and their dedicated UniFFI bridge are retired. Their source
+remains dormant reference outside supported builds, tests, packaging, and feature
+parity. A replacement requires a new decision; there is no plan or timeline.
+
 Primary use cases:
 
 - Backing up recovery keys, API tokens, secrets manager master keys, or any arbitrary
@@ -179,7 +184,7 @@ bun run help:build
 
 Deployment:
 
-- Netlify builds and publishes `web/dist/`.
+- Netlify and Cloudflare publish the same tested, retained static artifact without rebuilding source.
 - The docs build output is placed in `web/dist/help/`.
 
 ---
@@ -200,7 +205,7 @@ Backlog / future ideas (not required for current release):
 - Web UI support for Base58check and mnemo-bip39.
 - QR code export.
 - Optional import/export compatibility with other tools.
-- Improved cross-platform packaging (installers, signed releases).
+- Improved CLI/TUI archive distribution and release integrity.
 
 ## Git workflow
 

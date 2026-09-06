@@ -11,7 +11,6 @@ Affected surfaces:
 - TUI:
 - WASM:
 - Web:
-- Desktop:
 - Help docs:
 - Release packaging:
 
@@ -35,7 +34,6 @@ Security review:
 
 Generated artifacts:
 - WASM package:
-- Tauri schemas:
 - Build output:
 
 Verification commands:

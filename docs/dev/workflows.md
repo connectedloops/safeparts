@@ -9,7 +9,7 @@ Use these checklists to keep future changes predictable.
 3. For multi-surface work, copy [change-checklist.md](change-checklist.md) into your issue, PR, or task notes.
 4. Update [feature-matrix.md](feature-matrix.md) with intended surface coverage.
 5. Add the lowest-level tests first.
-6. Update each exposed boundary: CLI, TUI, WASM, web, Tauri desktop, native macOS, native Windows, docs, and release packaging.
+6. Update each exposed supported boundary: CLI, TUI, WASM, web, help docs, and release packaging.
 7. Update the nearest `AGENTS.md` if contracts changed.
 8. Update developer docs under `docs/dev/`.
 9. Update user docs only when the change is user-visible and the task includes that scope.
@@ -45,7 +45,7 @@ Use these checklists to keep future changes predictable.
 2. Add round-trip, malformed input, checksum, and auto-detection tests where relevant.
 3. Add CLI/TUI support if the encoding is part of the Rust toolchain.
 4. Add WASM support through the shared core encoding API.
-5. Decide whether web exposes it. Desktop follows web exposure.
+5. Decide whether web exposes it.
 6. Update `docs/dev/feature-matrix.md`, `docs/dev/surfaces/core.md`, and affected surface guides.
 7. Update help docs only if the encoding becomes user-visible in a released surface.
 
@@ -55,7 +55,7 @@ Use these checklists to keep future changes predictable.
 2. Keep split/combine local to the browser.
 3. Build WASM before running the app.
 4. Keep accessibility labels, live regions, keyboard behavior, and RTL support intact.
-5. If the change should also exist in desktop, update desktop or record why not.
+5. Update help guidance when user-visible behavior changes. Retired applications have no parity requirement.
 6. Run web build, typecheck, and the relevant browser checks.
 
 ## Change Web deployment
@@ -69,41 +69,18 @@ Use these checklists to keep future changes predictable.
 7. Do not add provider build hooks, source rebuilds, or live installer commands.
 8. Verify every configured provider serves the retained commit and content digests.
 
-## Change desktop behavior
+## Dormant application source
 
-1. Read `desktop/AGENTS.md`, `desktop/src/AGENTS.md`, and `desktop/src-tauri/AGENTS.md`.
-2. Check whether the web UI already exposes the behavior.
-3. Keep secrets in memory only. Do not add a backend, telemetry, sidecar, or persistence for shares.
-4. Add or update Tauri command tests when the command boundary changes.
-5. Run the desktop parity check and desktop build.
-
-## Change native macOS behavior
-
-1. Read `macos/AGENTS.md`, `crates/AGENTS.md`, and `docs/dev/surfaces/macos.md`.
-2. Keep cryptography and share parsing in `safeparts_core`; expose only a narrow, sanitized UniFFI API.
-3. Run `mise run macos:prepare` after bridge changes and review every tracked generated diff.
-4. Use byte-accurate file IO and explicit clipboard actions. Keep Rust work off the main actor.
-5. Add Rust bridge tests and Swift model tests for success and failure paths.
-6. Run `mise run macos:check` on macOS.
-
-## Change native Windows interoperability
-
-1. Read `windows/AGENTS.md`, `crates/AGENTS.md`, and `docs/dev/surfaces/windows.md`.
-2. Keep cryptography and Share packet parsing in Rust and keep the C# API operation-shaped.
-3. Run `mise run windows:prepare` after bridge metadata or generator changes, then review the tracked C# diff.
-4. Keep the UniFFI runtime and C# generator on the exact compatible versions recorded by the preparation script.
-5. Run the Rust public-API test locally. Treat Windows CI as the source of truth for C# compilation and execution against the real DLL.
-6. Do not present the interoperability executable as an end-user Windows app or release package.
+Tauri, SwiftUI, WinUI, and their dedicated UniFFI bridge are retired. Preserve their source and user-owned files as reference; supported feature work does not update or verify them. Existing native commands are not supported after workspace exclusion. A replacement requires a new decision; there is no plan or timeline.
 
 ## Change release packaging
 
-1. Keep Tauri installer changes scoped to Linux and Windows while native Windows remains in preview.
-2. Build the native macOS artifact with `RELEASE_VERSION=v0.3.1 mise run macos:package`.
-3. On Windows, build both native preview archives with `windows/scripts/package-release.py` and an explicit x64 or ARM64 architecture.
-4. Verify the macOS architectures and bundle contract, then verify each staged and extracted Windows package.
-5. Run the CLI/TUI archive command and the Linux and Windows Tauri checks.
+1. Preserve CLI/TUI archives for Linux, macOS, and Windows.
+2. Keep retired application installers and native bridge output outside future releases. Leave historical releases unchanged.
+3. Run the CLI/TUI package checks and `mise run workflow:check`.
+4. Verify archive layout, filenames, and the checksum manifest against the published asset set.
+5. Preserve pinned inputs, read-only assembly, tag-only publication permissions, and artifact-only web deployment.
 6. Update the release workflow, release guide, feature matrix, and public download guidance together.
-7. Treat the native macOS and Windows artifacts as unsigned until platform signing credentials and checks are implemented.
 
 ## Change developer tooling
 
