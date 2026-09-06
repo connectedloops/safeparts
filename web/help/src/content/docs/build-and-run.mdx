@@ -5,7 +5,7 @@ description: Install release artifacts, build Safeparts from source, and run the
 
 import { Steps } from '@astrojs/starlight/components';
 
-Use releases when you want the CLI, TUI, or desktop app without building the repository. Build from source when you are developing Safeparts or self-hosting the static web app.
+Use releases when you want the CLI or TUI without building the repository. Build from source when you are developing Safeparts or self-hosting the static web app.
 
 ## Release downloads
 
@@ -13,12 +13,9 @@ Download release artifacts from GitHub:
 
 - https://github.com/connectedloops/safeparts/releases
 
-Release packaging includes CLI and TUI archives for supported platforms. It also includes desktop apps:
+Download CLI and TUI archives for Linux, Windows, and macOS. Choose the archive matching your operating system and architecture, and verify it against `SHA256SUMS.txt` before running the binaries.
 
-- Linux: Tauri AppImage, `.deb`, and `.rpm`
-- Windows: Tauri NSIS `.exe` and MSI installers
-- Windows 11 preview: unsigned self-contained native WinUI `.zip` archives for x64 and ARM64
-- macOS 14+: unsigned universal native SwiftUI `.dmg`
+Historical GUI installers are unsupported. The release history is unchanged; its older desktop downloads are not current recommendations. Existing users should read the [desktop retirement and recovery guide](../desktop/) before changing tools.
 
 Quick check after installing CLI/TUI binaries:
 
@@ -35,18 +32,6 @@ If macOS quarantines a downloaded binary and you trust the release artifact, rem
 ```bash
 xattr -dr com.apple.quarantine /path/to/safeparts-release/
 ```
-
-Or remove it from the native app after copying it to Applications:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/Safeparts.app
-```
-
-The native DMG is unsigned and unnotarized. Only override Gatekeeper when you downloaded the artifact from the project release and verified its checksum.
-
-### Native Windows preview and SmartScreen
-
-Choose the x64 or ARM64 preview archive that matches your Windows 11 device. The native archives are unsigned, so SmartScreen may warn on first launch. Verify the downloaded zip against `SHA256SUMS.txt`, extract the complete directory, and keep its runtime files beside `Safeparts.exe`. The preview does not replace an installed Tauri app.
 
 ## Build Rust binaries from source
 
@@ -90,61 +75,6 @@ bun run dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173).
-
-## Tauri desktop app
-
-The Tauri app used for Linux and Windows releases lives in <span class="token token--mono">desktop/</span>.
-
-```bash
-cd desktop
-bun install
-bun run tauri:dev
-```
-
-Build the frontend:
-
-```bash
-bun run build
-```
-
-Build a Tauri bundle for your host platform:
-
-```bash
-bun run tauri:build
-```
-
-## Native macOS app
-
-On macOS with Xcode, Swift 6, and Rust:
-
-```bash
-mise run macos:check
-swift run --package-path macos SafepartsMac
-```
-
-Build the unsigned universal release DMG:
-
-```bash
-RELEASE_VERSION=v0.3.1 mise run macos:package
-```
-
-## Native Windows preview
-
-On Windows 11 with .NET 10 and Rust:
-
-```powershell
-python windows/scripts/prepare.py --check
-cargo build -p safeparts_uniffi
-dotnet run --project windows/Safeparts.App/Safeparts.App.csproj -p:Platform=x64 -p:RuntimeIdentifier=win-x64
-```
-
-Preview packaging runs on the matching native architecture:
-
-```powershell
-python windows/scripts/package-release.py 0.3.1 x64
-# Run this on Windows ARM64 for the ARM64 package:
-python windows/scripts/package-release.py 0.3.1 arm64
-```
 
 ## Self-host the Web app with Docker
 

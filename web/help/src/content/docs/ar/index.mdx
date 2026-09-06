@@ -40,9 +40,9 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 		[راجع الأمان](security/)
 	</Card>
 	<Card title="استخدم تطبيقاً أو طرفية" icon="laptop">
-		استخدم تطبيق الويب أو تطبيق سطح المكتب أو CLI أو TUI حسب طريقة عملك.
+		استخدم تطبيق الويب أو CLI أو TUI حسب طريقة عملك.
 		
-		[الويب](web-ui/) · [سطح المكتب](desktop/) · [CLI](cli/) · [TUI](tui/)
+		[الويب](web-ui/) · [CLI](cli/) · [TUI](tui/)
 	</Card>
 	<Card title="نفّذ عملية تشغيلية" icon="setting">
 		أنشئ runbooks للـ CLI من أجل استرداد break-glass والتدريبات والأتمتة المحروسة.
@@ -63,6 +63,6 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 - يقسّم بايتات عشوائية باستخدام مشاركة عتبة بأسلوب Shamir فوق <span class="token token--mono" dir="ltr">GF(256)</span>.
 - يضيف وسم سلامة BLAKE3 حتى يفشل الاسترداد عند تلف الحصص أو خلطها.
 - يمكنه التشفير قبل التقسيم باستخدام Argon2id وChaCha20-Poly1305 عند إضافة عبارة مرور.
-- يوفّر نفس النواة عبر CLI وTUI وWASM والويب وسطح المكتب وواجهات Rust.
+- يوفّر نفس النواة عبر CLI وTUI وWASM والويب وواجهات Rust.
 
 Safeparts ليس vault ولا مدير كلمات مرور ولا أداة seed لمحافظ العملات. خطة التخزين الخاصة بك هي حد الأمان الحقيقي.

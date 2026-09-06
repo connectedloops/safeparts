@@ -5,6 +5,8 @@ const externalBaseUrl = process.env.PLAYWRIGHT_BASE_URL
 
 export default defineConfig({
   testDir: './tests',
+  // Retired application tests remain dormant reference source.
+  testIgnore: '**/desktop-*.spec.ts',
   fullyParallel: true,
   forbidOnly: isCi,
   retries: isCi ? 2 : 0,
@@ -32,12 +34,6 @@ export default defineConfig({
         {
           command: 'cd help && bun run dev',
           url: 'http://localhost:4321/help/',
-          reuseExistingServer: !isCi,
-          timeout: 120_000,
-        },
-        {
-          command: 'cd ../desktop && bun run dev',
-          url: 'http://127.0.0.1:1420',
           reuseExistingServer: !isCi,
           timeout: 120_000,
         },

@@ -21,8 +21,6 @@ Choose the format your recovery process can store and re-enter accurately.
 | Interface | Split output | Combine input |
 | --- | --- | --- |
 | Web app | <span class="token">base64url</span>, <span class="token">mnemo-words</span> | Same two formats, with best-effort detection on paste. |
-| Tauri desktop app | <span class="token">base64url</span>, <span class="token">mnemo-words</span> | Same two formats, with local Tauri commands. |
-| Native macOS app | All four concrete encodings | Detects metadata automatically or accepts a selected format. |
 | CLI | All four concrete encodings | Auto-detect when `--encoding` is omitted, or pass a concrete encoding. |
 | TUI | All four concrete encodings | Auto-detect or choose a concrete encoding. |
 | Rust library | All four concrete encodings through `safeparts_core::encoding` | Auto parse and concrete parse APIs. |

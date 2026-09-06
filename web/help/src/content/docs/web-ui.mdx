@@ -19,7 +19,7 @@ The web app runs at the site root and performs split and combine in the browser 
 - Optional passphrase protection.
 - Best-effort format detection when you paste shares into the combine form.
 
-For binary files, arbitrary-byte recovery, or all Share encodings, use the [CLI](../cli/), [TUI](../tui/), or a native app's file workflow. These workflows preserve the exact bytes instead of turning them into text.
+For binary files, arbitrary-byte recovery, or all Share encodings, use the [CLI](../cli/) or [TUI](../tui/) with file output. These workflows preserve the exact bytes instead of turning them into text.
 
 ## Split
 
@@ -46,7 +46,7 @@ Passphrases are masked by default. Use the reveal button to check either entry. 
 6. Copy the recovered Secret only into the system that needs it.
 </Steps>
 
-The web app refuses to display or copy a recovered Secret that is not valid UTF-8. If that happens, use the CLI, TUI, or a native file workflow to recover the exact bytes. Changing a Recovery share, the Share encoding, or Passphrase protection clears the previous result, so the displayed Secret always belongs to the current inputs.
+The web app refuses to display or copy a recovered Secret that is not valid UTF-8. If that happens, use the CLI or TUI with file output to recover the exact bytes. Changing a Recovery share, the Share encoding, or Passphrase protection clears the previous result, so the displayed Secret always belongs to the current inputs.
 
 ## Privacy boundary
 

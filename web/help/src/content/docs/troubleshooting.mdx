@@ -50,11 +50,11 @@ The web app explains recovery errors in your selected language. Each input has a
 | <samp>passphrase required</samp> | The shares were created with passphrase protection. | Provide the passphrase through the approved channel. |
 | <samp>decryption failed</samp> | The passphrase is wrong or encrypted data was tampered with. | Verify the passphrase and do not retry in a loop. |
 
-## Web or Tauri says the recovered Secret is not valid UTF-8
+## Web says the recovered Secret is not valid UTF-8
 
-The Web and Tauri interfaces are text-only at recovery output. They refuse to display or copy arbitrary bytes because converting invalid UTF-8 would change the recovered Secret.
+The web interface is text-only at recovery output. It refuses to display or copy arbitrary bytes because converting invalid UTF-8 would change the recovered Secret.
 
-Use the CLI or TUI with a file output, or use a native app's file workflow. These paths preserve the exact recovered bytes. Do not paste the Recovery shares or recovered bytes into an online converter.
+Use the CLI or TUI with a file output. These paths preserve the exact recovered bytes. Do not paste the Recovery shares or recovered bytes into an online converter.
 
 ## Web app says <samp>WASM module not found</samp>
 
@@ -70,7 +70,6 @@ The web app needs generated WASM bindings.
 
 - If Rust commands fail, run <span class="token token--mono">rustup update</span> and confirm `rustfmt` and `clippy` are installed.
 - If web or docs installs fail, use Bun and avoid mixing npm, pnpm, or yarn lockfiles.
-- If desktop builds fail on Linux, install the Tauri system dependencies listed in the release workflow or developer docs.
 
 ## Need help
 

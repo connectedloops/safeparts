@@ -98,7 +98,7 @@ export const STRINGS = {
     errorUnsupportedEncoding: "Select the encoding used for these Recovery shares and try again.",
     errorRecoveryFailed: "Recovery could not finish. Check your Recovery shares and try again. If it still fails, reload Safeparts and re-enter the shares from your saved copies.",
     errorRecoveredSecretNotText:
-      "This recovered Secret is not valid UTF-8 text. Use the CLI, TUI, or a native file workflow to recover the exact bytes.",
+      "This recovered Secret is not valid UTF-8 text. Use the CLI or TUI with file output to recover the exact bytes.",
     errorNotEnoughSharesOne: "Add 1 more share to recover this secret.",
     errorNotEnoughSharesMany: "Add {missing} more shares to recover this secret.",
 
@@ -207,7 +207,7 @@ export const STRINGS = {
     errorUnsupportedEncoding: "اختر الصيغة المستخدمة لحصص الاسترداد هذه ثم حاول مرة أخرى.",
     errorRecoveryFailed: "تعذر إكمال الاستعادة. تحقق من حصص الاسترداد وحاول مرة أخرى. إذا استمر الخطأ، فأعد تحميل Safeparts وأدخل الحصص من نسخك المحفوظة.",
     errorRecoveredSecretNotText:
-      "السر المستعاد ليس نصًا صالحًا بترميز UTF-8. استخدم CLI أو TUI أو سير عمل ملفات أصليًا لاستعادة البايتات بدقة.",
+      "السر المستعاد ليس نصًا صالحًا بترميز UTF-8. استخدم CLI أو TUI مع ملف إخراج لاستعادة البايتات بدقة.",
     errorNotEnoughSharesOne: "أضف حصة واحدة أخرى لاستعادة هذا السر.",
     errorNotEnoughSharesMany: "أضف {missing} حصص أخرى لاستعادة هذا السر.",
 
