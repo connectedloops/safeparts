@@ -75,11 +75,13 @@ description = "Reject mutable release inputs and excessive permissions."
 run = [
   "python3 scripts/dev/test_workflow_policy.py",
   "python3 scripts/dev/workflow_policy.py",
+  "python3 scripts/dev/test_changelog.py",
+  "python3 scripts/dev/test_changelog_workflow.py",
 ]
 
 [tasks."workflow:lint"]
 description = "Lint the release workflow and its policy-check CI seam."
-run = "actionlint -config-file .github/actionlint.yaml .github/workflows/release.yml .github/workflows/rust-ci.yml"
+run = "actionlint -config-file .github/actionlint.yaml .github/workflows/release.yml .github/workflows/rust-ci.yml .github/workflows/changelog.yml .github/workflows/web-ci.yml"
 
 [tasks."verify:rust"]
 description = "Run Rust format, lint, and tests."
@@ -108,6 +110,19 @@ run = ["bun run build:wasm", "bun run typecheck", "bun run build"]
 description = "Run web smoke tests."
 dir = "web"
 run = "bun run test:e2e:smoke"
+
+[tasks."changelog:generate"]
+description = "Refresh committed changelogs from origin/main and published GitHub releases."
+run = '''
+set -eu
+if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+  git fetch --unshallow origin
+fi
+git fetch origin '+refs/heads/main:refs/remotes/origin/main' --tags
+mkdir -p target/changelog
+gh api --paginate --slurp 'repos/connectedloops/safeparts/releases?per_page=100' > target/changelog/releases.json
+python3 scripts/dev/changelog.py --main-ref origin/main --releases-json target/changelog/releases.json
+'''
 
 [tasks."docs:dev"]
 description = "Start the help docs."

@@ -16,6 +16,7 @@ Owns the Astro + Starlight documentation site served under `/help/` in English a
 - Apply the `humanizer` skill before finalizing edits to user-facing docs.
 - Keep English and Arabic documentation structures aligned when changing navigation or core user guidance.
 - Preserve the `/help/` base path behavior.
+- English/Arabic `changelog.md` pages are tracked generated Markdown, not hand-maintained MDX. Regenerate them with root `CHANGELOG.md` through `mise run changelog:generate`; see `scripts/dev/README.md#changelog-snapshots`. Preserve full history in both locales and original commit wording; localize only fixed presentation text.
 
 ## Work Guidance
 

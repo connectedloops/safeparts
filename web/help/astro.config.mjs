@@ -156,6 +156,7 @@ for (const a of document.querySelectorAll('a[href]')) {
 					items: [
 						{ slug: 'encodings' },
 						{ slug: 'project' },
+						{ slug: 'changelog' },
 						{ slug: 'technical-design' },
 						{ slug: 'build-and-run' },
 						{ slug: 'troubleshooting' },

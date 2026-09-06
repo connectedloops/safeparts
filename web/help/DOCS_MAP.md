@@ -23,6 +23,7 @@ Keep English and Arabic routes aligned.
 - `/help/technical-design/` <-> `/help/ar/technical-design/`
 - `/help/build-and-run/` <-> `/help/ar/build-and-run/`
 - `/help/troubleshooting/` <-> `/help/ar/troubleshooting/`
+- `/help/changelog/` <-> `/help/ar/changelog/`
 - `/help/developer-guide/` <-> `/help/ar/developer-guide/`
 - `/help/developer-guide/library-api/` <-> `/help/ar/developer-guide/library-api/`
 - `/help/developer-guide/encodings-and-packets/` <-> `/help/ar/developer-guide/encodings-and-packets/`
@@ -33,7 +34,7 @@ Keep English and Arabic routes aligned.
 - Start: quickstart, recovery planning, security model.
 - Use Safeparts: web app, desktop app, CLI, TUI.
 - Operations: operational model, CLI runbooks, break-glass, automation.
-- Reference: encodings, how it works, technical design, install/self-host, troubleshooting.
+- Reference: encodings, how it works, technical design, install/self-host, troubleshooting, changelog.
 - Developers: Rust library guide, API, packets, testing.
 
 ## Page charters
@@ -56,6 +57,7 @@ Keep English and Arabic routes aligned.
 | `/help/project/` | Curious users | Understand the main mechanics. | Threshold sharing, packets, integrity, passphrases. |
 | `/help/technical-design/` | Engineers and reviewers | Review implementation design. | Data flow, packet format, crypto choices, limits. |
 | `/help/build-and-run/` | Installers and self-hosters | Install or build Safeparts. | Releases, Rust, web, desktop, Docker, docs. |
+| `/help/changelog/` | Users and contributors | Read main-branch and published-release history. | Generated release groups, original commit subjects, and source links; full copy also in root `CHANGELOG.md`. |
 | `/help/troubleshooting/` | Users with errors | Diagnose failures safely. | Common errors, WASM setup, build fixes. |
 | `/help/developer-guide/` | Rust integrators | Decide whether to use the library. | Library boundary and next pages. |
 | `/help/developer-guide/library-api/` | Rust integrators | Call the public API correctly. | Split, combine, encoding, passphrase, API reference. |
