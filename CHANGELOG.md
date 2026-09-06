@@ -6,8 +6,14 @@ Complete main-branch history and published releases. Commit subjects retain thei
 
 ## Unreleased
 
+### Features
+
+- feat&#40;web&#41;&#58; add a quiet localized changelog footer link &#40;&#35;98&#41; ([853c984](https://github.com/connectedloops/safeparts/commit/853c984c02d48f74951c5b74d6532aed6e4cd3c0))
+- feat&#40;docs&#41;&#58; generate repository and help changelogs from main history &#40;&#35;98&#41; ([ae84e5a](https://github.com/connectedloops/safeparts/commit/ae84e5a48ad7e7579b47623f7c8a10fee49d4133))
+
 ### Fixes
 
+- fix&#40;docs&#41;&#58; preserve Unicode separators in changelog history &#40;&#35;98&#41; ([da65b59](https://github.com/connectedloops/safeparts/commit/da65b59cd0b6b1da0cb59a66104097c74da6376a))
 - fix&#40;ci&#41;&#58; recognize Blacksmith runner labels ([6da02f2](https://github.com/connectedloops/safeparts/commit/6da02f201e33d1cae0509d2917dbdacab7f12b43))
 - fix&#40;web&#41;&#58; restore placeholder contrast ([fc0404d](https://github.com/connectedloops/safeparts/commit/fc0404ddffccc6f4ea51060ee8fbb9f4923eab37))
 - fix&#40;web&#41;&#58; pin background gradient to viewport ([76be1a5](https://github.com/connectedloops/safeparts/commit/76be1a523d8081aedaa624276f970c32b4dd7000))
