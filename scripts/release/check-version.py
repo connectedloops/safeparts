@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import tomllib
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -22,18 +20,6 @@ def toml_version(path: Path) -> str:
         return str(tomllib.load(file)["package"]["version"])
 
 
-def json_version(path: Path) -> str:
-    with path.open(encoding="utf-8") as file:
-        return str(json.load(file)["version"])
-
-
-def project_version(path: Path) -> str:
-    value = ET.parse(path).findtext(".//Version")
-    if value is None:
-        raise ValueError(f"project has no Version property: {path}")
-    return value
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check release version consistency")
     parser.add_argument("version")
@@ -46,11 +32,6 @@ def main() -> int:
         "crates/safeparts_core/Cargo.toml": toml_version,
         "crates/safeparts_tui/Cargo.toml": toml_version,
         "crates/safeparts_wasm/Cargo.toml": toml_version,
-        "crates/safeparts_uniffi/Cargo.toml": toml_version,
-        "desktop/src-tauri/Cargo.toml": toml_version,
-        "desktop/package.json": json_version,
-        "desktop/src-tauri/tauri.conf.json": json_version,
-        "windows/Safeparts.App/Safeparts.App.csproj": project_version,
     }
 
     mismatches: list[str] = []

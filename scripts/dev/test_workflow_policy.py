@@ -14,8 +14,6 @@ PINNED_RUST = (
     "dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c "
     "# stable (2026-08-05)"
 )
-PINNED_XCODE = "maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0"
-PINNED_DOTNET = "actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1"
 PINNED_BUN = "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0"
 
 
@@ -38,33 +36,9 @@ jobs:
       - uses: {PINNED_RUST}
         with:
           toolchain: '1.93.0'
-  desktop:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: {PINNED_RUST}
-        with:
-          toolchain: '1.93.0'
       - uses: {PINNED_BUN}
         with:
           bun-version: '1.3.11'
-  native-windows:
-    runs-on: windows-2025
-    steps:
-      - uses: {PINNED_RUST}
-        with:
-          toolchain: '1.93.0'
-      - uses: {PINNED_DOTNET}
-        with:
-          dotnet-version: '10.0.100'
-  native-macos:
-    runs-on: macos-14
-    steps:
-      - uses: {PINNED_XCODE}
-        with:
-          xcode-version: '16.2'
-      - uses: {PINNED_RUST}
-        with:
-          toolchain: '1.93.0'
   publish:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
@@ -99,6 +73,36 @@ class WorkflowPolicyTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_supported_workflow_needs_no_native_sdks(self) -> None:
+        result = self.run_policy(valid_workflow())
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_retired_jobs_commands_and_installer_globs_are_rejected(self) -> None:
+        for addition in (
+            "  desktop:\n    runs-on: ubuntu-24.04\n",
+            "  native-macos:\n    runs-on: macos-15\n",
+            "  native-windows:\n    runs-on: windows-2025\n",
+            "      - run: cargo build -p safeparts_uniffi\n",
+            "      - run: bun run tauri:build\n",
+            "      - run: python windows/scripts/package-release.py\n",
+            "      - run: macos/scripts/package-release.sh\n",
+            "          files: dist/release/**/*.dmg\n",
+            "          files: dist/release/safeparts-native-windows-*.zip\n",
+            "          files: dist/release/**/*.msi\n",
+            "          files: dist/release/**/*.AppImage\n",
+        ):
+            with self.subTest(addition=addition):
+                result = self.run_policy(valid_workflow() + addition)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("retired release workload or artifact", result.stderr)
+
+    def test_cli_host_runner_pins_remain_required(self) -> None:
+        for host in ("ubuntu", "windows", "macos"):
+            with self.subTest(host=host):
+                result = self.run_policy(valid_workflow().replace("runs-on: windows-2025", f"runs-on: {host}-latest"))
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(f"moving runner label {host}-latest", result.stderr)
+
     def test_mutable_action_reference_is_rejected(self) -> None:
         workflow = valid_workflow().replace(
             PINNED_CHECKOUT, "actions/checkout@v4 # v4"
@@ -123,7 +127,6 @@ class WorkflowPolicyTests(unittest.TestCase):
         workflow = (
             valid_workflow()
             .replace("toolchain: '1.93.0'", "toolchain: stable", 1)
-            .replace("xcode-version: '16.2'", "xcode-version: latest-stable")
             .replace("runs-on: ubuntu-24.04", "runs-on: ubuntu-latest", 1)
         )
 
@@ -131,23 +134,19 @@ class WorkflowPolicyTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 1)
         self.assertIn("Rust toolchain must match mise.toml (1.93.0)", result.stderr)
-        self.assertIn("Xcode version must be an exact numeric version", result.stderr)
         self.assertIn("moving runner label ubuntu-latest", result.stderr)
 
-    def test_moving_bun_and_dotnet_versions_are_rejected(self) -> None:
+    def test_moving_bun_versions_are_rejected(self) -> None:
         workflow = (
             valid_workflow()
             .replace("bun-version: '1.3.11'", "bun-version: latest")
-            .replace("dotnet-version: '10.0.100'", "dotnet-version: '10.0.x'")
         )
 
         result = self.run_policy(workflow)
 
         self.assertEqual(result.returncode, 1)
         self.assertIn("Bun version must match mise.toml (1.3.11)", result.stderr)
-        self.assertIn(
-            ".NET SDK must match windows/global.json (10.0.100)", result.stderr
-        )
+
 
     def test_write_permission_outside_publish_is_rejected(self) -> None:
         workflow = valid_workflow().replace(

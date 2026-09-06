@@ -4,10 +4,10 @@ members = [
   "crates/safeparts_core",
   "crates/safeparts",
   "crates/safeparts_wasm",
-  "crates/safeparts_uniffi",
   "crates/safeparts_tui",
-  "desktop/src-tauri",
 ]
+# Retained reference source; restoring these manifests may require workspace repair.
+exclude = ["desktop/src-tauri", "crates/safeparts_uniffi"]
 
 [workspace.package]
 edition = "2024"

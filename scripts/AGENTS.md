@@ -12,7 +12,7 @@ Owns repository automation scripts.
 ## Local Contracts
 
 - Scripts must be deterministic, explicit about inputs/outputs, and avoid embedding secrets.
-- Release packaging behavior should stay aligned with `scripts/release/README.md`, including native macOS packaging owned by `macos/scripts/`.
+- Release packaging behavior must match `scripts/release/README.md`: CLI/TUI archives for Linux, Windows, and both macOS architectures. Retired GUI applications and their UniFFI bridge are outside active setup, verification, dependency policy, and future releases; preserve their implementation source as dormant reference.
 
 ## Work Guidance
 

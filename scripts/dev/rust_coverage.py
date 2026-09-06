@@ -15,8 +15,6 @@ COMPONENT_PREFIXES = {
     "cli": "crates/safeparts/src/",
     "tui": "crates/safeparts_tui/src/",
     "wasm": "crates/safeparts_wasm/src/",
-    "uniffi": "crates/safeparts_uniffi/src/",
-    "desktop": "desktop/src-tauri/src/",
 }
 
 FLOORS = {
@@ -24,14 +22,10 @@ FLOORS = {
     "core": 90.0,
     "cli": 75.0,
     "tui": 50.0,
-    "uniffi": 85.0,
-    "desktop": 90.0,
 }
 
 EXCLUDED_FILES = {
     "crates/safeparts_tui/src/main.rs",
-    "crates/safeparts_uniffi/src/bin/uniffi-bindgen.rs",
-    "desktop/src-tauri/src/main.rs",
 }
 
 

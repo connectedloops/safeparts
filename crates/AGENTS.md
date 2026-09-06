@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Owns Rust workspace members for the core library, CLI, TUI, WASM bindings, and native UniFFI bridges.
+Owns active Rust workspace members for core, CLI, TUI, and WASM, plus the dormant UniFFI reference source.
 
 ## Ownership
 
@@ -10,13 +10,14 @@ Owns Rust workspace members for the core library, CLI, TUI, WASM bindings, and n
 - `safeparts/`: script-friendly CLI binary and CLI integration tests.
 - `safeparts_tui/`: terminal UI binary and interaction/domain state.
 - `safeparts_wasm/`: wasm-bindgen facade consumed by `web/`.
-- `safeparts_uniffi/`: platform-neutral UniFFI facade used to generate native Swift and C# bindings.
+- `safeparts_uniffi/`: retired native-app bridge retained as dormant reference, excluded from the active Cargo workspace.
 
 ## Local Contracts
 
 - Keep shared secret-handling logic in `safeparts_core`; front-ends should adapt IO and presentation only.
 - Treat share packets, passphrases, and reconstructed secrets as sensitive. Do not log or fixture real values.
 - Workspace lints forbid `unsafe`; do not weaken lint policy.
+- Supported builds, coverage, dependency policy, and releases use only core, CLI, TUI, and WASM crates. The UniFFI and Tauri manifests are explicitly excluded; restoring them may require manifest/workspace repair. No standalone buildability or parity is promised.
 
 ## Work Guidance
 
@@ -37,4 +38,4 @@ Owns Rust workspace members for the core library, CLI, TUI, WASM bindings, and n
 - `safeparts/`: CLI binary and e2e tests.
 - `safeparts_tui/`: terminal UI binary.
 - `safeparts_wasm/`: browser/WASM binding layer.
-- `safeparts_uniffi/`: platform-neutral UniFFI binding layer for native apps.
+- `safeparts_uniffi/`: dormant UniFFI reference source and its local retirement contract.

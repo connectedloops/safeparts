@@ -4,15 +4,12 @@ on:
   push:
     paths:
       - 'web/**'
-      - 'desktop/src/**'
-      - 'desktop/package.json'
-      - 'desktop/bun.lock'
       - 'crates/safeparts_core/**'
       - 'crates/safeparts_wasm/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.dockerignore'
-      - 'scripts/dev/check_desktop_parity.py'
+      - 'scripts/dev/test_retirement.py'
       - 'scripts/dev/test_web_deploy.py'
       - 'scripts/dev/*changelog*.py'
       - '.github/workflows/changelog.yml'
@@ -24,15 +21,12 @@ on:
   pull_request:
     paths:
       - 'web/**'
-      - 'desktop/src/**'
-      - 'desktop/package.json'
-      - 'desktop/bun.lock'
       - 'crates/safeparts_core/**'
       - 'crates/safeparts_wasm/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.dockerignore'
-      - 'scripts/dev/check_desktop_parity.py'
+      - 'scripts/dev/test_retirement.py'
       - 'scripts/dev/test_web_deploy.py'
       - 'scripts/dev/*changelog*.py'
       - '.github/workflows/changelog.yml'
@@ -105,10 +99,6 @@ jobs:
         run: bun install --frozen-lockfile
         working-directory: web/help
 
-      - name: Install desktop dependencies from the lockfile
-        run: bun install --frozen-lockfile
-        working-directory: desktop
-
       - name: Test deployment artifact behavior and workflow policy
         run: |
           python3 scripts/dev/test_web_deploy.py
@@ -139,13 +129,6 @@ jobs:
         run: bun run build
         working-directory: web
 
-      - name: Build desktop frontend
-        run: bun run build
-        working-directory: desktop
-
-      - name: Verify desktop and Web UI parity
-        run: python3 scripts/dev/check_desktop_parity.py
-
       - name: Build English and Arabic help
         run: bun run build
         working-directory: web/help
@@ -154,21 +137,17 @@ jobs:
         run: bun run test:a11y:install
         working-directory: web
 
-      - name: Test the built Web, help, and rendered desktop output
+      - name: Test the built Web and help
         run: |
           python3 -m http.server 4173 --bind 127.0.0.1 --directory dist > "$RUNNER_TEMP/safeparts-preview.log" 2>&1 &
           preview_pid=$!
-          (cd ../desktop && bun run dev) > "$RUNNER_TEMP/safeparts-desktop.log" 2>&1 &
-          desktop_pid=$!
-          trap 'kill "$preview_pid" "$desktop_pid" 2>/dev/null || true' EXIT
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
           for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:4173/help/ > /dev/null \
-              && curl --fail --silent http://127.0.0.1:1420/ > /dev/null; then
+            if curl --fail --silent http://127.0.0.1:4173/help/ > /dev/null; then
               break
             fi
             if [ "$attempt" -eq 30 ]; then
               cat "$RUNNER_TEMP/safeparts-preview.log"
-              cat "$RUNNER_TEMP/safeparts-desktop.log"
               exit 1
             fi
             sleep 1

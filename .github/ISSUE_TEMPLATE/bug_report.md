@@ -20,7 +20,7 @@ labels: bug
 ## Environment
 
 - OS:
-- Safeparts interface: CLI / TUI / web / desktop / library
+- Safeparts interface: CLI / TUI / web / help / WASM / core library
 - Version or commit:
 
 ## Safety check

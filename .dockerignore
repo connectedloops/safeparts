@@ -12,5 +12,11 @@ web/test-results/
 openspec/
 docs/
 
+# Retired application source is not a Web image input.
+desktop/
+macos/
+windows/
+crates/safeparts_uniffi/
+
 **/.DS_Store
 **/*.log

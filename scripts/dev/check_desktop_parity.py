@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Check copied web UI files against the desktop mirror."""
+"""Dormant reference: the former copied web/desktop parity checker.
+
+Not part of supported verification. The retired mirror may diverge indefinitely;
+manual execution is historical inspection, not a supported-surface quality gate.
+"""
 
 from __future__ import annotations
 

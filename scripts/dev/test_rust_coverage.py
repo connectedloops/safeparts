@@ -31,6 +31,23 @@ class RustCoverageTests(unittest.TestCase):
             self.assertEqual(components["tui"], rust_coverage.LineMetric(0, 0))
             self.assertEqual(overall, rust_coverage.LineMetric(2, 1))
 
+    def test_retired_source_cannot_change_supported_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            lcov = repo / "coverage.lcov"
+            records = []
+            for relative in ("crates/safeparts_core/src/lib.rs", "crates/safeparts_uniffi/src/lib.rs", "desktop/src-tauri/src/lib.rs"):
+                source = repo / relative
+                source.parent.mkdir(parents=True)
+                source.write_text("fn synthetic() {}\n")
+                count = 1 if "safeparts_core" in relative else 0
+                records.append(f"SF:{source}\nDA:1,{count}\nend_of_record\n")
+            lcov.write_text("".join(records))
+            overall, components = rust_coverage.calculate_metrics(lcov, repo)
+            self.assertEqual(overall, rust_coverage.LineMetric(1, 1))
+            self.assertEqual(set(components), {"core", "cli", "tui", "wasm"})
+            self.assertEqual(rust_coverage.FLOORS, {"overall": 70.0, "core": 90.0, "cli": 75.0, "tui": 50.0})
+
     def test_floor_failures_name_each_low_component(self) -> None:
         passing = {
             name: rust_coverage.LineMetric(100, 100)

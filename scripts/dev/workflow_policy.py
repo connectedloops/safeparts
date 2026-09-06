@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import sys
 import tomllib
@@ -17,8 +16,13 @@ SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 VERSION_COMMENT_PATTERN = re.compile(
     r"^(?:v\d+\.\d+\.\d+|stable \(\d{4}-\d{2}-\d{2}\))$"
 )
-EXACT_VERSION_PATTERN = re.compile(r"^\d+(?:\.\d+){1,2}$")
-REQUIRED_RUST_JOBS = {"test", "build", "desktop", "native-windows", "native-macos"}
+REQUIRED_RUST_JOBS = {"test", "build"}
+RETIRED_RELEASE_PATTERN = re.compile(
+    r"desktop|native[-_](?:macos|windows)|safeparts_uniffi|tauri|"
+    r"(?:macos|windows)/|setup-dotnet|setup-xcode|"
+    r"\.(?:appimage|deb|rpm|dmg|msi|exe)\b",
+    re.IGNORECASE,
+)
 REQUIRED_PUBLISH_CONDITION = (
     "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')"
 )
@@ -185,18 +189,17 @@ def parse_workflow(
     return lines, actions, permissions, job_conditions
 
 
-def repository_versions(repo_root: Path) -> tuple[str, str, str]:
+def repository_versions(repo_root: Path) -> tuple[str, str]:
     mise = tomllib.loads((repo_root / "mise.toml").read_text(encoding="utf-8"))
     rust_config = mise["tools"]["rust"]
     rust_version = rust_config["version"] if isinstance(rust_config, dict) else rust_config
     bun_version = mise["tools"]["bun"]
-    dotnet = json.loads((repo_root / "windows" / "global.json").read_text(encoding="utf-8"))
-    return str(rust_version), str(bun_version), str(dotnet["sdk"]["version"])
+    return str(rust_version), str(bun_version)
 
 
 def validate_workflow(text: str, repo_root: Path = REPO_ROOT) -> list[str]:
     lines, actions, permissions, job_conditions = parse_workflow(text)
-    rust_version, bun_version, dotnet_version = repository_versions(repo_root)
+    rust_version, bun_version = repository_versions(repo_root)
     errors: list[str] = []
 
     for action in actions:
@@ -228,21 +231,10 @@ def validate_workflow(text: str, repo_root: Path = REPO_ROOT) -> list[str]:
                 bun_version,
                 f"Bun version must match mise.toml ({bun_version})",
             )
-        elif action.identifier == "actions/setup-dotnet":
-            expected_input = (
-                "dotnet-version",
-                dotnet_version,
-                f".NET SDK must match windows/global.json ({dotnet_version})",
-            )
         if expected_input is not None:
             key, expected, message = expected_input
             if action.inputs.get(key) != expected:
                 errors.append(f"{location}: {message}")
-
-        if action.identifier == "maxim-lobanov/setup-xcode":
-            xcode_version = action.inputs.get("xcode-version", "")
-            if not EXACT_VERSION_PATTERN.fullmatch(xcode_version):
-                errors.append(f"{location}: Xcode version must be an exact numeric version")
 
     actions_by_job: dict[str, list[ActionUse]] = {}
     for action in actions:
@@ -256,6 +248,8 @@ def validate_workflow(text: str, repo_root: Path = REPO_ROOT) -> list[str]:
             errors.append(f"job {job} must install the repository Rust toolchain")
 
     for line_number, line in enumerate(lines, 1):
+        if not line.lstrip().startswith("#") and RETIRED_RELEASE_PATTERN.search(line):
+            errors.append(f"line {line_number}: retired release workload or artifact")
         moving_runner = re.search(r"\b(?:ubuntu|windows|macos)-latest\b", line)
         if moving_runner:
             errors.append(

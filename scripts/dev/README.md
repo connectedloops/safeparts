@@ -5,7 +5,7 @@ Run these from the repository root.
 ```bash
 python3 scripts/dev/doctor.py
 python3 scripts/dev/verify_dx.py
-python3 scripts/dev/check_desktop_parity.py
+python3 scripts/dev/test_retirement.py
 python3 scripts/dev/test_rust_coverage.py
 python3 scripts/dev/rust_coverage.py
 python3 scripts/dev/test_rustsec_audit.py
@@ -26,7 +26,6 @@ Mise shortcuts:
 ```bash
 mise run doctor
 mise run dx:verify
-mise run desktop:parity
 mise run coverage
 mise run audit
 mise run workflow:check
@@ -52,4 +51,8 @@ Each commit belongs to the earliest published eligible release that contains it.
 
 The writer requests `contents: write` to commit snapshots and `actions: write` to dispatch the Web workflow, using `GITHUB_TOKEN` rather than a new secret. Repository policy must allow those permissions and bot pushes to main. If branch protection rejects the push, the workflow fails without bypassing it. A scheduled or manual changelog run retries generation and Web dispatch.
 
-The diagnostic scripts are read-only. The coverage runner writes LCOV, JSON, and HTML reports under `target/coverage/` and fails when a production-code floor is missed. The RustSec runner checks `Cargo.lock` against `rustsec-policy.toml` and rejects unreviewed or expired exceptions. The release workflow policy check rejects mutable release actions, moving toolchains and runners, and write permissions outside the publication job.
+## Diagnostics and verification
+
+The diagnostic scripts are read-only. The coverage runner writes LCOV, JSON, and HTML reports under `target/coverage/` and fails when a production-code floor is missed. The RustSec runner checks `Cargo.lock` against `rustsec-policy.toml` and rejects unreviewed or expired exceptions. The workflow policy check rejects mutable release actions, moving toolchains and runners, retired workloads and installers, and write permissions outside the publication job. `mise run workflow:check` also tests supported workspace/task/CI boundaries, release version inputs, checksum safety, and Docker Cargo inputs without requiring a Docker daemon.
+
+Default setup and verification cover core, CLI, TUI, WASM, web, and help. The former desktop parity checker remains as dormant reference only; retired clients need not mirror supported features. Coverage retains the overall, core, CLI, and TUI floors and reports WASM separately.
