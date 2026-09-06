@@ -38,7 +38,7 @@ Status keys:
 | Metadata-guided native recovery inputs | N/A | N/A | N/A | N/A | N/A | N/A | Yes | Yes | N/A | Swift and Windows model tests plus real bridge smoke | Native app models and UI |
 | Native batch-export filename prefix | N/A | N/A | N/A | N/A | N/A | N/A | Yes | Yes | N/A | Swift and Windows filename tests | Native app models and UI |
 | English + Arabic user docs | N/A | N/A | N/A | N/A | Links to help | N/A | N/A | N/A | Yes | Docs build, docs a11y route parity | Help docs guide |
-| Generated main/release changelog | N/A | N/A | N/A | N/A | Links through help | N/A | N/A | N/A | Full English/Arabic pages and root Markdown | Isolated Git/release fixtures, writer policy, rendered docs and accessibility | Generator, CI handoff, tracked-output policy and help guide |
+| Generated main/release changelog | N/A | N/A | N/A | N/A | Localized footer link | Mirrored footer link | N/A | N/A | Full English/Arabic pages and root Markdown | Isolated Git/release fixtures, writer policy, rendered docs, footer navigation/input retention and accessibility | Generator, CI handoff, tracked-output policy and web/help guides |
 | Release CLI/TUI archives | N/A | Yes | Yes | N/A | N/A | N/A | N/A | N/A | Yes | Release workflow, package script | Release guide |
 | Release input and permission policy | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | Workflow policy unit and repository tests, actionlint | Release workflow, version sources, and release guide |
 | Tauri desktop installers | N/A | N/A | N/A | N/A | N/A | Yes, Linux and Windows | N/A | N/A | Yes | Release workflow | Release guide and desktop guide |

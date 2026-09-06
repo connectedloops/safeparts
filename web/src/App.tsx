@@ -125,6 +125,9 @@ export function App() {
   const helpUrl =
     import.meta.env.VITE_HELP_URL ?? (lang === "ar" ? "/help/ar/" : "/help/");
 
+  const helpBaseUrl = helpUrl.replace(/\/(?:ar\/?)?$/, "");
+  const changelogUrl = `${helpBaseUrl}/${lang === "ar" ? "ar/" : ""}changelog/`;
+
   const strings = STRINGS[lang];
 
   const focusTab = useCallback((next: Tab) => {
@@ -366,6 +369,14 @@ export function App() {
                 MIT
               </a>
             </div>
+            <a
+              className="underline decoration-slate-400/30 underline-offset-4 hover:decoration-slate-400/60"
+              href={changelogUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {strings.changelog}
+            </a>
           </footer>
 
           <LiveRegion announcements={announcements} />
