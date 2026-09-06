@@ -18,6 +18,7 @@ export const STRINGS = {
     github: "GitHub",
     discord: "Discord",
     help: "Docs",
+    changelog: "Changelog",
     privacyNote:
       "Runs locally in your browser. Your secret never leaves your device.",
 
@@ -120,6 +121,7 @@ export const STRINGS = {
     github: "GitHub",
     discord: "ديسكورد",
     help: "مساعدة",
+    changelog: "سجل التغييرات",
     privacyNote: "يعمل محليا في المتصفح. الأسرار لا تغادر جهازك.",
 
     splitTitle: "تقسيم",

@@ -22,6 +22,7 @@ Owns the Vite + React browser application source and generated WASM package boun
 - Split clipboard actions copy one Recovery share at a time; only Combine may copy its recovered Secret through the global result shortcut.
 - Generated Recovery shares are valid only while the Secret, Threshold, Share count, Share encoding, and Passphrase protection match the completed Split operation; input changes must also reject late results.
 - Display and copy recovered output only when it is valid UTF-8, and invalidate it whenever Recovery shares, Share encoding, or Passphrase protection changes.
+- Keep changelog discovery unobtrusive in the footer. Use the existing help base/locale and a separate tab with opener isolation so in-progress input stays in place.
 - Desktop UI parity depends on copied files from this subtree.
 
 ## Work Guidance

@@ -19,6 +19,7 @@ It owns:
 
 - Run `bun run build:wasm` before expecting split/combine to work locally.
 - Keep Recovery share and Secret handling in memory. Do not add server calls for Split or Combine.
+- Keep the changelog link in the footer rather than primary navigation. It follows the help URL and opens a separate, opener-isolated tab without discarding form input.
 - Remove generated Recovery shares as soon as the Secret, Threshold, Share count, Share encoding, or Passphrase protection changes. A pending Split must not restore an invalid result.
 - Preserve keyboard access, live-region feedback, and labels when changing forms. Split success announcements may report the Recovery share count, but must not include Secret or Recovery share text.
 - Derive cheap values during render. Use memoization only when computation cost or reference identity requires it.
