@@ -353,10 +353,10 @@ impl App {
                     self.invalidate_split();
                 }
             }
-            Focus::CombinePassphrase => {
-                if Self::passphrase_input(key, &mut self.combine_passphrase) {
-                    self.invalidate_combine();
-                }
+            Focus::CombinePassphrase
+                if Self::passphrase_input(key, &mut self.combine_passphrase) =>
+            {
+                self.invalidate_combine();
             }
             _ => {}
         }
