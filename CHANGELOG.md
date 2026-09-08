@@ -8,11 +8,23 @@ Complete main-branch history and published releases. Commit subjects retain thei
 
 ### Features
 
+- feat&#40;web&#41;&#58; retire desktop guidance and browser targets &#40;&#35;97&#41; ([753b297](https://github.com/connectedloops/safeparts/commit/753b2971978418422e2366f566261a6851ece86d))
 - feat&#40;web&#41;&#58; add a quiet localized changelog footer link &#40;&#35;98&#41; ([853c984](https://github.com/connectedloops/safeparts/commit/853c984c02d48f74951c5b74d6532aed6e4cd3c0))
 - feat&#40;docs&#41;&#58; generate repository and help changelogs from main history &#40;&#35;98&#41; ([ae84e5a](https://github.com/connectedloops/safeparts/commit/ae84e5a48ad7e7579b47623f7c8a10fee49d4133))
 
 ### Fixes
 
+- fix&#40;tui&#41;&#58; satisfy stable Clippy match&#45;guard lint &#40;&#35;100&#41; ([cb75f54](https://github.com/connectedloops/safeparts/commit/cb75f54396a9c78e952c3fca8e04df54e614dbda))
+- fix&#40;docs&#41;&#58; isolate recovery encoding labels in retirement guidance &#40;&#35;97&#41; ([8b2cdc2](https://github.com/connectedloops/safeparts/commit/8b2cdc2d3f67052bc5bf8ebfe46fc29b90ee5ade))
+- fix&#40;web&#41;&#58; guard deferred numeric focus selection &#40;&#35;96&#41; ([aeb75e7](https://github.com/connectedloops/safeparts/commit/aeb75e7a4f17ee4638eaacbf3cf6f9c7f8e85c9b))
+- fix&#40;web&#41;&#58; localize actionable recovery errors &#40;&#35;93&#41; ([8915fbc](https://github.com/connectedloops/safeparts/commit/8915fbc428ba87e82ac116f2e2794ccd754dc537))
+- fix&#40;web&#41;&#58; build and verify app and help sequentially &#40;&#35;94&#41; ([62918fb](https://github.com/connectedloops/safeparts/commit/62918fbc259cbe1c24f5d9b3958b0feddb934eca))
+- fix&#40;web&#41;&#58; disable writing assistance on sensitive inputs &#40;&#35;92&#41; ([d771f2e](https://github.com/connectedloops/safeparts/commit/d771f2e5e749ae84182fc60820913427d9118655))
+- fix&#40;tui&#41;&#58; recover from file errors without losing session &#40;&#35;91&#41; ([b5622be](https://github.com/connectedloops/safeparts/commit/b5622be29cd059227054a38cc125b70a3769c1d1))
+- fix&#40;tui&#41;&#58; preserve focused editor input and navigation &#40;&#35;90&#41; ([cededaa](https://github.com/connectedloops/safeparts/commit/cededaaf73e41bd220199a71c27a486d2834f3f5))
+- fix&#40;tui&#41;&#58; recover CLI mnemonic files with strict core framing &#40;&#35;89&#41; ([b2c976a](https://github.com/connectedloops/safeparts/commit/b2c976af54592f76da10345cf184f61700e8ba5d))
+- fix&#40;tui&#41;&#58; invalidate stale operation results &#40;&#35;87&#41; ([2e8b517](https://github.com/connectedloops/safeparts/commit/2e8b517314f254bcee6df94651bf74ecd4e6c5b4))
+- fix&#40;web&#41;&#58; render exactly selectable recovery output &#40;&#35;88&#41; ([13b76ae](https://github.com/connectedloops/safeparts/commit/13b76ae6dca80cb5fcd53d1bdcae8d4f9725c54a))
 - fix&#40;docs&#41;&#58; preserve Unicode separators in changelog history &#40;&#35;98&#41; ([da65b59](https://github.com/connectedloops/safeparts/commit/da65b59cd0b6b1da0cb59a66104097c74da6376a))
 - fix&#40;ci&#41;&#58; recognize Blacksmith runner labels ([6da02f2](https://github.com/connectedloops/safeparts/commit/6da02f201e33d1cae0509d2917dbdacab7f12b43))
 - fix&#40;web&#41;&#58; restore placeholder contrast ([fc0404d](https://github.com/connectedloops/safeparts/commit/fc0404ddffccc6f4ea51060ee8fbb9f4923eab37))
@@ -20,7 +32,19 @@ Complete main-branch history and published releases. Commit subjects retain thei
 
 ### Documentation
 
+- docs&#58; retire desktop application guidance &#40;&#35;97&#41; ([4c2c317](https://github.com/connectedloops/safeparts/commit/4c2c31720f3c22d6151cebfa944c1c046d37ee2d))
+- docs&#58; define supported surfaces and retire native implementation plan &#40;&#35;97&#41; ([d13dd8a](https://github.com/connectedloops/safeparts/commit/d13dd8a6f54e71f2d12894e42d0f375cf25f0511))
+- docs&#40;recovery&#41;&#58; require saved&#45;backup verification checkpoint &#40;&#35;95&#41; ([b5768e5](https://github.com/connectedloops/safeparts/commit/b5768e5d26d861875ed42043681e96f5df290e53))
 - docs&#58; document repository stewardship ([a9d25c1](https://github.com/connectedloops/safeparts/commit/a9d25c13ccbd75e2966b917c2ad932eb90ce4cdb))
+
+### Tests
+
+- test&#40;ci&#41;&#58; align changelog handoff with supported workloads &#40;&#35;97&#41; ([adff569](https://github.com/connectedloops/safeparts/commit/adff56970d12ba033daf296e32602ab5d8455585))
+- test&#40;web&#41;&#58; intercept built WASM recovery mocks &#40;&#35;93&#41; ([e6e56ce](https://github.com/connectedloops/safeparts/commit/e6e56cea656d0b27c88258e5bc8f8babdd7b1348))
+
+### Maintenance
+
+- chore&#40;automation&#41;&#58; retire desktop workloads and releases &#40;&#35;97&#41; ([e1bbac6](https://github.com/connectedloops/safeparts/commit/e1bbac6b2ba0a57de458438f50004da7fe4034b6))
 
 ### Other changes
 
