@@ -19,7 +19,7 @@ Owns local developer-experience diagnostics and verification helpers.
 - `test_workflow_policy.py`: public-behavior tests for release pins, permissions, tag-only publication, and retired-workload rejection.
 - `test_retirement.py`: active Cargo/task/CI boundaries, CLI/TUI release hosts and checksum safety, supported version manifests, and staged Docker Cargo inputs.
 - `changelog.py`: main-history/release collector and renderer for the three committed changelog snapshots.
-- `test_changelog.py`, `test_changelog_workflow.py`: isolated Git/release fixtures and main-only writer/artifact handoff guards.
+- `test_changelog.py`, `test_changelog_workflow.py`: isolated Git/release fixtures and main-only writer/artifact handoff guards; require supported WASM/web/help gates without retired desktop builds.
 - `README.md`: local script usage notes, including changelog regeneration and CI permissions.
 
 ## Local Contracts
