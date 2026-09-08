@@ -62,7 +62,11 @@ class ChangelogWorkflowTests(unittest.TestCase):
             self.assertIn('deploy-artifact.py verify', job)
         self.assertNotIn('actions: write', text)
         self.assertIn('bun run test:e2e:full', text)
-        self.assertIn('Build desktop frontend', text)
+        for step in ('Build application WASM', 'Test WASM browser bindings',
+                     'Type-check Web application', 'Build Web application',
+                     'Build English and Arabic help', 'Test the built Web and help'):
+            self.assertIn(step, text)
+        self.assertNotIn('Build desktop frontend', text)
 
 
 if __name__ == '__main__':
