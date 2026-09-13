@@ -39,9 +39,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install actionlint
-        uses: taiki-e/install-action@v2
-        with:
-          tool: actionlint@1.7.12
+        run: |
+          scripts/dev/install_actionlint.sh "$RUNNER_TEMP/actionlint-bin"
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
 
       - name: Test workflow policy seams
         run: |
