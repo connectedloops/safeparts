@@ -17,6 +17,7 @@ description: تاريخ الفرع الرئيسي والإصدارات المن�
 
 ### إصلاحات
 
+- <span dir="ltr">fix&#58; reject nul private output paths ([c50534e](https://github.com/connectedloops/safeparts/commit/c50534ef83f29b1f58dc18af911908830256bf5c))</span>
 - <span dir="ltr">fix&#40;tui&#41;&#58; satisfy stable Clippy match&#45;guard lint &#40;&#35;100&#41; ([cb75f54](https://github.com/connectedloops/safeparts/commit/cb75f54396a9c78e952c3fca8e04df54e614dbda))</span>
 - <span dir="ltr">fix&#40;docs&#41;&#58; isolate recovery encoding labels in retirement guidance &#40;&#35;97&#41; ([8b2cdc2](https://github.com/connectedloops/safeparts/commit/8b2cdc2d3f67052bc5bf8ebfe46fc29b90ee5ade))</span>
 - <span dir="ltr">fix&#40;web&#41;&#58; guard deferred numeric focus selection &#40;&#35;96&#41; ([aeb75e7](https://github.com/connectedloops/safeparts/commit/aeb75e7a4f17ee4638eaacbf3cf6f9c7f8e85c9b))</span>
@@ -44,6 +45,23 @@ description: تاريخ الفرع الرئيسي والإصدارات المن�
 
 - <span dir="ltr">test&#40;ci&#41;&#58; align changelog handoff with supported workloads &#40;&#35;97&#41; ([adff569](https://github.com/connectedloops/safeparts/commit/adff56970d12ba033daf296e32602ab5d8455585))</span>
 - <span dir="ltr">test&#40;web&#41;&#58; intercept built WASM recovery mocks &#40;&#35;93&#41; ([e6e56ce](https://github.com/connectedloops/safeparts/commit/e6e56cea656d0b27c88258e5bc8f8babdd7b1348))</span>
+
+### الأتمتة
+
+- <span dir="ltr">ci&#58; install actionlint from checked release ([13086d9](https://github.com/connectedloops/safeparts/commit/13086d902696726301351b3a672fb600631291ed))</span>
+- <span dir="ltr">ci&#58; bound deployment diagnostics ([eef4d02](https://github.com/connectedloops/safeparts/commit/eef4d02f0d1ee8da20fc149191b6f833a885d584))</span>
+- <span dir="ltr">ci&#58; tighten audit gate evidence ([40d02d4](https://github.com/connectedloops/safeparts/commit/40d02d4fe4792827dc8c71780bed39050fbf79e9))</span>
+- <span dir="ltr">ci&#58; add Cloudflare mismatch diagnostics ([45654ed](https://github.com/connectedloops/safeparts/commit/45654edefb1012398e91ab62a4bab07a22e2d8b6))</span>
+- <span dir="ltr">ci&#58; add stable PR merge gate ([22612a9](https://github.com/connectedloops/safeparts/commit/22612a9a4da38b406cbf10cbbb95bdf4b1513c86))</span>
+- <span dir="ltr">ci&#40;release&#41;&#58; lock cargo resolution and literal versions ([e3b8d0e](https://github.com/connectedloops/safeparts/commit/e3b8d0eee91c12d4fc83bdd9b47e0a5da8a98671))</span>
+- <span dir="ltr">ci&#58; test terminal behavior on hosted platforms ([6e1f30d](https://github.com/connectedloops/safeparts/commit/6e1f30d974a598102b1bb52bdfbbfc9d99296a37))</span>
+- <span dir="ltr">ci&#58; enforce workflow policy regressions ([6635368](https://github.com/connectedloops/safeparts/commit/66353684ffb5761dceca5f509ace9774b6cd96c2))</span>
+- <span dir="ltr">ci&#58; pin rust ci toolchain ([8d02b98](https://github.com/connectedloops/safeparts/commit/8d02b9825106138164773f90329b89e3f5cac227))</span>
+- <span dir="ltr">ci&#58; preinstall pinned wasm tooling ([b7b97d0](https://github.com/connectedloops/safeparts/commit/b7b97d0c4183bf73e0412f39833976f12b15ab7d))</span>
+- <span dir="ltr">ci&#58; verify feature branches through pull requests ([2062eab](https://github.com/connectedloops/safeparts/commit/2062eab8a930e910611a47f36ae27de72ef2daf3))</span>
+- <span dir="ltr">ci&#40;changelog&#41;&#58; skip healthy web repair dispatch ([4f64e3e](https://github.com/connectedloops/safeparts/commit/4f64e3e405e100415f88be8620f0a3722b371e9b))</span>
+- <span dir="ltr">ci&#58; protect web deployments from scheduled cancellation ([6bcf15b](https://github.com/connectedloops/safeparts/commit/6bcf15b6ecd10cc57f5a64bca7cd03716481082e))</span>
+- <span dir="ltr">ci&#58; right&#45;size web runners ([1b6350e](https://github.com/connectedloops/safeparts/commit/1b6350ee7c85e137747d0a00415a896fb8e6f083))</span>
 
 ### الصيانة
 
