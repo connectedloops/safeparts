@@ -73,6 +73,7 @@ depends = ["workflow:policy", "workflow:lint"]
 description = "Reject mutable release inputs and excessive permissions."
 run = [
   "python3 scripts/dev/test_retirement.py",
+  "python3 scripts/dev/test_ci_triggers.py",
   "python3 scripts/dev/test_rust_coverage.py",
   "python3 scripts/dev/test_workflow_policy.py",
   "python3 scripts/dev/workflow_policy.py",
