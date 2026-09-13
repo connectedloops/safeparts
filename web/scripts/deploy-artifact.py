@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import hashlib
 import json
 import re
@@ -26,6 +27,15 @@ COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
 
 class ArtifactError(RuntimeError):
     """An invalid or mismatched deployment artifact."""
+
+
+@dataclass(frozen=True)
+class RemoteBytes:
+    content: bytes
+    date: str
+    digest: str
+    length: int
+    url: str
 
 
 def sha256_bytes(content: bytes) -> str:
@@ -175,7 +185,7 @@ def deployed_path(relative: str) -> str:
     return f"/{relative}"
 
 
-def fetch(base_url: str, path: str) -> bytes:
+def fetch(base_url: str, path: str) -> RemoteBytes:
     quoted_path = "/".join(urllib.parse.quote(segment) for segment in path.split("/"))
     url = f"{base_url.rstrip('/')}{quoted_path}"
     request = urllib.request.Request(
@@ -194,20 +204,79 @@ def fetch(base_url: str, path: str) -> bytes:
             raise ArtifactError(
                 f"remote verification requested identity bytes but {url} returned {encoding} encoding"
             )
-        return response.read()
+        content = response.read()
+        return RemoteBytes(
+            content=content,
+            date=response.headers.get("Date", "unknown"),
+            digest=sha256_bytes(content),
+            length=len(content),
+            url=url,
+        )
+
+
+def metadata_identity(content: bytes) -> dict[str, str]:
+    try:
+        metadata = json.loads(content)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return {
+            "sourceCommit": "unparseable",
+            "contentDigest": "unparseable",
+            "artifactDigest": "unparseable",
+        }
+    return {
+        "sourceCommit": str(metadata.get("sourceCommit", "missing")),
+        "contentDigest": str(metadata.get("contentDigest", "missing")),
+        "artifactDigest": str(metadata.get("artifactDigest", "missing")),
+    }
+
+
+def mismatch_diagnostics(
+    kind: str,
+    expected: bytes,
+    observed: RemoteBytes,
+    provider_deployment_id: str | None,
+) -> str:
+    expected_identity = metadata_identity(expected) if kind == "metadata" else {}
+    observed_identity = metadata_identity(observed.content) if kind == "metadata" else {}
+    details = [
+        f"served artifact {kind} does not match the retained artifact",
+        f"expected sha256={sha256_bytes(expected)} bytes={len(expected)}",
+        (
+            f"observed sha256={observed.digest} bytes={observed.length} "
+            f"date={observed.date} url={observed.url}"
+        ),
+    ]
+    if expected_identity:
+        details.extend(
+            f"expected {key}={value}" for key, value in expected_identity.items()
+        )
+        details.extend(
+            f"observed {key}={value}" for key, value in observed_identity.items()
+        )
+    if provider_deployment_id:
+        details.append(f"providerDeploymentId={provider_deployment_id}")
+    return "; ".join(details)
 
 
 def verify_remote(args: argparse.Namespace) -> None:
     manifest, metadata = evidence_files(args.evidence)
     remote_metadata = fetch(args.base_url, f"/{METADATA_DIRECTORY}/{METADATA_FILE}")
     remote_manifest = fetch(args.base_url, f"/{METADATA_DIRECTORY}/{MANIFEST_FILE}")
-    if remote_metadata != metadata:
-        raise ArtifactError("served artifact metadata does not match the retained artifact")
-    if remote_manifest != manifest:
-        raise ArtifactError("served content manifest does not match the retained artifact")
+    if remote_metadata.content != metadata:
+        raise ArtifactError(
+            mismatch_diagnostics(
+                "metadata", metadata, remote_metadata, args.provider_deployment_id
+            )
+        )
+    if remote_manifest.content != manifest:
+        raise ArtifactError(
+            mismatch_diagnostics(
+                "content manifest", manifest, remote_manifest, args.provider_deployment_id
+            )
+        )
     for digest, relative in parse_manifest(manifest):
         served = fetch(args.base_url, deployed_path(relative))
-        if sha256_bytes(served) != digest:
+        if served.digest != digest:
             raise ArtifactError(f"served content digest does not match: {relative}")
     metadata_value = json.loads(metadata)
     print(
@@ -239,6 +308,10 @@ def build_parser() -> argparse.ArgumentParser:
     remote_parser = subparsers.add_parser("verify-remote", help="verify bytes served by a provider")
     remote_parser.add_argument("--base-url", required=True)
     remote_parser.add_argument("--evidence", type=Path, required=True)
+    remote_parser.add_argument(
+        "--provider-deployment-id",
+        help="provider deployment/version identifier to include in mismatch diagnostics",
+    )
     remote_parser.set_defaults(handler=verify_remote)
     return parser
 
