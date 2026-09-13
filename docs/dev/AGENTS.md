@@ -14,6 +14,7 @@ Owns contributor onboarding, local workflow docs, feature coverage maps, and sur
 - `change-checklist.md`: multi-surface feature checklist template.
 - `verification.md`: check matrix and local command policy.
 - `generated-artifacts.md`: generated/tracked artifact policy.
+- `branch-protection.md`: prepared PR merge-gate, required-check, rollout, rollback, and changelog-writer compatibility guidance.
 - `troubleshooting.md`: common local setup and verification fixes.
 - `surfaces/`: focused guides for each product or tooling surface.
 - `manuals/`: longer guides for library integration and CLI automation.

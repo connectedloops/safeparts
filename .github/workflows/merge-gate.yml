@@ -1,0 +1,89 @@
+name: merge gate
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  workflow_policy:
+    name: workflow policy and actionlint
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install actionlint
+        uses: taiki-e/install-action@v2
+        with:
+          tool: actionlint@1.7.12
+
+      - name: Test workflow policy seams
+        run: |
+          python3 scripts/dev/test_retirement.py
+          python3 scripts/dev/test_ci_triggers.py
+          python3 scripts/dev/test_rust_coverage.py
+          python3 scripts/dev/test_rustsec_audit.py
+          python3 scripts/dev/test_workflow_policy.py
+          python3 scripts/dev/test_merge_gate.py
+          python3 scripts/dev/workflow_policy.py
+
+      - name: Lint active GitHub Actions workflows
+        run: actionlint -config-file .github/actionlint.yaml .github/workflows/*.yml
+
+  verification_gate:
+    name: verification gate
+    needs: workflow_policy
+    if: always()
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      checks: read
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect changed files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh api --paginate --slurp "/repos/$REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/pr-files.json"
+          python3 - "$RUNNER_TEMP/pr-files.json" "$RUNNER_TEMP/changed-files.txt" <<'PY'
+          import json
+          import sys
+          pages = json.load(open(sys.argv[1], encoding='utf-8'))
+          names = []
+          for page in pages:
+              names.extend(item['filename'] for item in page)
+          open(sys.argv[2], 'w', encoding='utf-8').write('\n'.join(names) + '\n')
+          PY
+
+      - name: Require applicable checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_POLICY_RESULT: ${{ needs.workflow_policy.result }}
+        run: |
+          if [ "$WORKFLOW_POLICY_RESULT" != success ]; then
+            echo "workflow policy and actionlint did not succeed: $WORKFLOW_POLICY_RESULT" >&2
+            exit 1
+          fi
+
+          for attempt in $(seq 1 60); do
+            gh api --paginate --slurp "/repos/$REPOSITORY/commits/$HEAD_SHA/check-runs?per_page=100" > "$RUNNER_TEMP/check-runs.json"
+            if python3 scripts/dev/merge_gate.py --changed-files "$RUNNER_TEMP/changed-files.txt" --checks-json "$RUNNER_TEMP/check-runs.json" > "$RUNNER_TEMP/merge-gate.out" 2> "$RUNNER_TEMP/merge-gate.err"; then
+              cat "$RUNNER_TEMP/merge-gate.out"
+              exit 0
+            fi
+            cat "$RUNNER_TEMP/merge-gate.err" >&2
+            if grep -Eq 'completed/(failure|cancelled|skipped|timed_out|action_required)' "$RUNNER_TEMP/merge-gate.err"; then
+              exit 1
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              exit 1
+            fi
+            sleep 20
+          done

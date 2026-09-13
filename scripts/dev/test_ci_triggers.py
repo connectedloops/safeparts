@@ -71,6 +71,19 @@ class CiTriggerPolicyTests(unittest.TestCase):
             text,
         )
 
+    def test_merge_gate_reports_for_every_pr_and_waits_for_applicable_checks(self) -> None:
+        text = self.workflow_text("merge-gate.yml")
+
+        self.assertIn("  pull_request:\n", text)
+        self.assertNotIn("  pull_request:\n    paths:", text)
+        self.assertIn("  verification_gate:\n    name: verification gate\n", text)
+        self.assertIn("if: always()", text)
+        self.assertIn("checks: read", text)
+        self.assertIn("pull-requests: read", text)
+        self.assertIn("python3 scripts/dev/test_merge_gate.py", text)
+        self.assertIn("python3 scripts/dev/merge_gate.py", text)
+        self.assertIn("completed/(failure|cancelled|skipped|timed_out|action_required)", text)
+
     def test_rust_ci_runs_terminal_behavior_on_supported_hosts(self) -> None:
         text = self.workflow_text("rust-ci.yml")
         job = text.split("  terminal_behavior_hosts:\n", 1)[1].split(
