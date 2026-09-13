@@ -23,6 +23,8 @@ SELF_REFERENTIAL_EVIDENCE = {
     f"{METADATA_DIRECTORY}/{METADATA_FILE}",
 }
 COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
+DIGEST_PATTERN = re.compile(r"[0-9a-f]{64}")
+DIAGNOSTIC_VALUE_LIMIT = 120
 
 
 class ArtifactError(RuntimeError):
@@ -214,6 +216,13 @@ def fetch(base_url: str, path: str) -> RemoteBytes:
         )
 
 
+def bounded_diagnostic_value(value: str) -> str:
+    escaped = value.encode("unicode_escape", "backslashreplace").decode("ascii")
+    if len(escaped) > DIAGNOSTIC_VALUE_LIMIT:
+        return escaped[:DIAGNOSTIC_VALUE_LIMIT] + "..."
+    return escaped
+
+
 def metadata_identity(content: bytes) -> dict[str, str]:
     try:
         metadata = json.loads(content)
@@ -223,10 +232,28 @@ def metadata_identity(content: bytes) -> dict[str, str]:
             "contentDigest": "unparseable",
             "artifactDigest": "unparseable",
         }
+    if not isinstance(metadata, dict):
+        return {
+            "sourceCommit": "unparseable",
+            "contentDigest": "unparseable",
+            "artifactDigest": "unparseable",
+        }
+
+    source_commit = metadata.get("sourceCommit")
+    content_digest = metadata.get("contentDigest")
+    artifact_digest = metadata.get("artifactDigest")
     return {
-        "sourceCommit": str(metadata.get("sourceCommit", "missing")),
-        "contentDigest": str(metadata.get("contentDigest", "missing")),
-        "artifactDigest": str(metadata.get("artifactDigest", "missing")),
+        "sourceCommit": source_commit
+        if isinstance(source_commit, str) and COMMIT_PATTERN.fullmatch(source_commit)
+        else "missing" if source_commit is None else "invalid",
+        "contentDigest": content_digest
+        if isinstance(content_digest, str) and DIGEST_PATTERN.fullmatch(content_digest)
+        else "missing" if content_digest is None else "invalid",
+        "artifactDigest": artifact_digest
+        if (isinstance(artifact_digest, str)
+            and artifact_digest.startswith("sha256:")
+            and DIGEST_PATTERN.fullmatch(artifact_digest.removeprefix("sha256:")))
+        else "missing" if artifact_digest is None else "invalid",
     }
 
 
@@ -243,7 +270,8 @@ def mismatch_diagnostics(
         f"expected sha256={sha256_bytes(expected)} bytes={len(expected)}",
         (
             f"observed sha256={observed.digest} bytes={observed.length} "
-            f"date={observed.date} url={observed.url}"
+            f"date={bounded_diagnostic_value(observed.date)} "
+            f"url={bounded_diagnostic_value(observed.url)}"
         ),
     ]
     if expected_identity:
@@ -254,7 +282,7 @@ def mismatch_diagnostics(
             f"observed {key}={value}" for key, value in observed_identity.items()
         )
     if provider_deployment_id:
-        details.append(f"providerDeploymentId={provider_deployment_id}")
+        details.append(f"providerDeploymentId={bounded_diagnostic_value(provider_deployment_id)}")
     return "; ".join(details)
 
 
