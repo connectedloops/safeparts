@@ -23,7 +23,7 @@ It owns:
 - Use Alt+Left/Right to switch operations and F1 to open help from normal focus. Keep Enter submission, explicit Ctrl actions, and Esc modal cancellation intact. Check rendered shortcuts and both language versions of the TUI help page when changing keys.
 - Treat clipboard contents as sensitive. Split clipboard actions copy only the selected Recovery share; they never gather multiple Recovery shares.
 - Avoid writing share text or recovered secrets to logs.
-- Save recovery shares and reconstructed secrets through atomic private-file output. On Unix, exported files must be owner-only.
+- Save recovery shares and reconstructed secrets through atomic private-file output. Reject NUL-containing destinations before creating temporary files or replacing outputs. On Unix, exported files must be owner-only.
 - Results last until their operation's inputs change or another attempt starts. Editing Secret or Recovery-share text, Threshold, Share count, Share encoding, or passphrase clears the affected output and result metadata. Copy and save/export become available again only after success.
 - Loading a Secret file clears Split output, including when reloading a path whose contents may have changed. Loading Recovery-share files clears recovered output when the input text changes.
 - Preserve results when users move focus, select a Recovery share, cancel a file dialog, or make an edit that leaves the input unchanged. Cursor movement in an empty Secret editor must not switch away from file input.

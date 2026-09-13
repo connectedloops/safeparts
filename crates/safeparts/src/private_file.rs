@@ -2,10 +2,31 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use tempfile::NamedTempFile;
 
+fn path_contains_nul(path: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        path.as_os_str().as_bytes().contains(&0)
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        path.as_os_str().encode_wide().any(|unit| unit == 0)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        path.as_os_str().to_string_lossy().contains('\0')
+    }
+}
+
 pub fn write(path: &Path, bytes: &[u8]) -> Result<()> {
+    if path_contains_nul(path) {
+        bail!("output path contains a NUL byte");
+    }
+
     let parent = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -46,6 +67,20 @@ mod tests {
         fs::create_dir(&destination).unwrap();
 
         assert!(write(&destination, b"synthetic sensitive output").is_err());
+        assert_eq!(fs::read_dir(parent.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn nul_destination_is_rejected_without_prefix_clobber_or_temporary_output() {
+        let parent = tempfile::tempdir().unwrap();
+        let prefix = parent.path().join("synthetic-sensitive");
+        fs::write(&prefix, b"keep original").unwrap();
+        let destination = parent.path().join("synthetic-sensitive\0path");
+
+        let error = write(&destination, b"replacement").unwrap_err();
+
+        assert!(error.to_string().contains("NUL byte"));
+        assert_eq!(fs::read(&prefix).unwrap(), b"keep original");
         assert_eq!(fs::read_dir(parent.path()).unwrap().count(), 1);
     }
 }

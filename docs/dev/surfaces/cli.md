@@ -21,6 +21,7 @@ Keep it:
 - Prefer `--passphrase-file` examples over command-line passphrases in docs.
 - Add or update black-box tests in `crates/safeparts/tests/e2e.rs` for user-visible behavior.
 - Keep explicit `-i -` and `-o -` coverage for both split and combine so stdin/stdout routing remains script-safe.
+- Reject output paths containing NUL before creating temporary files or replacing outputs.
 - Update the CLI automation manual when flags, stdin/stdout behavior, exit behavior, or automation guidance changes.
 
 ## Useful checks
