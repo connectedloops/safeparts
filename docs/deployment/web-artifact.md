@@ -15,7 +15,13 @@ The build job runs the WASM boundary tests, typecheck, full browser and accessib
 - `evidence/content-manifest.sha256`: a sorted digest for every Web and help file
 - `evidence/artifact-digest.sha256`: the commit and deploy-content digest
 
-GitHub Actions also records the upload archive digest. The provider jobs verify the downloaded directory before publishing. After deployment, they request identity-encoded responses and compare every served file with the retained manifest.
+GitHub Actions also records the upload archive digest. The provider jobs verify the downloaded directory before publishing. After deployment, they request identity-encoded responses and compare every served file with the retained manifest. Remote mismatch errors print bounded identity diagnostics: expected and observed metadata commit and digest fields, byte counts, SHA-256 digests, response date, URL, and any provider deployment identifier supplied to the verifier. They do not print artifact bodies.
+
+## Cloudflare mismatch diagnosis
+
+The September 9 and 10 Cloudflare failures both uploaded only changed static assets, including `/safeparts-build/metadata.json`, then verified the public Worker URL less than one second after Wrangler reported triggers deployed. The verifier failed at the first metadata byte comparison. The retained evidence had already passed local artifact verification, and the logs did not include the served metadata identity, response date, or Cloudflare version identifier, so the available evidence distinguishes neither stale publication nor a wrong/ transformed asset conclusively.
+
+Until hosted evidence proves propagation delay, keep Cloudflare remote verification strict and do not add blanket retries. If the mismatch recurs, collect the diagnostic verifier output plus the Wrangler deployment/version identifier, then decide between a fixed-deadline readiness check and a provider-specific follow-up.
 
 ## GitHub configuration
 

@@ -223,6 +223,69 @@ class DeployArtifactTests(unittest.TestCase):
             self.assertTrue(encodings)
             self.assertEqual({"identity"}, set(encodings))
 
+    def test_remote_metadata_mismatch_reports_expected_and_observed_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            site = root / "site"
+            evidence = root / "evidence"
+            site.mkdir()
+            (site / "index.html").write_text("<h1>Safeparts</h1>\n", encoding="utf-8")
+            self.run_tool(
+                "prepare",
+                "--site",
+                str(site),
+                "--evidence",
+                str(evidence),
+                "--source-commit",
+                SOURCE_COMMIT,
+                "--rust-version",
+                "1.93.0",
+                "--bun-version",
+                "1.3.11",
+                "--node-version",
+                "22.12.0",
+                "--wasm-pack-version",
+                "0.15.0",
+                "--wasm-bindgen-version",
+                "0.2.108",
+            )
+            observed_commit = "fedcba9876543210fedcba9876543210fedcba98"
+            metadata_path = site / "safeparts-build" / "metadata.json"
+            observed_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            observed_metadata["sourceCommit"] = observed_commit
+            metadata_path.write_text(
+                json.dumps(observed_metadata, sort_keys=True), encoding="utf-8"
+            )
+
+            class QuietHandler(http.server.SimpleHTTPRequestHandler):
+                def log_message(self, format: str, *args: object) -> None:
+                    pass
+
+            handler = functools.partial(QuietHandler, directory=str(site))
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                failure = self.run_tool(
+                    "verify-remote",
+                    "--base-url",
+                    f"http://127.0.0.1:{server.server_port}",
+                    "--evidence",
+                    str(evidence),
+                    "--provider-deployment-id",
+                    "synthetic-cloudflare-version",
+                    expected=1,
+                )
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
+
+            self.assertIn("served artifact metadata does not match", failure.stdout)
+            self.assertIn(f"expected sourceCommit={SOURCE_COMMIT}", failure.stdout)
+            self.assertIn(f"observed sourceCommit={observed_commit}", failure.stdout)
+            self.assertIn("providerDeploymentId=synthetic-cloudflare-version", failure.stdout)
+
     def test_remote_verification_rejects_expected_bytes_served_as_an_error(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
