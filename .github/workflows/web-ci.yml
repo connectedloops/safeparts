@@ -57,7 +57,7 @@ env:
 jobs:
   container_smoke:
     name: container smoke
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 25
     steps:
       - name: Check out source
@@ -68,7 +68,7 @@ jobs:
 
   build_test_package:
     name: build, test, and package Web artifact
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     outputs:
       artifact-digest: ${{ steps.upload.outputs.artifact-digest }}
     steps:
