@@ -160,6 +160,15 @@ class ChangelogWorkflowTests(unittest.TestCase):
 
         self.assertEqual('pending', changelog.web_handoff_decision(runs, {}, 'abc123'))
 
+    def test_branch_protection_docs_do_not_claim_workflow_scoped_github_token_bypass(self):
+        text = (ROOT / 'docs/dev/branch-protection.md').read_text(encoding='utf-8')
+
+        self.assertIn('GitHub Actions bot identity is shared across workflows', text)
+        self.assertIn('do not treat a native actor bypass as workflow-scoped or file-scoped', text)
+        self.assertIn('Route generated changelog snapshots through PRs', text)
+        self.assertIn('Use a separately approved, least-privilege GitHub App', text)
+        self.assertNotIn('allow only the existing changelog writer actor to update the three generated files', text)
+
     def test_web_deploy_manual_refresh_is_main_only_with_existing_gates(self):
         text = (ROOT / '.github/workflows/web-ci.yml').read_text()
         guard = "if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'"

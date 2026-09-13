@@ -286,6 +286,129 @@ class DeployArtifactTests(unittest.TestCase):
             self.assertIn(f"observed sourceCommit={observed_commit}", failure.stdout)
             self.assertIn("providerDeploymentId=synthetic-cloudflare-version", failure.stdout)
 
+    def test_remote_metadata_mismatch_handles_malformed_json_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            site = root / "site"
+            evidence = root / "evidence"
+            site.mkdir()
+            (site / "index.html").write_text("<h1>Safeparts</h1>\n", encoding="utf-8")
+            self.run_tool(
+                "prepare",
+                "--site",
+                str(site),
+                "--evidence",
+                str(evidence),
+                "--source-commit",
+                SOURCE_COMMIT,
+                "--rust-version",
+                "1.93.0",
+                "--bun-version",
+                "1.3.11",
+                "--node-version",
+                "22.12.0",
+                "--wasm-pack-version",
+                "0.15.0",
+                "--wasm-bindgen-version",
+                "0.2.108",
+            )
+            (site / "safeparts-build" / "metadata.json").write_text("[]", encoding="utf-8")
+
+            class QuietHandler(http.server.SimpleHTTPRequestHandler):
+                def log_message(self, format: str, *args: object) -> None:
+                    pass
+
+            handler = functools.partial(QuietHandler, directory=str(site))
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                failure = self.run_tool(
+                    "verify-remote",
+                    "--base-url",
+                    f"http://127.0.0.1:{server.server_port}",
+                    "--evidence",
+                    str(evidence),
+                    expected=1,
+                )
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
+
+            self.assertIn("served artifact metadata does not match", failure.stdout)
+            self.assertIn("observed sourceCommit=unparseable", failure.stdout)
+            self.assertNotIn("Traceback", failure.stdout)
+
+    def test_remote_metadata_mismatch_bounds_variable_diagnostics(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            site = root / "site"
+            evidence = root / "evidence"
+            site.mkdir()
+            (site / "index.html").write_text("<h1>Safeparts</h1>\n", encoding="utf-8")
+            self.run_tool(
+                "prepare",
+                "--site",
+                str(site),
+                "--evidence",
+                str(evidence),
+                "--source-commit",
+                SOURCE_COMMIT,
+                "--rust-version",
+                "1.93.0",
+                "--bun-version",
+                "1.3.11",
+                "--node-version",
+                "22.12.0",
+                "--wasm-pack-version",
+                "0.15.0",
+                "--wasm-bindgen-version",
+                "0.2.108",
+            )
+            secret_marker = "LEAK-ME" * 80
+            metadata_path = site / "safeparts-build" / "metadata.json"
+            observed_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            observed_metadata["sourceCommit"] = f"bad\n{secret_marker}"
+            observed_metadata["contentDigest"] = f"bad\r{secret_marker}"
+            observed_metadata["artifactDigest"] = f"sha256:bad\t{secret_marker}"
+            metadata_path.write_text(json.dumps(observed_metadata), encoding="utf-8")
+
+            class NoisyDateHandler(http.server.SimpleHTTPRequestHandler):
+                def date_time_string(self, timestamp: float | None = None) -> str:
+                    return "date" + secret_marker
+
+                def log_message(self, format: str, *args: object) -> None:
+                    pass
+
+            handler = functools.partial(NoisyDateHandler, directory=str(site))
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                failure = self.run_tool(
+                    "verify-remote",
+                    "--base-url",
+                    f"http://127.0.0.1:{server.server_port}",
+                    "--evidence",
+                    str(evidence),
+                    "--provider-deployment-id",
+                    "deploy\n" + secret_marker,
+                    expected=1,
+                )
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
+
+            self.assertIn("observed sourceCommit=invalid", failure.stdout)
+            self.assertIn("observed contentDigest=invalid", failure.stdout)
+            self.assertIn("observed artifactDigest=invalid", failure.stdout)
+            self.assertIn("date=date", failure.stdout)
+            self.assertIn("providerDeploymentId=deploy\\n", failure.stdout)
+            self.assertNotIn(secret_marker, failure.stdout)
+            self.assertLess(len(failure.stdout), 2000)
+
     def test_remote_verification_rejects_expected_bytes_served_as_an_error(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -22,9 +22,9 @@ This document prepares repository-rule changes only. Do not apply settings, inst
 
 Owner-compatible options:
 
-1. **Require PRs only, allow the configured bot main writer.** Require `verification gate` before merge, restrict direct human pushes, and leave the existing GitHub Actions bot write path for the changelog workflow. This preserves current changelog publication without broad contributor bypass.
-2. **Require PRs and route changelog snapshots through PRs.** Remove bot main pushes, have owners approve generated changelog PRs, and keep `verification gate` as the only required PR check. This is stricter but changes the approved writer model and needs separate owner acceptance.
-3. **Use a narrowly scoped ruleset bypass for the changelog workflow actor only.** Keep branch protection strict for humans and other automation, but allow only the existing changelog writer actor to update the three generated files. This needs owner approval and hosted validation; do not add it from a ticket alone.
+1. **Keep the existing writer and accept the shared bot boundary.** Require `verification gate` before PR merge and restrict direct human pushes, but leave the current `GITHUB_TOKEN` main write path available. GitHub Actions bot identity is shared across workflows, so do not treat a native actor bypass as workflow-scoped or file-scoped. This option preserves current changelog publication, but it does not prove that only `.github/workflows/changelog.yml` can update the three generated files.
+2. **Route generated changelog snapshots through PRs.** Remove bot main pushes, have owners approve generated changelog PRs, and keep `verification gate` as the only required PR check. This is stricter but changes the approved writer model and needs separate owner acceptance.
+3. **Use a separately approved, least-privilege GitHub App.** If owners need direct generated pushes plus narrower trust than the shared GitHub Actions bot, create a dedicated app or equivalent writer with explicit file, workflow, and validation controls. Do not create apps, secrets, bypasses, or repository rules from this ticket alone.
 
 ## Proposed required check
 
