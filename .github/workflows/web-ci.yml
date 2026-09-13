@@ -107,6 +107,15 @@ jobs:
           python3 scripts/dev/test_changelog.py
           python3 scripts/dev/test_changelog_workflow.py
 
+      # Reviewed provenance: taiki-e/install-action v2, pinned to the tag SHA.
+      # If a prebuilt OS/architecture artifact is unavailable, build-wasm.sh
+      # keeps the exact-version cargo install fallback before the version check.
+      - name: Install pinned WASM tools
+        uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # v2
+        continue-on-error: true
+        with:
+          tool: wasm-pack@${{ env.WASM_PACK_VERSION }},wasm-bindgen-cli@${{ env.WASM_BINDGEN_VERSION }}
+
       - name: Build application WASM
         run: bun run build:wasm
         working-directory: web

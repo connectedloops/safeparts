@@ -49,6 +49,10 @@ bun run build:wasm
 
 Output goes to `web/src/wasm_pkg/` and is ignored by git.
 
+Web CI preinstalls the pinned `wasm-pack` and `wasm-bindgen-cli` versions with `taiki-e/install-action` v2 pinned to commit `3f74d7c16a4242f1c95561e98edc25d36adb4375`. The action selects the reviewed prebuilt executable for the runner OS and architecture.
+
+There is no cross-run executable cache; changing the version, OS, or architecture changes the requested artifact. If a prebuilt tool install is unavailable or invalid, `web/scripts/build-wasm.sh` keeps the local fallback: it installs the exact pinned version from source before the workflow's version checks run.
+
 The bindings clear Rust-owned passphrase, encoded-share, and recovered-secret copies when they leave scope. JavaScript strings, arrays, and engine-managed copies remain owned by the browser and cannot be zeroized from Rust.
 
 ## Useful checks

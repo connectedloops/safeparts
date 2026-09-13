@@ -445,6 +445,27 @@ class WorkflowPolicyTests(unittest.TestCase):
             self.assertNotRegex(job, r"bun run (?:build|help:build)")
             self.assertIn("deploy-artifact.py verify", job)
 
+    def test_web_workflow_installs_reviewed_wasm_tools_before_building(self) -> None:
+        workflow = WEB_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("WASM_PACK_VERSION: '0.15.0'", workflow)
+        self.assertIn("WASM_BINDGEN_VERSION: '0.2.108'", workflow)
+
+        install_step = workflow.index("name: Install pinned WASM tools")
+        build_step = workflow.index("name: Build application WASM")
+        self.assertLess(install_step, build_step)
+
+        wasm_tool_step = workflow[install_step:build_step]
+        self.assertIn(
+            "uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375",
+            wasm_tool_step,
+        )
+        self.assertIn(
+            "tool: wasm-pack@${{ env.WASM_PACK_VERSION }},wasm-bindgen-cli@${{ env.WASM_BINDGEN_VERSION }}",
+            wasm_tool_step,
+        )
+        self.assertIn("continue-on-error: true", wasm_tool_step)
+        self.assertLess(build_step, workflow.index("name: Verify reviewed tool versions"))
+
     def test_scheduled_verification_cannot_cancel_main_deployment(self) -> None:
         workflow = WEB_WORKFLOW.read_text(encoding="utf-8")
         self.assertRegex(
