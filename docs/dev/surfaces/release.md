@@ -39,11 +39,21 @@ Workflow permissions default to `contents: read`. Artifact assembly stays read-o
 
 1. Read the upstream release notes and confirm the new action or tool version supports the fixed runner image.
 2. Resolve the reviewed tag to its commit SHA. For an annotated tag, use the dereferenced value from `git ls-remote <repository-url> 'refs/tags/<version>^{}'`.
-3. For `dtolnay/rust-toolchain`, resolve `refs/heads/stable`, review that commit, and update the date in its comment. Keep `toolchain:` equal to the Rust version in `mise.toml`.
+3. For `dtolnay/rust-toolchain`, resolve `refs/heads/stable`, review that commit, and update the date in its comment.
 4. Update the SHA and version comment together. Keep Bun aligned with `mise.toml`.
 5. Run `mise run workflow:check`, then start the release dry run and inspect the assembled artifact before merging.
 
 Do not replace a SHA with a major tag, `stable`, `latest`, an `x` version, or a `*-latest` runner label.
+
+## Update the Rust compiler safely
+
+Treat a Rust compiler update as one coordinated change:
+
+1. Update `mise.toml` first, including the required `rustfmt`, `clippy`, and `llvm-tools-preview` components and the `wasm32-unknown-unknown` target.
+2. Set every `toolchain:` value in `.github/workflows/rust-ci.yml` and `.github/workflows/release.yml` to the same Rust version.
+3. If the `dtolnay/rust-toolchain` action pin changes, follow the pin-review steps above and update the reviewed-date comment in both workflows.
+4. Run `mise run workflow:check` so the regression tests compare ordinary Rust CI, release CI, and `mise.toml`.
+5. Run the Rust checks that the compiler will gate: `mise run fmt-check`, `mise run lint`, `mise run test`, and `mise run coverage` when practical.
 
 ## Useful checks
 

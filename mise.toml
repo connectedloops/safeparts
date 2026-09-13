@@ -70,7 +70,7 @@ description = "Test release policy and lint GitHub Actions workflows."
 depends = ["workflow:policy", "workflow:lint"]
 
 [tasks."workflow:policy"]
-description = "Reject mutable release inputs and excessive permissions."
+description = "Reject mutable release inputs, Rust CI compiler drift, and excessive permissions."
 run = [
   "python3 scripts/dev/test_retirement.py",
   "python3 scripts/dev/test_ci_triggers.py",

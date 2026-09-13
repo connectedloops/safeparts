@@ -12,6 +12,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "release.yml"
+RUST_CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "rust-ci.yml"
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 VERSION_COMMENT_PATTERN = re.compile(
     r"^(?:v\d+\.\d+\.\d+|stable \(\d{4}-\d{2}-\d{2}\))$"
@@ -197,8 +198,53 @@ def repository_versions(repo_root: Path) -> tuple[str, str]:
     return str(rust_version), str(bun_version)
 
 
+def _is_rust_ci_workflow(lines: list[str]) -> bool:
+    return any(line.strip() == "name: rust ci" for line in lines)
+
+
+def validate_rust_ci_workflow(text: str, repo_root: Path = REPO_ROOT) -> list[str]:
+    lines, actions, _permissions, _job_conditions = parse_workflow(text)
+    rust_version, _bun_version = repository_versions(repo_root)
+    errors: list[str] = []
+
+    rust_actions = [
+        action
+        for action in actions
+        if action.identifier == "dtolnay/rust-toolchain" and action.job == "rust"
+    ]
+    if len(rust_actions) != 1:
+        errors.append("job rust must install the repository Rust toolchain exactly once")
+    for action in rust_actions:
+        location = f"line {action.line_number}"
+        if action.inputs.get("toolchain") != rust_version:
+            errors.append(
+                f"{location}: Rust toolchain must match mise.toml ({rust_version})"
+            )
+        if action.inputs.get("components") != "rustfmt, clippy, llvm-tools-preview":
+            errors.append(
+                f"{location}: Rust CI must install rustfmt, clippy, and llvm-tools-preview"
+            )
+        if action.inputs.get("targets") != "wasm32-unknown-unknown":
+            errors.append(f"{location}: Rust CI must install the WASM target")
+
+    required_steps = {
+        "Rustfmt": "Rust formatting must run in ordinary Rust CI",
+        "Clippy": "Clippy must run in ordinary Rust CI",
+        "Tests": "Rust tests must run in ordinary Rust CI",
+        "Production-only coverage": "Rust coverage must run in ordinary Rust CI",
+    }
+    for step_name, message in required_steps.items():
+        if not any(line.strip() == f"- name: {step_name}" for line in lines):
+            errors.append(message)
+
+    return errors
+
+
 def validate_workflow(text: str, repo_root: Path = REPO_ROOT) -> list[str]:
     lines, actions, permissions, job_conditions = parse_workflow(text)
+    if _is_rust_ci_workflow(lines):
+        return validate_rust_ci_workflow(text, repo_root)
+
     rust_version, bun_version = repository_versions(repo_root)
     errors: list[str] = []
 
@@ -281,25 +327,26 @@ def main(argv: list[str] | None = None) -> int:
         "workflow",
         nargs="?",
         type=Path,
-        default=DEFAULT_WORKFLOW,
-        help="workflow to check (default: .github/workflows/release.yml)",
+        help="workflow to check (default: release.yml and rust-ci.yml)",
     )
     args = parser.parse_args(argv)
+    workflows = [args.workflow] if args.workflow is not None else [DEFAULT_WORKFLOW, RUST_CI_WORKFLOW]
 
-    try:
-        text = args.workflow.read_text(encoding="utf-8")
-        errors = validate_workflow(text)
-    except (OSError, KeyError, TypeError, ValueError) as error:
-        print(f"error: could not check workflow policy: {error}", file=sys.stderr)
-        return 2
+    for workflow in workflows:
+        try:
+            text = workflow.read_text(encoding="utf-8")
+            errors = validate_workflow(text)
+        except (OSError, KeyError, TypeError, ValueError) as error:
+            print(f"error: could not check workflow policy: {error}", file=sys.stderr)
+            return 2
 
-    if errors:
-        print(f"workflow policy failed for {args.workflow}:", file=sys.stderr)
-        for error in errors:
-            print(f"- {error}", file=sys.stderr)
-        return 1
+        if errors:
+            print(f"workflow policy failed for {workflow}:", file=sys.stderr)
+            for error in errors:
+                print(f"- {error}", file=sys.stderr)
+            return 1
 
-    print(f"workflow policy passed: {args.workflow}")
+        print(f"workflow policy passed: {workflow}")
     return 0
 
 
