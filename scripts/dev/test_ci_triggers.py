@@ -59,6 +59,27 @@ class CiTriggerPolicyTests(unittest.TestCase):
 
         self.assertIn("  pull_request:\n  push:\n    branches: [main]\n", text)
 
+    def test_rust_ci_owns_lightweight_workflow_validation(self) -> None:
+        text = self.workflow_text("rust-ci.yml")
+
+        self.assertIn("  workflow_policy:\n    name: workflow policy and actionlint\n", text)
+        self.assertIn("tool: actionlint@1.7.12", text)
+        self.assertIn("python3 scripts/dev/test_rust_coverage.py", text)
+        self.assertIn("python3 scripts/dev/test_rustsec_audit.py", text)
+        self.assertIn(
+            "actionlint -config-file .github/actionlint.yaml .github/workflows/*.yml",
+            text,
+        )
+
+    def test_rustsec_ci_runs_classifier_regressions_before_audit(self) -> None:
+        text = self.workflow_text("rustsec.yml")
+
+        self.assertIn("python3 scripts/dev/test_rustsec_audit.py", text)
+        self.assertLess(
+            text.index("python3 scripts/dev/test_rustsec_audit.py"),
+            text.index("python3 scripts/dev/rustsec_audit.py"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

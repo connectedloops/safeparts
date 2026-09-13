@@ -32,6 +32,29 @@ on:
       - '.github/**'
 
 jobs:
+  workflow_policy:
+    name: workflow policy and actionlint
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install actionlint
+        uses: taiki-e/install-action@v2
+        with:
+          tool: actionlint@1.7.12
+
+      - name: Test workflow policy seams
+        run: |
+          python3 scripts/dev/test_retirement.py
+          python3 scripts/dev/test_ci_triggers.py
+          python3 scripts/dev/test_rust_coverage.py
+          python3 scripts/dev/test_rustsec_audit.py
+          python3 scripts/dev/test_workflow_policy.py
+          python3 scripts/dev/workflow_policy.py
+
+      - name: Lint active GitHub Actions workflows
+        run: actionlint -config-file .github/actionlint.yaml .github/workflows/*.yml
+
   rust:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
@@ -51,13 +74,6 @@ jobs:
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
-
-      - name: Check supported workload and release workflow policy
-        run: |
-          python3 scripts/dev/test_retirement.py
-          python3 scripts/dev/test_ci_triggers.py
-          python3 scripts/dev/test_workflow_policy.py
-          python3 scripts/dev/workflow_policy.py
 
       - name: Rustfmt
         run: cargo fmt --all -- --check

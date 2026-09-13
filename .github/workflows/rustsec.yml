@@ -32,5 +32,8 @@ jobs:
         with:
           tool: cargo-audit@0.22.2
 
+      - name: Test RustSec classifier
+        run: python3 scripts/dev/test_rustsec_audit.py
+
       - name: Enforce RustSec policy
         run: python3 scripts/dev/rustsec_audit.py

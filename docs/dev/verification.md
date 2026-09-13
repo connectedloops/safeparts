@@ -7,9 +7,11 @@ Use the smallest check that proves your change, then run the broader gate before
 ```bash
 mise run doctor          # local environment diagnostics
 mise run dx:verify       # docs, AGENTS, lockfile, and generated-artifact checks
-mise run workflow:check  # release policy tests and actionlint
+mise run workflow:check  # workflow policy/support tests and actionlint
 mise run verify          # full local gate
 ```
+
+`mise run workflow:check` runs the lightweight workflow-policy, coverage-filter, RustSec-classifier, changelog, and actionlint checks. Rust CI publishes the matching stable check as `workflow policy and actionlint`; branch-protection rules are managed outside this repository.
 
 ## Rust
 

@@ -47,7 +47,7 @@ Owns local developer-experience diagnostics and verification helpers.
 - RustSec automation: `python3 scripts/dev/test_rustsec_audit.py` and `mise run audit`.
 - Web deployment policy: `python3 scripts/dev/test_web_deploy.py`.
 - Backup rehearsal: build `safeparts` with Cargo and put the built binary on `PATH`, then run `python3 scripts/dev/test_backup_rehearsal.py`. Requires Bash and standard Unix tools; accepts no production data.
-- Release/workload policy: `mise run workflow:check` (includes retirement boundary, coverage-filter, changelog fixture, and changelog workflow tests). Docker input tests stage the Dockerfile's Cargo COPY inputs and run locked offline metadata; they do not replace the full image smoke test.
+- Release/workload policy: `mise run workflow:check` (includes retirement boundary, coverage-filter, RustSec-classifier, changelog fixture, changelog workflow, and actionlint tests). Docker input tests stage the Dockerfile's Cargo COPY inputs and run locked offline metadata; they do not replace the full image smoke test.
 - Changelog regression tests: `python3 scripts/dev/test_changelog.py` and `python3 scripts/dev/test_changelog_workflow.py`.
 - Run `mise run dx:verify` when changing DX checks.
 
