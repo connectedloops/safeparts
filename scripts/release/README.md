@@ -29,12 +29,13 @@ The dispatch uploads a seven-day `safeparts-release-dry-run-v0.3.1` artifact aft
 From the repository root:
 
 ```bash
-python3 scripts/release/check-version.py v0.3.1
-cargo test --all-features
-cargo build --release -p safeparts -p safeparts_tui
-python3 scripts/release/package.py --version 0.3.1
+RELEASE_VERSION=v0.3.1
+python3 scripts/release/check-version.py "$RELEASE_VERSION"
+cargo test --all-features --locked
+cargo build --release --locked -p safeparts -p safeparts_tui
+python3 scripts/release/package.py --version "$RELEASE_VERSION"
 ```
 
 On Windows, run the packaging command with `py -3` instead of `python3`.
 
-`--version` controls the archive name. Active release manifests and binaries must already carry the matching project version. The packager reads binaries from `target/release`, or `target/<triple>/release` with `--target`, and writes to `dist/release` by default.
+`--version` controls the archive name and must be passed as an argument or shell environment value, not embedded into generated shell text. Active release manifests and binaries must already carry the matching project version. The packager reads binaries from `target/release`, or `target/<triple>/release` with `--target`, and writes to `dist/release` by default.

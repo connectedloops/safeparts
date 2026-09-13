@@ -7,7 +7,7 @@ Owns repository automation scripts.
 ## Ownership
 
 - `dev/`: local developer diagnostics and DX verification helpers.
-- `release/`: local CLI/TUI archive packaging and documentation of platform release ownership.
+- `release/`: local CLI/TUI archive packaging, release script tests, and documentation of platform release ownership.
 
 ## Local Contracts
 
