@@ -15,6 +15,8 @@ OUTPUTS = ('CHANGELOG.md', 'web/help/src/content/docs/changelog.md',
            'web/help/src/content/docs/ar/changelog.md')
 BOT_SUBJECT = 'chore(changelog): update generated history'
 BASE = 'https://github.com/connectedloops/safeparts'
+WEB_DEPLOYMENT_JOBS = ('deploy tested artifact to Netlify',
+                       'deploy tested artifact to Cloudflare Workers')
 CATEGORIES = {
     'feat': ('Features', 'ميزات'), 'fix': ('Fixes', 'إصلاحات'),
     'perf': ('Performance', 'الأداء'), 'docs': ('Documentation', 'التوثيق'),
@@ -156,7 +158,76 @@ def generate(repo: Path, main_ref: str, metadata: object) -> dict[str, str]:
                              '---\ntitle: سجل التغييرات\ndescription: تاريخ الفرع الرئيسي والإصدارات المنشورة.\n---\n\n' + arabic)))
 
 
+def _workflow_runs(payload: object) -> list[dict]:
+    if not isinstance(payload, dict) or not isinstance(payload.get('workflow_runs'), list):
+        raise ValueError('Web workflow runs JSON must contain workflow_runs.')
+    return [run for run in payload['workflow_runs'] if isinstance(run, dict)]
+
+
+def _jobs(payload: object) -> list[dict]:
+    pages = payload if isinstance(payload, list) else [payload]
+    jobs = []
+    for page in pages:
+        if not isinstance(page, dict) or not isinstance(page.get('jobs'), list):
+            raise ValueError('Web workflow jobs JSON must contain jobs.')
+        jobs.extend(job for job in page['jobs'] if isinstance(job, dict))
+    return jobs
+
+
+def web_handoff_decision(runs_payload: object, jobs_by_run_id: dict[int, object], source_sha: str) -> str:
+    """Return healthy, pending, or dispatch for the Web run that matches source_sha."""
+    pending = False
+    for run in _workflow_runs(runs_payload):
+        if run.get('head_sha') != source_sha:
+            continue
+        status = run.get('status')
+        conclusion = run.get('conclusion')
+        if status != 'completed':
+            pending = True
+            continue
+        if conclusion != 'success':
+            continue
+        run_id = run.get('id')
+        if not isinstance(run_id, int) or run_id not in jobs_by_run_id:
+            continue
+        conclusions = {job.get('name'): job.get('conclusion') for job in _jobs(jobs_by_run_id[run_id])}
+        if all(conclusions.get(name) == 'success' for name in WEB_DEPLOYMENT_JOBS):
+            return 'healthy'
+    return 'pending' if pending else 'dispatch'
+
+
+def gh_api(endpoint: str) -> object:
+    result = subprocess.run(['gh', 'api', endpoint], text=True, capture_output=True)
+    if result.returncode:
+        raise ValueError('GitHub API failed while checking Web handoff health.')
+    return json.loads(result.stdout)
+
+
+def web_handoff_status(repository: str, source_sha: str) -> str:
+    runs = gh_api(f'repos/{repository}/actions/workflows/web-ci.yml/runs?branch=main&head_sha={source_sha}&per_page=20')
+    jobs_by_run_id = {}
+    for run in _workflow_runs(runs):
+        if run.get('head_sha') == source_sha and run.get('status') == 'completed' and run.get('conclusion') == 'success':
+            run_id = run.get('id')
+            if isinstance(run_id, int):
+                jobs_by_run_id[run_id] = gh_api(f'repos/{repository}/actions/runs/{run_id}/jobs?per_page=100')
+    return web_handoff_decision(runs, jobs_by_run_id, source_sha)
+
+
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == 'web-handoff-status':
+        parser = argparse.ArgumentParser(description='Check whether changelog repair should dispatch Web CI.')
+        parser.add_argument('web-handoff-status')
+        parser.add_argument('--repository', required=True)
+        parser.add_argument('--source-sha', required=True)
+        args = parser.parse_args()
+        try:
+            print(web_handoff_status(args.repository, args.source_sha))
+        except (ValueError, OSError, TypeError, KeyError, json.JSONDecodeError) as error:
+            print(f'changelog: {error}', file=sys.stderr)
+            return 1
+        return 0
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', type=Path, default=Path('.'))
     parser.add_argument('--main-ref', choices=('main', 'origin/main'), required=True)

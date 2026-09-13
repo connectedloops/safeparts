@@ -67,8 +67,17 @@ jobs:
             git push origin HEAD:refs/heads/main
             changed=true
           fi
-          # Token pushes do not trigger push workflows. Repair runs also retry a
-          # previously failed dispatch, even when the snapshots are unchanged.
-          if [ "$changed" = true ] || [ "$EVENT_NAME" = schedule ] || [ "$EVENT_NAME" = workflow_dispatch ]; then
+          # Token pushes do not trigger push workflows. Repair runs retry missing
+          # or unsuccessful Web handoffs, but skip redundant builds when this
+          # exact source already has verified deployment jobs or a run in progress.
+          if [ "$changed" = true ]; then
             gh workflow run web-ci.yml --ref main
+          elif [ "$EVENT_NAME" = schedule ] || [ "$EVENT_NAME" = workflow_dispatch ]; then
+            source_sha="$(git rev-parse HEAD)"
+            handoff_status="$(python3 scripts/dev/changelog.py web-handoff-status --repository "$REPOSITORY" --source-sha "$source_sha")"
+            if [ "$handoff_status" = dispatch ]; then
+              gh workflow run web-ci.yml --ref main
+            else
+              echo "Web handoff for $source_sha is $handoff_status; not dispatching web-ci.yml."
+            fi
           fi
