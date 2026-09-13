@@ -15,7 +15,7 @@ Supported surfaces are core, CLI, TUI, WASM, web, and help. Retired applications
 | Released Safeparts V1/V2 Share packet decoding | Yes | Yes | Yes | Yes | Yes | N/A | Immutable core fixtures for every concrete Share encoding, metadata, exact bytes, and Passphrase protection | Core packet decoder, compatibility corpus, and core guide |
 | Web immediately readable, exactly selectable results | N/A | N/A | N/A | Unchanged | Yes; state-backed Copy buttons and recovered-Secret shortcut | Unchanged | Browser Selection, clipboard writes, synthetic 4 KiB round trip, English/Arabic and motion preferences | Web output/copy contract and web guide |
 | Split result provenance | N/A | N/A | N/A | N/A | Yes | N/A | Rendered Web workflows and browser clipboard/status checks | Web result state and tests |
-| CLI/TUI private atomic file output | N/A | Yes | Yes | N/A | N/A | N/A | CLI e2e and TUI file tests | CLI and TUI guides |
+| CLI/TUI private atomic file output | N/A | Yes | Yes | N/A | N/A | N/A | CLI e2e and TUI file tests, including Windows and one native macOS Rust CI host job on relevant PRs | CLI and TUI guides |
 | TUI Split/Recover result lifetime | N/A | N/A | Input changes and new attempts clear output; focus and no-op edits preserve it | N/A | N/A | N/A | Headless key events, clipboard reads/writes, file load/export/save, and protected-export recovery | TUI state contract and guide |
 | TUI editor-owned text and navigation | N/A | N/A | Yes; F1 help, Alt+Left/Right operations | N/A | N/A | English + Arabic shortcuts | Headless key events, exact Secret/passphrase values, cursor navigation, focused controls, rendered shortcuts | TUI interaction contract, surface guide, and bilingual TUI help |
 | TUI file-error recovery without session loss | N/A | N/A | Yes; failed loads retain input, failed saves retain output, same-session retry | N/A | N/A | Yes | Headless keyboard/file-outcome and rendered status tests | TUI guide and help |
@@ -39,7 +39,7 @@ Supported surfaces are core, CLI, TUI, WASM, web, and help. Retired applications
 | English + Arabic user docs | N/A | N/A | N/A | N/A | Links to help | Yes | Docs build, docs a11y route parity | Help docs guide |
 | Generated main/release changelog | N/A | N/A | N/A | N/A | Localized footer link | Full English/Arabic pages and root Markdown | Isolated Git/release fixtures, writer policy, rendered docs, footer navigation/input retention and accessibility | Generator, CI handoff, tracked-output policy and web/help guides |
 | Combined local static-site build | N/A | N/A | N/A | Rebuilt first | App built before help | English and Arabic in `web/dist/help/` | Task graph, destructive-writer rehearsal, final-route checks, actual combined builds | Web/help build contracts and verification guide |
-| Release CLI/TUI archives | N/A | Yes | Yes | N/A | N/A | Yes | Release workflow, package script | Release guide; retain Linux/macOS/Windows host support |
+| Release CLI/TUI archives | N/A | Yes | Yes | N/A | N/A | Yes | Release workflow, package script, and relevant-PR Windows/native macOS CLI/TUI behavior jobs | Release guide; retain Linux/macOS/Windows host support |
 | Release input and permission policy | N/A | N/A | N/A | N/A | N/A | N/A | Workflow policy unit and repository tests, actionlint | Release workflow, version sources, and release guide |
 | QR export | No | No | No | No | Planned | Planned | None yet | Add proposal, UI tests, docs |
 | Web `base58check` and `mnemo-bip39` exposure | Core | Yes | Yes | Yes | Planned | Planned | Add web boundary tests | Web, help docs |
