@@ -2,7 +2,9 @@
 
 The Web release unit is the commit-identified static artifact produced by [the Web workflow](../../.github/workflows/web-ci.yml). It contains the WASM application and the English and Arabic help sites. Netlify and Cloudflare Workers download and publish this same artifact; neither provider builds the application from source.
 
-Main-branch pushes and manual Web workflow runs on `main` can deploy after the same complete gates pass. The changelog workflow requests that manual run after committing generated pages, because pushes made with `GITHUB_TOKEN` do not trigger push workflows. Manual runs on other branches and pull requests cannot deploy.
+Main-branch pushes and manual Web workflow runs on `main` can deploy after the same complete gates pass. Scheduled, pull request, and other verification-only runs use cancelable concurrency groups, but they do not share a cancel-in-progress group with deployment-capable `main` runs. The changelog workflow requests that manual run after committing generated pages, because pushes made with `GITHUB_TOKEN` do not trigger push workflows. Manual runs on other branches and pull requests cannot deploy.
+
+Deployment-capable `main` runs use supersession instead of cancellation: before each provider publishes, the job compares `github.sha` with the current `origin/main`. If a newer `main` commit exists, the provider publish and byte check are skipped for the stale artifact, so an older successful build cannot become the final intended deployment after a newer run has reached `main`.
 
 ## Artifact evidence
 

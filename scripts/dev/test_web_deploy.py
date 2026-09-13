@@ -445,6 +445,38 @@ class WorkflowPolicyTests(unittest.TestCase):
             self.assertNotRegex(job, r"bun run (?:build|help:build)")
             self.assertIn("deploy-artifact.py verify", job)
 
+    def test_scheduled_verification_cannot_cancel_main_deployment(self) -> None:
+        workflow = WEB_WORKFLOW.read_text(encoding="utf-8")
+        self.assertRegex(
+            workflow,
+            r"group:\s*\$\{\{[^\n]*github\.event_name == 'schedule'[^\n]*web-artifact-schedule",
+        )
+        self.assertRegex(
+            workflow,
+            r"cancel-in-progress:\s*\$\{\{[^\n]*github\.event_name == 'push'[^\n]*github\.ref == 'refs/heads/main'",
+        )
+
+    def test_deployment_capable_runs_skip_stale_main_artifacts(self) -> None:
+        workflow = WEB_WORKFLOW.read_text(encoding="utf-8")
+        for job_name in ("deploy_netlify", "deploy_cloudflare"):
+            match = re.search(
+                rf"^  {job_name}:\n(?P<body>.*?)(?=^  [a-zA-Z_][a-zA-Z0-9_]*:\n|\Z)",
+                workflow,
+                re.MULTILINE | re.DOTALL,
+            )
+            self.assertIsNotNone(match)
+            job = match.group("body") if match else ""
+            self.assertIn("id: latest_main", job)
+            self.assertIn("git ls-remote origin refs/heads/main", job)
+            self.assertIn("EXPECTED_SHA: ${{ github.sha }}", job)
+            self.assertIn("steps.latest_main.outputs.ready == 'true'", job)
+            self.assertLess(job.index("id: latest_main"), job.index("Deploy artifact without"))
+
+    def test_obsolete_verification_work_is_still_canceled(self) -> None:
+        workflow = WEB_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("format('web-artifact-{0}', github.ref)", workflow)
+        self.assertRegex(workflow, r"cancel-in-progress:\s*\$\{\{\s*!\(")
+
     def test_provider_configuration_cannot_rebuild_source(self) -> None:
         netlify = (REPO_ROOT / "netlify.toml").read_text(encoding="utf-8")
         self.assertNotRegex(netlify, r"(?m)^\s*command\s*=")
