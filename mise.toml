@@ -75,6 +75,7 @@ run = [
   "python3 scripts/dev/test_retirement.py",
   "python3 scripts/dev/test_ci_triggers.py",
   "python3 scripts/dev/test_rust_coverage.py",
+  "python3 scripts/dev/test_rustsec_audit.py",
   "python3 scripts/dev/test_workflow_policy.py",
   "python3 scripts/dev/workflow_policy.py",
   "python3 scripts/dev/test_changelog.py",
@@ -82,8 +83,8 @@ run = [
 ]
 
 [tasks."workflow:lint"]
-description = "Lint the release workflow and its policy-check CI seam."
-run = "actionlint -config-file .github/actionlint.yaml .github/workflows/release.yml .github/workflows/rust-ci.yml .github/workflows/changelog.yml .github/workflows/web-ci.yml"
+description = "Lint every active GitHub Actions workflow."
+run = "actionlint -config-file .github/actionlint.yaml .github/workflows/*.yml"
 
 [tasks."verify:rust"]
 description = "Run Rust format, lint, and tests."

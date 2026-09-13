@@ -33,7 +33,7 @@ The release workflow uses immutable commit SHAs for third-party actions. Each `u
 
 Workflow permissions default to `contents: read`. Artifact assembly stays read-only. The separate `publish` job runs only for a pushed tag and is the only job granted `contents: write`. A manual dispatch still builds, validates, downloads, checksums, and uploads the full candidate, but it cannot create a GitHub Release.
 
-`mise run workflow:check` tests this policy and runs actionlint. CI runs the policy tests whenever the release workflow, validator, or version sources change.
+`mise run workflow:check` tests this policy, runs the CI-support regression tests, and lints every active workflow with actionlint. Rust CI exposes the same lightweight gate as `workflow policy and actionlint` whenever workflow or supporting-script paths change.
 
 ## Update a pin safely
 
