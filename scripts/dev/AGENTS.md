@@ -17,6 +17,8 @@ Owns local developer-experience diagnostics and verification helpers.
 - `test_backup_rehearsal.py`: executes English/Arabic synthetic saved-backup examples through the CLI; checks success, failed verification, working-copy retention, re-verification, and cleanup.
 - `workflow_policy.py`: release workflow input, tag-only publication, and permission policy gate.
 - `test_workflow_policy.py`: public-behavior tests for release pins, permissions, tag-only publication, and retired-workload rejection.
+- `merge_gate.py`: stable PR gate evaluator for applicable check-run results and path-filtered workloads.
+- `test_merge_gate.py`: fixture tests for relevant, irrelevant, failed, cancelled, missing, pending, and expected-skip gate outcomes.
 - `test_ci_triggers.py`: Rust/Web/RustSec workflow trigger policy tests for PR-based feature-branch verification, main push verification, Windows/native macOS CLI/TUI behavior jobs, and recovery schedules/manual dispatch.
 - `test_retirement.py`: active Cargo/task/CI boundaries, CLI/TUI release hosts and checksum safety, supported version manifests, and staged Docker Cargo inputs.
 - `changelog.py`: main-history/release collector and renderer for the three committed changelog snapshots.
@@ -47,7 +49,7 @@ Owns local developer-experience diagnostics and verification helpers.
 - RustSec automation: `python3 scripts/dev/test_rustsec_audit.py` and `mise run audit`.
 - Web deployment policy: `python3 scripts/dev/test_web_deploy.py`.
 - Backup rehearsal: build `safeparts` with Cargo and put the built binary on `PATH`, then run `python3 scripts/dev/test_backup_rehearsal.py`. Requires Bash and standard Unix tools; accepts no production data.
-- Release/workload policy: `mise run workflow:check` (includes retirement boundary, coverage-filter, RustSec-classifier, changelog fixture, changelog workflow, and actionlint tests). Docker input tests stage the Dockerfile's Cargo COPY inputs and run locked offline metadata; they do not replace the full image smoke test.
+- Release/workload policy: `mise run workflow:check` (includes retirement boundary, coverage-filter, RustSec-classifier, merge-gate, changelog fixture, changelog workflow, and actionlint tests). Docker input tests stage the Dockerfile's Cargo COPY inputs and run locked offline metadata; they do not replace the full image smoke test.
 - Changelog regression tests: `python3 scripts/dev/test_changelog.py` and `python3 scripts/dev/test_changelog_workflow.py`.
 - Run `mise run dx:verify` when changing DX checks.
 

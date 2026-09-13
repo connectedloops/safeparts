@@ -77,6 +77,7 @@ run = [
   "python3 scripts/dev/test_rust_coverage.py",
   "python3 scripts/dev/test_rustsec_audit.py",
   "python3 scripts/dev/test_workflow_policy.py",
+  "python3 scripts/dev/test_merge_gate.py",
   "python3 scripts/dev/workflow_policy.py",
   "python3 scripts/dev/test_changelog.py",
   "python3 scripts/dev/test_changelog_workflow.py",
