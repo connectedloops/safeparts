@@ -71,6 +71,25 @@ class CiTriggerPolicyTests(unittest.TestCase):
             text,
         )
 
+    def test_rust_ci_runs_terminal_behavior_on_supported_hosts(self) -> None:
+        text = self.workflow_text("rust-ci.yml")
+        job = text.split("  terminal_behavior_hosts:\n", 1)[1].split(
+            "\n  rust:\n", 1
+        )[0]
+
+        self.assertIn("name: terminal behavior (${{ matrix.id }})", job)
+        self.assertIn("os: blacksmith-4vcpu-windows-2025", job)
+        self.assertIn("os: blacksmith-6vcpu-macos-15", job)
+        self.assertIn("toolchain: '1.93.0'", job)
+        self.assertIn("cargo test -p safeparts --all-features", job)
+        self.assertIn("cargo test -p safeparts_tui --all-features", job)
+        self.assertIn("sensitive_output_files_are_owner_only_even_when_overwritten", job)
+        self.assertIn("failed_replace_removes_temporary_output", job)
+        self.assertNotIn("cargo fmt", job)
+        self.assertNotIn("cargo clippy", job)
+        self.assertNotIn("rust_coverage.py", job)
+        self.assertNotIn("test-wasm.sh", job)
+
     def test_rustsec_ci_runs_classifier_regressions_before_audit(self) -> None:
         text = self.workflow_text("rustsec.yml")
 

@@ -11,7 +11,7 @@ mise run workflow:check  # workflow policy/support tests and actionlint
 mise run verify          # full local gate
 ```
 
-`mise run workflow:check` runs the lightweight workflow-policy, coverage-filter, RustSec-classifier, changelog, and actionlint checks. Rust CI publishes the matching stable check as `workflow policy and actionlint`; branch-protection rules are managed outside this repository.
+`mise run workflow:check` runs the lightweight workflow-policy, coverage-filter, RustSec-classifier, changelog, and actionlint checks. Rust CI publishes the matching stable check as `workflow policy and actionlint`; branch-protection rules are managed outside this repository. Relevant Rust, dependency, and workflow pull requests also run `cargo test -p safeparts --all-features` and `cargo test -p safeparts_tui --all-features` on pinned Windows and one native macOS runner. GitHub records the hosted job timings; documentation-only changes outside the Rust workflow path filters do not start those host jobs.
 
 ## Rust
 
