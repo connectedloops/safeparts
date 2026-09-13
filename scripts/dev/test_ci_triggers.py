@@ -63,7 +63,8 @@ class CiTriggerPolicyTests(unittest.TestCase):
         text = self.workflow_text("rust-ci.yml")
 
         self.assertIn("  workflow_policy:\n    name: workflow policy and actionlint\n", text)
-        self.assertIn("tool: actionlint@1.7.12", text)
+        self.assertIn("scripts/dev/install_actionlint.sh \"$RUNNER_TEMP/actionlint-bin\"", text)
+        self.assertNotIn("tool: actionlint@1.7.12", text)
         self.assertIn("python3 scripts/dev/test_rust_coverage.py", text)
         self.assertIn("python3 scripts/dev/test_rustsec_audit.py", text)
         self.assertIn(
@@ -80,6 +81,8 @@ class CiTriggerPolicyTests(unittest.TestCase):
         self.assertIn("if: always()", text)
         self.assertIn("checks: read", text)
         self.assertIn("pull-requests: read", text)
+        self.assertIn("scripts/dev/install_actionlint.sh \"$RUNNER_TEMP/actionlint-bin\"", text)
+        self.assertNotIn("tool: actionlint@1.7.12", text)
         self.assertIn("python3 scripts/dev/test_merge_gate.py", text)
         self.assertIn("python3 scripts/dev/merge_gate.py", text)
         self.assertIn("completed/(failure|cancelled|skipped|timed_out|action_required)", text)

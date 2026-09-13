@@ -16,6 +16,7 @@ Owns local developer-experience diagnostics and verification helpers.
 - `test_web_deploy.py`: local build graph, destructive-writer rehearsal, final-route checks, deployment artifact behavior, and immutable Web workflow policy tests.
 - `test_backup_rehearsal.py`: executes English/Arabic synthetic saved-backup examples through the CLI; checks success, failed verification, working-copy retention, re-verification, and cleanup.
 - `workflow_policy.py`: release workflow input, tag-only publication, and permission policy gate.
+- `install_actionlint.sh`: installs the reviewed Linux x86_64 actionlint release for CI policy jobs from the official release asset and checksum.
 - `test_workflow_policy.py`: public-behavior tests for release pins, permissions, tag-only publication, and retired-workload rejection.
 - `merge_gate.py`: stable PR gate evaluator for applicable check-run results and path-filtered workloads.
 - `test_merge_gate.py`: fixture tests for relevant, irrelevant, failed, cancelled, missing, pending, and expected-skip gate outcomes.
