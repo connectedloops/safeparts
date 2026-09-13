@@ -136,6 +136,40 @@ class WorkflowPolicyTests(unittest.TestCase):
         self.assertIn("Rust toolchain must match mise.toml (1.93.0)", result.stderr)
         self.assertIn("moving runner label ubuntu-latest", result.stderr)
 
+    def test_repository_rust_ci_uses_repository_rust_toolchain(self) -> None:
+        rust_ci = REPO_ROOT / ".github" / "workflows" / "rust-ci.yml"
+        text = rust_ci.read_text(encoding="utf-8")
+        self.assertIn("components: rustfmt, clippy, llvm-tools-preview", text)
+        self.assertIn("targets: wasm32-unknown-unknown", text)
+
+        result = subprocess.run(
+            [sys.executable, str(CHECKER), str(rust_ci)],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_ordinary_rust_ci_rejects_toolchain_drift(self) -> None:
+        rust_ci = (REPO_ROOT / ".github" / "workflows" / "rust-ci.yml").read_text(
+            encoding="utf-8"
+        )
+        with tempfile.NamedTemporaryFile("w", suffix=".yml", encoding="utf-8") as file:
+            file.write(rust_ci.replace("toolchain: '1.93.0'", "toolchain: stable"))
+            file.flush()
+            result = subprocess.run(
+                [sys.executable, str(CHECKER), file.name],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Rust toolchain must match mise.toml (1.93.0)", result.stderr)
+
     def test_moving_bun_versions_are_rejected(self) -> None:
         workflow = (
             valid_workflow()

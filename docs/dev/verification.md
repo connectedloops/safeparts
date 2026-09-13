@@ -151,7 +151,7 @@ python3 scripts/release/package.py --version 0.3.1
 
 Release CI packages CLI/TUI archives for Linux, macOS, and Windows. Future releases exclude retired installers and native bridge output; historical releases remain unchanged. The assembly job generates one checksum manifest that lists only published assets by their release-page filenames. On `workflow_dispatch`, it uploads the complete result as a short-lived dry-run artifact instead of creating a GitHub Release. With explicit authorization for a remote dry run, run the full platform matrix with `gh workflow run release.yml --ref <branch> -f version=v0.3.1`.
 
-The release workflow pins every third-party action to a reviewed commit SHA and records the action version in a comment. Rust and Bun follow `mise.toml`, and hosted runners use fixed versions. Repository permissions default to `contents: read`; only the tag-only `publish` job has `contents: write`. Follow the pin-review procedure in [`surfaces/release.md`](surfaces/release.md) before updating these inputs.
+The release workflow pins every third-party action to a reviewed commit SHA and records the action version in a comment. Rust and Bun follow `mise.toml`, ordinary Rust CI uses the same Rust pin, and hosted runners use fixed versions. Repository permissions default to `contents: read`; only the tag-only `publish` job has `contents: write`. Follow the pin-review procedure in [`surfaces/release.md`](surfaces/release.md) before updating these inputs.
 
 ## DX checks
 

@@ -25,13 +25,13 @@ Supported checks cover core, CLI, TUI, WASM, web, and help. CLI/TUI archives ret
 - Focused actionlint check: `mise run workflow:lint`
 - Combined gate: `mise run workflow:check`
 
-The policy gate rejects mutable action references, moving build inputs, and write permissions outside the tag-only publication job.
+The policy gate rejects mutable action references, ordinary Rust CI compiler drift, moving build inputs, and write permissions outside the tag-only publication job.
 
 ## Rust (Cargo)
 
 **Prereqs**
 
-- Install Rust toolchain (stable) and `rustfmt` + `clippy` components.
+- Use the Rust toolchain pinned in `mise.toml`, including the `rustfmt`, `clippy`, and `llvm-tools-preview` components plus the `wasm32-unknown-unknown` target.
 
 **Build**
 
