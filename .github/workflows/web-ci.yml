@@ -2,6 +2,7 @@ name: web artifact
 
 on:
   push:
+    branches: [main]
     paths:
       - 'web/**'
       - 'crates/safeparts_core/**'
@@ -102,6 +103,7 @@ jobs:
       - name: Test deployment artifact behavior and workflow policy
         run: |
           python3 scripts/dev/test_web_deploy.py
+          python3 scripts/dev/test_ci_triggers.py
           python3 scripts/dev/test_changelog.py
           python3 scripts/dev/test_changelog_workflow.py
 

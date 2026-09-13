@@ -58,6 +58,14 @@ Use these checklists to keep future changes predictable.
 5. Update help guidance when user-visible behavior changes. Retired applications have no parity requirement.
 6. Run web build, typecheck, and the relevant browser checks.
 
+## Change CI verification triggers
+
+1. Rust and Web verification run on pull requests for feature-branch updates, including draft pull requests.
+2. Branches without pull requests do not receive automatic Rust or Web push verification; open a draft pull request when you need CI feedback before review.
+3. Main-branch pushes still run Rust and Web verification, and Web deployment remains limited to main pushes or manual recovery dispatches.
+4. Keep RustSec on every pull request, main pushes that touch dependency audit inputs, scheduled runs, and manual recovery.
+5. Preserve path filters so docs-only or unrelated changes do not start expensive Rust or Web jobs.
+
 ## Change Web deployment
 
 1. Keep Rust, Bun, WASM tools, deployment CLIs, and GitHub actions pinned.

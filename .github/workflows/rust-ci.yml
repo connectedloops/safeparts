@@ -2,6 +2,7 @@ name: rust ci
 
 on:
   push:
+    branches: [main]
     paths:
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -53,6 +54,7 @@ jobs:
       - name: Check supported workload and release workflow policy
         run: |
           python3 scripts/dev/test_retirement.py
+          python3 scripts/dev/test_ci_triggers.py
           python3 scripts/dev/test_workflow_policy.py
           python3 scripts/dev/workflow_policy.py
 
