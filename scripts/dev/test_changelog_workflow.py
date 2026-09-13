@@ -4,6 +4,8 @@ from pathlib import Path
 import re
 import unittest
 
+import changelog
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -45,12 +47,53 @@ class ChangelogWorkflowTests(unittest.TestCase):
         self.assertIn('chore(changelog): update generated history', text)
         self.assertIn('41898282+github-actions[bot]@users.noreply.github.com', text)
         self.assertIn('gh workflow run web-ci.yml --ref main', text)
+        self.assertIn('git rev-parse HEAD', text)
+        self.assertIn('web-handoff-status --repository "$REPOSITORY" --source-sha "$source_sha"', text)
+        self.assertIn('[ "$handoff_status" = dispatch ]', text)
         self.assertLess(text.index('git push origin HEAD:refs/heads/main'),
                         text.index('gh workflow run web-ci.yml --ref main'))
         paths = re.search(r'paths=\((.*?)\)', text, re.S).group(1).split()
         self.assertEqual(['CHANGELOG.md', 'web/help/src/content/docs/changelog.md',
                           'web/help/src/content/docs/ar/changelog.md'], paths)
         self.assertIn('set -euo pipefail', text)
+
+    def test_unchanged_snapshot_skips_dispatch_when_intended_source_deployed(self):
+        runs = {'workflow_runs': [dict(id=7, head_sha='abc123', status='completed', conclusion='success')]}
+        jobs = {7: {'jobs': [
+            dict(name='deploy tested artifact to Netlify', conclusion='success'),
+            dict(name='deploy tested artifact to Cloudflare Workers', conclusion='success'),
+        ]}}
+
+        self.assertEqual('healthy', changelog.web_handoff_decision(runs, jobs, 'abc123'))
+
+    def test_failed_or_missing_handoff_requests_dispatch_for_intended_source(self):
+        successful_old_run = {'workflow_runs': [dict(id=6, head_sha='old999', status='completed', conclusion='success')]}
+        successful_old_jobs = {6: {'jobs': [
+            dict(name='deploy tested artifact to Netlify', conclusion='success'),
+            dict(name='deploy tested artifact to Cloudflare Workers', conclusion='success'),
+        ]}}
+        failed_current_run = {'workflow_runs': [dict(id=8, head_sha='abc123', status='completed', conclusion='failure')]}
+        skipped_deploy_jobs = {9: {'jobs': [
+            dict(name='deploy tested artifact to Netlify', conclusion='skipped'),
+            dict(name='deploy tested artifact to Cloudflare Workers', conclusion='success'),
+        ]}}
+        missing_cloudflare = {10: {'jobs': [
+            dict(name='deploy tested artifact to Netlify', conclusion='success'),
+        ]}}
+
+        self.assertEqual('dispatch', changelog.web_handoff_decision(successful_old_run, successful_old_jobs, 'abc123'))
+        self.assertEqual('dispatch', changelog.web_handoff_decision(failed_current_run, {}, 'abc123'))
+        self.assertEqual('dispatch', changelog.web_handoff_decision(
+            {'workflow_runs': [dict(id=9, head_sha='abc123', status='completed', conclusion='success')]},
+            skipped_deploy_jobs, 'abc123'))
+        self.assertEqual('dispatch', changelog.web_handoff_decision(
+            {'workflow_runs': [dict(id=10, head_sha='abc123', status='completed', conclusion='success')]},
+            missing_cloudflare, 'abc123'))
+
+    def test_in_progress_handoff_waits_instead_of_dispatching_duplicate_build(self):
+        runs = {'workflow_runs': [dict(id=11, head_sha='abc123', status='in_progress', conclusion=None)]}
+
+        self.assertEqual('pending', changelog.web_handoff_decision(runs, {}, 'abc123'))
 
     def test_web_deploy_manual_refresh_is_main_only_with_existing_gates(self):
         text = (ROOT / '.github/workflows/web-ci.yml').read_text()
