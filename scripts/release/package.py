@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import os
 import platform
+import re
 import shutil
 import sys
 import tarfile
@@ -30,6 +31,13 @@ def _detect_arch() -> str:
     if machine in ("aarch64", "arm64"):
         return "aarch64"
     return machine
+
+
+def normalized_version(value: str) -> str:
+    version = value.removeprefix("refs/tags/").removeprefix("v")
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+        raise ValueError(f"release version must use vMAJOR.MINOR.PATCH form: {value}")
+    return version
 
 
 def _sha256_hex(path: Path) -> str:
@@ -78,11 +86,7 @@ def main() -> int:
     os_id = _detect_os()
     arch = args.arch or _detect_arch()
 
-    version = args.version
-    if version.startswith("refs/tags/"):
-        version = version.split("/", 2)[-1]
-    if version.startswith("v"):
-        version = version[1:]
+    version = normalized_version(args.version)
 
     out_dir = Path(args.out_dir) if args.out_dir else repo_root / "dist" / "release"
     out_dir.mkdir(parents=True, exist_ok=True)

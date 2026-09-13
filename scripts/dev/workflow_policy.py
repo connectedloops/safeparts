@@ -294,12 +294,27 @@ def validate_workflow(text: str, repo_root: Path = REPO_ROOT) -> list[str]:
             errors.append(f"job {job} must install the repository Rust toolchain")
 
     for line_number, line in enumerate(lines, 1):
-        if not line.lstrip().startswith("#") and RETIRED_RELEASE_PATTERN.search(line):
+        if line.lstrip().startswith("#"):
+            continue
+        if RETIRED_RELEASE_PATTERN.search(line):
             errors.append(f"line {line_number}: retired release workload or artifact")
         moving_runner = re.search(r"\b(?:ubuntu|windows|macos)-latest\b", line)
         if moving_runner:
             errors.append(
                 f"line {line_number}: moving runner label {moving_runner.group(0)}"
+            )
+        if re.search(r"\bcargo\s+(?:test|build)\b", line) and "--locked" not in line:
+            errors.append(
+                f"line {line_number}: release Cargo commands must use --locked"
+            )
+        release_version_is_interpolated = "${{ env.RELEASE_VERSION }}" in line
+        release_script_uses_version = (
+            "scripts/release/check-version.py" in line
+            or "scripts/release/package.py" in line
+        )
+        if release_version_is_interpolated and release_script_uses_version:
+            errors.append(
+                f"line {line_number}: release version must be read from shell environment data"
             )
 
     if permissions.get("workflow") != {"contents": "read"}:

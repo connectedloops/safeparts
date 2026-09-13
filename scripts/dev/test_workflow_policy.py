@@ -30,6 +30,10 @@ jobs:
       - uses: {PINNED_RUST}
         with:
           toolchain: '1.93.0'
+      - name: Validate release version
+        run: python3 scripts/release/check-version.py "$RELEASE_VERSION"
+      - name: Test
+        run: cargo test --all-features --locked
   build:
     runs-on: windows-2025
     steps:
@@ -39,6 +43,10 @@ jobs:
       - uses: {PINNED_BUN}
         with:
           bun-version: '1.3.11'
+      - name: Build release binaries
+        run: cargo build --release --locked -p safeparts -p safeparts_tui
+      - name: Package
+        run: python scripts/release/package.py --version "$RELEASE_VERSION" --arch x86_64
   publish:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
@@ -250,6 +258,26 @@ class WorkflowPolicyTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 1)
         self.assertIn("action pin is missing a version comment", result.stderr)
+
+    def test_release_cargo_commands_must_use_locked_resolution(self) -> None:
+        for command in ("cargo test --all-features", "cargo build --release"):
+            with self.subTest(command=command):
+                workflow = valid_workflow().replace(command + " --locked", command)
+
+                result = self.run_policy(workflow)
+
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("release Cargo commands must use --locked", result.stderr)
+
+    def test_release_version_must_not_be_interpolated_into_shell_text(self) -> None:
+        workflow = valid_workflow().replace(
+            '"$RELEASE_VERSION"', '"${{ env.RELEASE_VERSION }}"', 1
+        )
+
+        result = self.run_policy(workflow)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("release version must be read from shell environment data", result.stderr)
 
 
 if __name__ == "__main__":
