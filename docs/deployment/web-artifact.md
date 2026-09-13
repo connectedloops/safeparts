@@ -4,7 +4,7 @@ The Web release unit is the commit-identified static artifact produced by [the W
 
 Main-branch pushes and manual Web workflow runs on `main` can deploy after the same complete gates pass. Scheduled, pull request, and other verification-only runs use cancelable concurrency groups, but they do not share a cancel-in-progress group with deployment-capable `main` runs. The changelog workflow requests that manual run after committing generated pages, because pushes made with `GITHUB_TOKEN` do not trigger push workflows. Manual runs on other branches and pull requests cannot deploy.
 
-Deployment-capable `main` runs use supersession instead of cancellation: before each provider publishes, the job compares `github.sha` with the current `origin/main`. If a newer `main` commit exists, the provider publish and byte check are skipped for the stale artifact, so an older successful build cannot become the final intended deployment after a newer run has reached `main`.
+Deployment-capable `main` runs are serialized for each branch instead of canceled. Each provider job also performs a point-in-time stale-artifact check by comparing `github.sha` with the current `origin/main` before it publishes. If a newer `main` commit exists at that check, the provider publish and byte check are skipped for the stale artifact. A newer commit still has to pass the complete Web gate before it is deployed; a failing newer build leaves the last verified deployment in place rather than replacing it with unvalidated output.
 
 ## Artifact evidence
 

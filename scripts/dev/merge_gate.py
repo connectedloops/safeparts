@@ -79,16 +79,21 @@ def normalized_name(name: object) -> str:
     return text
 
 
+def check_order(run: dict[str, object]) -> tuple[int, object]:
+    check_id = run.get("id")
+    if isinstance(check_id, int):
+        return (1, check_id)
+    return (0, str(run.get("started_at") or run.get("completed_at") or ""))
+
+
 def latest_runs(runs: Iterable[dict[str, object]]) -> dict[str, dict[str, object]]:
     latest: dict[str, dict[str, object]] = {}
     for run in runs:
         name = normalized_name(run.get("name"))
         if not name:
             continue
-        started_at = str(run.get("started_at") or run.get("completed_at") or "")
         current = latest.get(name)
-        current_started_at = str(current.get("started_at") or current.get("completed_at") or "") if current else ""
-        if current is None or started_at >= current_started_at:
+        if current is None or check_order(run) >= check_order(current):
             latest[name] = run
     return latest
 

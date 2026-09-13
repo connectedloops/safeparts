@@ -17,6 +17,21 @@ BOT_SUBJECT = 'chore(changelog): update generated history'
 BASE = 'https://github.com/connectedloops/safeparts'
 WEB_DEPLOYMENT_JOBS = ('deploy tested artifact to Netlify',
                        'deploy tested artifact to Cloudflare Workers')
+DEPLOYMENT_STEP_EVIDENCE = {
+    'deploy tested artifact to Netlify': (
+        'Check artifact is still latest main',
+        'Check Netlify credentials',
+        'Deploy artifact without a provider build',
+        'Verify Netlify serves the artifact bytes',
+    ),
+    'deploy tested artifact to Cloudflare Workers': (
+        'Check artifact is still latest main',
+        'Check Cloudflare credentials',
+        'Deploy artifact without rebuilding source',
+        'Verify Cloudflare serves the artifact bytes',
+    ),
+}
+DEPLOYMENT_CAPABLE_EVENTS = ('push', 'workflow_dispatch')
 CATEGORIES = {
     'feat': ('Features', 'ميزات'), 'fix': ('Fixes', 'إصلاحات'),
     'perf': ('Performance', 'الأداء'), 'docs': ('Documentation', 'التوثيق'),
@@ -174,26 +189,60 @@ def _jobs(payload: object) -> list[dict]:
     return jobs
 
 
+def _is_deployment_capable_run(run: dict) -> bool:
+    event = run.get('event')
+    return event in DEPLOYMENT_CAPABLE_EVENTS or event is None
+
+
+def _run_order(run: dict) -> tuple[int, str]:
+    run_id = run.get('id')
+    return (run_id if isinstance(run_id, int) else -1,
+            str(run.get('created_at') or run.get('run_started_at') or ''))
+
+
+def _step_conclusions(job: dict) -> dict[str, str]:
+    steps = job.get('steps')
+    if not isinstance(steps, list):
+        return {}
+    return {str(step.get('name')): str(step.get('conclusion') or '')
+            for step in steps if isinstance(step, dict)}
+
+
+def _provider_job_has_publication_evidence(job: dict) -> bool:
+    names = DEPLOYMENT_STEP_EVIDENCE.get(str(job.get('name')))
+    if job.get('conclusion') != 'success' or names is None:
+        return False
+    latest_step, credentials_step, deploy_step, verify_step = names
+    steps = _step_conclusions(job)
+    if steps.get(verify_step) == 'success':
+        return True
+    return (steps.get(latest_step) == 'success'
+            and steps.get(credentials_step) == 'success'
+            and steps.get(deploy_step) == 'skipped'
+            and steps.get(verify_step) == 'skipped')
+
+
 def web_handoff_decision(runs_payload: object, jobs_by_run_id: dict[int, object], source_sha: str) -> str:
-    """Return healthy, pending, or dispatch for the Web run that matches source_sha."""
-    pending = False
-    for run in _workflow_runs(runs_payload):
-        if run.get('head_sha') != source_sha:
-            continue
-        status = run.get('status')
-        conclusion = run.get('conclusion')
-        if status != 'completed':
-            pending = True
-            continue
-        if conclusion != 'success':
-            continue
-        run_id = run.get('id')
-        if not isinstance(run_id, int) or run_id not in jobs_by_run_id:
-            continue
-        conclusions = {job.get('name'): job.get('conclusion') for job in _jobs(jobs_by_run_id[run_id])}
-        if all(conclusions.get(name) == 'success' for name in WEB_DEPLOYMENT_JOBS):
-            return 'healthy'
-    return 'pending' if pending else 'dispatch'
+    """Return healthy, pending, or dispatch for the newest deploy-capable Web run."""
+    candidates = [run for run in _workflow_runs(runs_payload)
+                  if run.get('head_sha') == source_sha and _is_deployment_capable_run(run)]
+    if not candidates:
+        return 'dispatch'
+    run = max(candidates, key=_run_order)
+    status = run.get('status')
+    conclusion = run.get('conclusion')
+    if status != 'completed':
+        return 'pending'
+    if conclusion != 'success':
+        return 'dispatch'
+    run_id = run.get('id')
+    if not isinstance(run_id, int) or run_id not in jobs_by_run_id:
+        return 'dispatch'
+    jobs = {job.get('name'): job for job in _jobs(jobs_by_run_id[run_id])}
+    if all(_provider_job_has_publication_evidence(jobs.get(name, {}))
+           for name in WEB_DEPLOYMENT_JOBS):
+        return 'healthy'
+    return 'dispatch'
 
 
 def gh_api(endpoint: str) -> object:

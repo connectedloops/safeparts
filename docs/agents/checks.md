@@ -25,7 +25,7 @@ Supported checks cover core, CLI, TUI, WASM, web, and help. CLI/TUI archives ret
 - Focused actionlint check for every active workflow: `mise run workflow:lint`
 - Combined gate: `mise run workflow:check`
 
-The policy gate rejects mutable action references, ordinary Rust CI compiler drift, moving build inputs, and write permissions outside the tag-only publication job. Rust CI runs the same lightweight workflow gate as `workflow policy and actionlint`.
+The release-workflow policy gate rejects mutable action references, moving build inputs, and write permissions outside the tag-only publication job. The ordinary Rust CI policy gate rejects compiler drift. Rust CI runs the same lightweight workflow gate as `workflow policy and actionlint`. Repository-wide mutable-action enforcement remains separate from branch-protection rule activation.
 
 ## Rust (Cargo)
 

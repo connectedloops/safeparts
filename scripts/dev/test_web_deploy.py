@@ -556,6 +556,14 @@ class WorkflowPolicyTests(unittest.TestCase):
             self.assertIn("steps.latest_main.outputs.ready == 'true'", job)
             self.assertLess(job.index("id: latest_main"), job.index("Deploy artifact without"))
 
+    def test_deployment_docs_describe_serialization_without_atomic_claims(self) -> None:
+        docs = (REPO_ROOT / "docs" / "deployment" / "web-artifact.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Deployment-capable `main` runs are serialized", docs)
+        self.assertIn("point-in-time stale-artifact check", docs)
+        self.assertNotIn("cannot become the final intended deployment", docs)
+
     def test_obsolete_verification_work_is_still_canceled(self) -> None:
         workflow = WEB_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("format('web-artifact-{0}', github.ref)", workflow)

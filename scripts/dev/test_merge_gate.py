@@ -11,13 +11,22 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKER = REPO_ROOT / "scripts" / "dev" / "merge_gate.py"
 
 
-def check_run(name: str, conclusion: str | None = "success", status: str = "completed", started_at: str = "2026-01-01T00:00:00Z") -> dict[str, str | None]:
-    return {
+def check_run(
+    name: str,
+    conclusion: str | None = "success",
+    status: str = "completed",
+    started_at: str | None = "2026-01-01T00:00:00Z",
+    check_id: int | None = None,
+) -> dict[str, str | int | None]:
+    run: dict[str, str | int | None] = {
         "name": name,
         "status": status,
         "conclusion": conclusion,
         "started_at": started_at,
     }
+    if check_id is not None:
+        run["id"] = check_id
+    return run
 
 
 BASE_CHECKS = [
@@ -108,6 +117,19 @@ class MergeGateTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("rust: completed/failure", result.stderr)
+
+    def test_latest_check_run_uses_check_identity_when_new_attempt_has_no_start_time(self) -> None:
+        result = self.run_gate(
+            ["docs/dev/verification.md"],
+            [
+                check_run("workflow policy and actionlint", "success", check_id=100),
+                check_run("audit", "success", check_id=100),
+                check_run("audit", None, "queued", started_at=None, check_id=200),
+            ],
+        )
+
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("audit: queued/pending", result.stderr)
 
 
 if __name__ == "__main__":

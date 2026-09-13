@@ -58,13 +58,78 @@ class ChangelogWorkflowTests(unittest.TestCase):
         self.assertIn('set -euo pipefail', text)
 
     def test_unchanged_snapshot_skips_dispatch_when_intended_source_deployed(self):
-        runs = {'workflow_runs': [dict(id=7, head_sha='abc123', status='completed', conclusion='success')]}
+        runs = {'workflow_runs': [dict(id=7, event='workflow_dispatch', head_sha='abc123', status='completed', conclusion='success')]}
         jobs = {7: {'jobs': [
-            dict(name='deploy tested artifact to Netlify', conclusion='success'),
-            dict(name='deploy tested artifact to Cloudflare Workers', conclusion='success'),
+            dict(name='deploy tested artifact to Netlify', conclusion='success', steps=[
+                dict(name='Check artifact is still latest main', conclusion='success'),
+                dict(name='Check Netlify credentials', conclusion='success'),
+                dict(name='Deploy artifact without a provider build', conclusion='success'),
+                dict(name='Verify Netlify serves the artifact bytes', conclusion='success'),
+            ]),
+            dict(name='deploy tested artifact to Cloudflare Workers', conclusion='success', steps=[
+                dict(name='Check artifact is still latest main', conclusion='success'),
+                dict(name='Check Cloudflare credentials', conclusion='success'),
+                dict(name='Deploy artifact without rebuilding source', conclusion='success'),
+                dict(name='Verify Cloudflare serves the artifact bytes', conclusion='success'),
+            ]),
         ]}}
 
         self.assertEqual('healthy', changelog.web_handoff_decision(runs, jobs, 'abc123'))
+
+    def test_skipped_provider_verification_is_not_healthy_unless_credentials_disabled(self):
+        runs = {'workflow_runs': [dict(id=9, event='workflow_dispatch', head_sha='abc123', status='completed', conclusion='success')]}
+        skipped_after_stale_head = {9: {'jobs': [
+            dict(name='deploy tested artifact to Netlify', conclusion='success', steps=[
+                dict(name='Check artifact is still latest main', conclusion='success'),
+                dict(name='Check Netlify credentials', conclusion='skipped'),
+                dict(name='Deploy artifact without a provider build', conclusion='skipped'),
+                dict(name='Verify Netlify serves the artifact bytes', conclusion='skipped'),
+            ]),
+            dict(name='deploy tested artifact to Cloudflare Workers', conclusion='success', steps=[
+                dict(name='Check artifact is still latest main', conclusion='success'),
+                dict(name='Check Cloudflare credentials', conclusion='skipped'),
+                dict(name='Deploy artifact without rebuilding source', conclusion='skipped'),
+                dict(name='Verify Cloudflare serves the artifact bytes', conclusion='skipped'),
+            ]),
+        ]}}
+        intentionally_disabled = {9: {'jobs': [
+            dict(name='deploy tested artifact to Netlify', conclusion='success', steps=[
+                dict(name='Check artifact is still latest main', conclusion='success'),
+                dict(name='Check Netlify credentials', conclusion='success'),
+                dict(name='Deploy artifact without a provider build', conclusion='skipped'),
+                dict(name='Verify Netlify serves the artifact bytes', conclusion='skipped'),
+            ]),
+            dict(name='deploy tested artifact to Cloudflare Workers', conclusion='success', steps=[
+                dict(name='Check artifact is still latest main', conclusion='success'),
+                dict(name='Check Cloudflare credentials', conclusion='success'),
+                dict(name='Deploy artifact without rebuilding source', conclusion='skipped'),
+                dict(name='Verify Cloudflare serves the artifact bytes', conclusion='skipped'),
+            ]),
+        ]}}
+
+        self.assertEqual('dispatch', changelog.web_handoff_decision(runs, skipped_after_stale_head, 'abc123'))
+        self.assertEqual('healthy', changelog.web_handoff_decision(runs, intentionally_disabled, 'abc123'))
+
+    def test_latest_deployment_attempt_controls_handoff_health(self):
+        runs = {'workflow_runs': [
+            dict(id=20, event='workflow_dispatch', head_sha='abc123', status='completed', conclusion='failure'),
+            dict(id=19, event='workflow_dispatch', head_sha='abc123', status='completed', conclusion='success'),
+        ]}
+        old_success_jobs = {19: {'jobs': [
+            dict(name='deploy tested artifact to Netlify', conclusion='success', steps=[
+                dict(name='Verify Netlify serves the artifact bytes', conclusion='success'),
+            ]),
+            dict(name='deploy tested artifact to Cloudflare Workers', conclusion='success', steps=[
+                dict(name='Verify Cloudflare serves the artifact bytes', conclusion='success'),
+            ]),
+        ]}}
+
+        self.assertEqual('dispatch', changelog.web_handoff_decision(runs, old_success_jobs, 'abc123'))
+
+    def test_scheduled_only_handoff_does_not_count_as_pending_publication(self):
+        runs = {'workflow_runs': [dict(id=21, event='schedule', head_sha='abc123', status='in_progress', conclusion=None)]}
+
+        self.assertEqual('dispatch', changelog.web_handoff_decision(runs, {}, 'abc123'))
 
     def test_failed_or_missing_handoff_requests_dispatch_for_intended_source(self):
         successful_old_run = {'workflow_runs': [dict(id=6, head_sha='old999', status='completed', conclusion='success')]}
