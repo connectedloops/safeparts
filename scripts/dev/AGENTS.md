@@ -13,6 +13,7 @@ Owns local developer-experience diagnostics and verification helpers.
 - `test_rust_coverage.py`: unit tests for coverage filtering and floor diagnostics.
 - `rustsec_audit.py`: Cargo audit runner and exact policy-exception gate.
 - `test_rustsec_audit.py`: unit tests for RustSec finding classification.
+- `dependency_scan.py`, `test_dependency_scan.py`: explicit supported/retired locked-graph reports and controlled public-CLI fixtures.
 - `test_web_deploy.py`: local build graph, destructive-writer rehearsal, final-route checks, deployment artifact behavior, and immutable Web workflow policy tests.
 - `test_backup_rehearsal.py`: executes English/Arabic synthetic saved-backup examples through the CLI; checks success, failed verification, working-copy retention, re-verification, and cleanup.
 - `workflow_policy.py`: release workflow input, tag-only publication, and permission policy gate.
@@ -36,11 +37,13 @@ Owns local developer-experience diagnostics and verification helpers.
 - Prefer actionable messages that name the command or file to fix.
 - DX checks require supported surface guides and the Feature/Core/CLI/TUI/WASM/Web/Help docs/Tests/Update when changed matrix. Retired guides remain notices, not supported implementation requirements.
 - Coverage counts core, CLI, TUI, and WASM production source only; preserve overall/core/CLI/TUI floors. Active RustSec policy exceptions must match dependencies still in Cargo.lock.
+- Dependency scans stage only named lockfiles after manifest/workspace validation. Keep Trivy/Bun versions aligned with `mise.toml`, include development dependencies and every severity, validate current database metadata, and fail closed on missing inputs or incomplete scanner results. Preserve the independent RustSec policy.
+- Retired scan mode is explicit reporting only: inventory unresolved Tauri/native/UniFFI surfaces as incomplete coverage without restore/build steps. Coverage gaps alone do not fail this mode; vulnerabilities exit 1 and operational failures exit 2. Scope, artifacts and freshness policy are documented in `../../docs/dev/dependency-scans.md`.
 
 ## Work Guidance
 
 - Keep scripts dependency-free unless a task explicitly approves a new runtime dependency.
-- Avoid network calls in diagnostics.
+- Avoid network calls in diagnostics. Explicit dependency scans may update the advisory database and validate supported Cargo resolution over the network.
 - Make checks pass from the repository root.
 
 ## Verification
@@ -48,6 +51,7 @@ Owns local developer-experience diagnostics and verification helpers.
 - Run changed scripts directly with `python3`.
 - Coverage automation: `python3 scripts/dev/test_rust_coverage.py` and `mise run coverage`.
 - RustSec automation: `python3 scripts/dev/test_rustsec_audit.py` and `mise run audit`.
+- Dependency scan orchestration: `python3 scripts/dev/test_dependency_scan.py` (also in `mise run workflow:policy`). Use `mise run security:scan` for live supported findings; a finding exit is distinct from a fixture failure.
 - Web deployment policy: `python3 scripts/dev/test_web_deploy.py`.
 - Backup rehearsal: build `safeparts` with Cargo and put the built binary on `PATH`, then run `python3 scripts/dev/test_backup_rehearsal.py`. Requires Bash and standard Unix tools; accepts no production data.
 - Release/workload policy: `mise run workflow:check` (includes retirement boundary, coverage-filter, RustSec-classifier, merge-gate, changelog fixture, changelog workflow, and actionlint tests). Docker input tests stage the Dockerfile's Cargo COPY inputs and run locked offline metadata; they do not replace the full image smoke test.

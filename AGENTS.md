@@ -150,6 +150,7 @@ Use the single-context domain model in `CONTEXT.md` and relevant records under `
 - Build / lint / test commands: `docs/agents/checks.md`, `docs/dev/verification.md`
 - CI workflows (source of truth): `.github/workflows/rust-ci.yml`, `.github/workflows/rustsec.yml`, `.github/workflows/web-ci.yml`, `.github/workflows/release.yml`
 - Dependency audit policy: `rustsec-policy.toml`; run `mise run audit`, and record owner, exposure, upstream constraint, and review date for every exception.
+- Local dependency reports: `mise run security:scan`; scope, freshness, fail-closed exits and the separately invoked retired-source inventory are owned by `docs/dev/dependency-scans.md` and `scripts/dev/dependency_scan.py`. Preserve the independent RustSec audit.
 - For browser-based Web UI checks, use the `browser` skill / `browse` CLI in local mode (`browse env local`) instead of Playwright. Do not use Playwright for local smoke testing unless the user explicitly asks for it.
 
 ## Standards (do not change)

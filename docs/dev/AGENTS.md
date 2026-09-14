@@ -13,6 +13,7 @@ Owns contributor onboarding, local workflow docs, feature coverage maps, and sur
 - `workflows.md`: repeatable development workflows.
 - `change-checklist.md`: multi-surface feature checklist template.
 - `verification.md`: check matrix and local command policy.
+- `dependency-scans.md`: local supported dependency scope, scanner/database contract, fail-closed exits, artifacts and explicit retired-source coverage gaps.
 - `generated-artifacts.md`: generated/tracked artifact policy.
 - `branch-protection.md`: prepared PR merge-gate, required-check, rollout, rollback, and changelog-writer compatibility guidance.
 - `troubleshooting.md`: common local setup and verification fixes.
@@ -25,6 +26,7 @@ Owns contributor onboarding, local workflow docs, feature coverage maps, and sur
 - Update `feature-matrix.md` whenever a change adds, removes, or changes a feature surface.
 - Keep every surface guide aligned with the nearest source `AGENTS.md` contract.
 - Active workflows cover core, CLI, TUI, WASM, web, help, and CLI/TUI releases for Linux/macOS/Windows. Retired application and UniFFI guides are concise dormant-reference notices; omit obsolete commands and parity obligations.
+- Local dependency-report guidance must keep live scans separate from offline fixtures and the independent RustSec audit. Retired inventory gaps are disclosed limitations, not a reinstated verification gate.
 - Apply the `humanizer` skill before finalizing prose edits.
 
 ## Work Guidance

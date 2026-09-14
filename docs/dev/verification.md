@@ -13,6 +13,12 @@ mise run verify          # full local gate
 
 `mise run workflow:check` runs the lightweight workflow-policy, coverage-filter, RustSec-classifier, changelog, and actionlint checks. Rust CI publishes the matching stable check as `workflow policy and actionlint`; branch-protection rules are managed outside this repository. Relevant Rust, dependency, and workflow pull requests also run `cargo test -p safeparts --all-features` and `cargo test -p safeparts_tui --all-features` on pinned Windows and one native macOS runner. GitHub records the hosted job timings; documentation-only changes outside the Rust workflow path filters do not start those host jobs.
 
+## Dependency reports
+
+Run `mise run security:scan` for the supported Cargo, web and help lockfiles, including development dependencies. It writes JSON and a summary under `target/security/supported/`; vulnerabilities exit 1, while incomplete scans and operational failures exit 2. Keep `mise run audit` for the independent RustSec policy.
+
+See [dependency scans](dependency-scans.md) for tool pins, database freshness, exact scope, artifacts and the separately invoked retired-source report. The offline orchestration fixtures run with `python3 scripts/dev/test_dependency_scan.py` and are included in `mise run workflow:policy`. Live scans are explicit local commands, not part of `mise run verify`.
+
 ## Rust
 
 ```bash
