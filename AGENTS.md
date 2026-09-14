@@ -165,6 +165,7 @@ Use the single-context domain model in `CONTEXT.md` and relevant records under `
 
 ## Docs writing
 
+- Prefer readable, task-oriented prose: lead with concrete examples, keep safety conditions at the point of action, and link canonical procedures instead of duplicating them.
 - When editing or creating user-facing docs (for example `README.md`, `web/help/**/*.mdx`, and other end-user/contributor docs), load and apply the `humanizer` skill before finalizing the text.
 - Do not apply this to internal instruction/tooling files (for example `AGENTS.md`, `openspec/**`, `.opencode/**`, or similar).
 
