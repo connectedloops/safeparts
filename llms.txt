@@ -19,7 +19,7 @@ Safety rules: treat share strings, SharePacket bytes, reconstructed secrets, cip
 - [CLI](crates/safeparts/src/main.rs): `safeparts split`, `safeparts combine`, and `safeparts tui` launcher.
 - [TUI domain rules](crates/safeparts_tui/src/domain.rs): Interactive parsing, encoding, and combine/split logic.
 - [TUI app](crates/safeparts_tui/src/app.rs): Key handling and terminal UI behavior.
-- [WASM bindings](crates/safeparts_wasm/src/lib.rs): Browser-facing `split_secret`, `combine_shares`, `share_threshold`, and `inspect_share` exports.
+- [WASM bindings](crates/safeparts_wasm/src/lib.rs): Browser-facing `split_secret`, `combine_shares`, `combine_share_input`, `share_threshold`, `inspect_share`, and `inspect_share_input` exports.
 - [Web split flow](web/src/components/SplitForm.tsx): Browser split UX over WASM.
 - [Web combine flow](web/src/components/CombineForm.tsx): Browser combine UX, paste heuristics, and encoding selection.
 
@@ -28,7 +28,7 @@ Safety rules: treat share strings, SharePacket bytes, reconstructed secrets, cip
 - [Agent contract](AGENTS.md): Repository instructions, DOX rules, check pointers, and child documentation index.
 - [Product requirements](PRD.md): Product intent, privacy posture, and threat model.
 - [README](README.md): Human quickstart and development commands.
-- [CI-style checks](docs/agents/checks.md): Local verification commands matching CI.
+- [Verification matrix](docs/dev/verification.md): Local aggregate gate, additional CI checks, and built-site browser setup.
 - [Conventions](docs/agents/conventions.md): Coding and testing standards.
 
 ## Optional

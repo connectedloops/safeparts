@@ -164,24 +164,11 @@ Rust:
 
 - CI runs `cargo fmt`, `cargo clippy`, and `cargo test`.
 
-Web:
+Web and help:
 
-- Package manager: Bun.
-- WASM build step is required before the Web UI works.
-
-```bash
-cd web
-bun install
-bun run build:wasm
-bun run build
-```
-
-Help site:
-
-```bash
-cd web
-bun run help:build
-```
+- Bun manages separate frozen locks for the app and help site; Node runs Astro and deployment tools.
+- WASM must be built before the web app works.
+- Follow [onboarding](docs/dev/onboarding.md) for prerequisites and [verification](docs/dev/verification.md#output-semantics) for build ordering. `mise run web:build:site` produces the complete app and bilingual help; standalone app builds clear existing help.
 
 Deployment:
 

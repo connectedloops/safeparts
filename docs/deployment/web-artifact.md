@@ -19,9 +19,9 @@ GitHub Actions also records the upload archive digest. The provider jobs verify 
 
 ## Cloudflare mismatch diagnosis
 
-The September 9 and 10 Cloudflare failures both uploaded only changed static assets, including `/safeparts-build/metadata.json`, then verified the public Worker URL less than one second after Wrangler reported triggers deployed. The verifier failed at the first metadata byte comparison. The retained evidence had already passed local artifact verification, and the logs did not include the served metadata identity, response date, or Cloudflare version identifier, so the available evidence distinguishes neither stale publication nor a wrong/ transformed asset conclusively.
+On a metadata mismatch, collect the verifier diagnostics and Wrangler deployment/version identifier. Keep byte verification strict; do not add retries without evidence of propagation delay. Use the evidence to decide whether a bounded readiness check or a provider-specific fix is needed.
 
-Until hosted evidence proves propagation delay, keep Cloudflare remote verification strict and do not add blanket retries. If the mismatch recurs, collect the diagnostic verifier output plus the Wrangler deployment/version identifier, then decide between a fixed-deadline readiness check and a provider-specific follow-up.
+The [September 2026 incident record](cloudflare-mismatch-2026-09.md) preserves the earlier observations and their limits.
 
 ## GitHub configuration
 
@@ -36,13 +36,17 @@ Cloudflare Workers uses:
 - `CLOUDFLARE_API_TOKEN` secret
 - `CLOUDFLARE_SITE_URL` repository variable for the configured Worker or custom domain
 
-Use provider credentials that can deploy only the intended site. A provider job reports a notice and skips when its credential is absent. The other provider can still deploy. If credentials are present, the matching site URL is required so the post-deploy byte check cannot be skipped.
+Use the narrowest deployment permissions each provider supports. Before enabling deployment, have the credential owner verify the selected Netlify site/team or Cloudflare account/Worker and record the granted scope. This guide has not verified provider-specific minimum permissions or whether either token can be limited to a single site; do not assume site-only access. That permission review remains a deployment prerequisite, not a claim about existing credentials.
+
+Start with [Cloudflare token setup](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) and [Netlify configuration variables](https://docs.netlify.com/build/configure-builds/environment-variables/#netlify-configuration-variables), then verify current provider permissions with the account owner.
+
+ A provider job reports a notice and skips when its credential is absent. The other provider can still deploy. If credentials are present, the matching site URL is required so the post-deploy byte check cannot be skipped.
 
 Netlify Git builds are disabled in [`netlify.toml`](../../netlify.toml). Do not add a build hook or provider build command. [`wrangler.jsonc`](../../wrangler.jsonc) points only at the downloaded `web/dist` asset directory.
 
 ## Credential-free local verification
 
-Install from the frozen locks, build once, and prepare the same package shape used by CI:
+Complete [onboarding](../dev/onboarding.md#2-install-tools), then use Bash from the repository root. Install from the frozen locks, build once, and prepare the same package shape used by CI:
 
 ```bash
 mise install

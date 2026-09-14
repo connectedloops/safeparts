@@ -1,6 +1,8 @@
-# Native Windows accessibility release checklist
+# Historical native Windows accessibility checklist
 
-Run this checklist against the exact packaged build before a preview or canonical release. Use only synthetic Secrets and Recovery shares.
+Reference only: the WinUI app is retired. This checklist is not an active build, test, preview, or release gate. See the [retirement notice](../../docs/dev/surfaces/windows.md) for supported recovery tools.
+
+The historical checks below describe review of an exact packaged build. Use only synthetic secrets and recovery shares if consulting them.
 
 ## Keyboard
 
