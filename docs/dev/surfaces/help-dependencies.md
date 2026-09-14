@@ -4,7 +4,7 @@ Review: 2026-09-14 for [#115](https://github.com/connectedloops/safeparts/issues
 
 ## Historical native-scan result
 
-The counts below preserve the #115 evidence, not a current security clearance. The later documentation audit identified nested Bun package-identity gaps in Trivy's native lockfile parser. Treat these native-scan counts as limited historical evidence, superseded as a basis for claiming complete Bun coverage. Identity remediation is tracked in [#122](https://github.com/connectedloops/safeparts/issues/122); main does not yet have the corrected scanner.
+The counts below preserve the #115 evidence, not a current security clearance. The subsequent [#122 review](web-dependencies.md#result-and-reproduction) identified nested Bun package-identity gaps in Trivy's native lockfile parser. Treat these native-scan counts as limited historical evidence, superseded as a basis for claiming complete Bun coverage. The shared scanner reconciles canonical npm identities through Trivy's SBOM scan; it no longer uses the native Bun parser.
 
 Trivy 0.74.0, vulnerability DB schema 2, updated `2026-09-14T01:15:36Z`, reproduced the pinned `6f586c8` help baseline. That scan reported no vulnerabilities in the refreshed help lockfile:
 
@@ -19,7 +19,7 @@ Trivy 0.74.0, vulnerability DB schema 2, updated `2026-09-14T01:15:36Z`, reprodu
 
 The historical after-scan inventory contained 507 scanner package entries, including `rollup@4.63.2` marked `Dev: true` and optional platform packages. These entries are not independently reconciled package identities. Lock records, package identities, and package/advisory occurrences are different counts.
 
-## Current scan entry point and limitation
+## Current scan entry point
 
 Run from the repository root:
 
@@ -27,11 +27,11 @@ Run from the repository root:
 mise run security:scan
 ```
 
-Read [dependency scans](../dependency-scans.md#known-bun-identity-limitation) for scope, database freshness, artifacts, and the unresolved native Bun identity limitation on main. This command still uses that native parser; it does not repair or reconcile identities. Keep scanner JSON, input hashes, and DB metadata as evidence, and assess package identities before relying on a clean result. Keep RustSec independent. No fresh scan or corrected counts are asserted here.
+Read [dependency scans](../dependency-scans.md#supported-scope) for canonical identity reconciliation, scope, database freshness, and artifacts. Keep the normalized inventories, scanner JSON, input hashes, and DB metadata as evidence. The [corrected review](web-dependencies.md#result-and-reproduction) records 507 help lock records mapping to 496 identities, all scanned, with zero help findings. It also records two remaining main-web highs, so the supported scan exits 1, not 0. These are cited results from that review, not a fresh scan for this documentation update. Keep RustSec independent.
 
 ## Compatible versions
 
-The npm registry and upstream advisory records were checked before installation. Astro 7.3.2 requires Node >=22.12.0, matching `mise.toml`. Starlight 0.41.11 accepts Astro `^7.0.2` and the optional Markdown processor `@astrojs/markdown-remark` `^7.2.0`; the selected processor 7.3.1 also satisfies Astro's `^7.3.0` peer.
+The npm registry and upstream advisory records were checked before installation. Astro 7.3.2 requires Node >=22.12.0, satisfied by the Node 22.13.0 pin in `mise.toml`. Starlight 0.41.11 accepts Astro `^7.0.2` and the optional Markdown processor `@astrojs/markdown-remark` `^7.2.0`; the selected processor 7.3.1 also satisfies Astro's `^7.3.0` peer.
 
 [Astro's AVIF advisory](https://github.com/advisories/GHSA-26w7-cxv4-gfx2) identifies 7.2.8 as the first patched Astro version. [Sharp's libheif advisory](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c) requires Sharp 0.35.4 with bundled libheif 1.23.2. Install the prebuilt dependencies normally; a custom global libheif/libvips installation needs its own version check.
 
@@ -63,7 +63,7 @@ The lockfile was regenerated with the pinned Bun 1.3.11 after upgrading direct d
 
 The #115 scan reported zero help findings and 24 main-web findings (0 critical, 16 high, 6 medium, 2 low, 0 unknown), all marked `Dev: true`. Omitting development dependencies gave zero for the main-web target. That comparison showed the effect of the inclusion flag in that scanner output; it did not establish correct nested Bun identities or complete coverage. No suppression file or exception policy was added.
 
-The broad historical scan also found dormant desktop/mobile and installed example dependencies. The supported scan now stages only its named lockfiles; retired inventory is separate. Neither the historical help result nor a clean help graph establishes that the full supported scan passes. Review the main-web graph and the #122 identity limitation before claiming supported vulnerabilities are cleared.
+The broad historical scan also found dormant desktop/mobile and installed example dependencies. The supported scan uses only its named locked graphs: it stages Cargo alone and scans normalized Bun inventories; retired inventory is separate. Neither the historical help result nor a clean help graph establishes that the full supported scan passes. The [main-web review](web-dependencies.md#unresolved-upstream-constraint) retains the two unresolved Sharp highs without an approved exception.
 
 ## Verification
 
