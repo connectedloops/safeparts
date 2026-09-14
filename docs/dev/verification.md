@@ -26,7 +26,7 @@ It is not a claim of full CI equivalence. Run additional checks for the affected
 | --- | --- |
 | Rust coverage and floors | `mise run coverage` |
 | Independent live RustSec audit | `mise run audit` |
-| Live supported dependency scan | `mise run security:scan` (see [identity limitations](dependency-scans.md#known-bun-identity-limitation)) |
+| Live supported dependency scan | `mise run security:scan` (see [scope and identity reconciliation](dependency-scans.md#supported-scope)) |
 | WASM browser bindings | `(cd web && bun run test:wasm)` |
 | Browser end-to-end and accessibility | [Built-site recipe](#built-site-browser-suite) below |
 | Docker image/runtime smoke | `bash web/tests/container-smoke.sh` |
