@@ -54,7 +54,7 @@ Split flow
 
 Combine flow
 - Decode share strings into SharePackets.
-- Validate the share set is consistent (same set_id/k/n/x/payload length; no duplicate x).
+- Require the same set ID, threshold, share count, and payload length. Require distinct, valid share indexes.
 - Validate crypto params are consistent across packets.
 - Shamir combine to reconstruct the tagged bytes.
 - Verify integrity tag before decrypting.
@@ -205,14 +205,13 @@ Encoding flags (CLI)
 - `mnemo-bip39`
 
 Passphrase flags (CLI)
-- `-p/--passphrase <text>` or `-P/--passphrase-file <path>` (file input trims trailing `\n`/`\r`).
+- `-p/--passphrase <text>` or `-P/--passphrase-file <path>` (file input removes all trailing CR and LF bytes; other bytes remain unchanged).
 - Prefer `--passphrase-file` in real usage to avoid shell history.
 
 Auto-detect (CLI combine and core `encoding::parse_share_packets`)
-- If any non-empty line contains '/' or has multiple words, treat input as mnemonic.
-  - If any line contains '/', decode as mnemo-bip39.
-  - Otherwise decode as mnemo-words.
-- Otherwise, try base64url decode first; if that fails, try base58check.
+- Try complete-input base64url parsing first, then complete-input base58check parsing.
+- Only after both fail, inspect mnemonic shape: '/' selects mnemo-bip39; otherwise a multiword line selects mnemo-words.
+- Parsing must consume all nonempty input; never skip invalid words, lines, or BIP-39 frames.
 - `Encoding::Auto` is valid for parsing only; encoding output must choose a concrete format.
 
 Mnemonic parsing (CLI combine)
@@ -232,14 +231,14 @@ Core logic
 - Encoding and parsing rules: `crates/safeparts_tui/src/domain.rs`
 
 Share parsing rules (TUI)
-- Base64/Base58: whitespace-separated tokens.
-- Mnemonics: one share per paragraph (blank-line separated); line wrapping is normalized.
+- base64url/base58check: whitespace-separated tokens.
+- Mnemonics use the core wrapped parser: first decode every nonempty line as a complete share. If that fails, try blank-line-separated wrapped shares. Both attempts consume all input and accept LF/CRLF with Auto or explicit encoding.
 
 Keybindings (high signal)
 - `Ctrl+Q`: quit
-- `F1` or `?`: help
+- `F1`: help from normal focus outside a modal; `?` opens help only outside text entry
 - `Tab` / `Shift+Tab`: focus next/prev
-- `Left` / `Right`: switch tabs
+- `Alt+Left` / `Alt+Right`: switch operations; unmodified arrows navigate focused text
 - `Enter`: run the focused action
 - `Ctrl+L`: load (context-sensitive)
 - `Ctrl+S`: save (context-sensitive)
@@ -253,18 +252,21 @@ Clipboard
 ### WASM: `safeparts_wasm`
 Implementation: `crates/safeparts_wasm/src/lib.rs`
 
-Exported functions
-- `split_secret(secret: &[u8], k: u8, n: u8, encoding: &str, passphrase: Option<String>) -> Array`
-- `combine_shares(shares: Array, encoding: &str, passphrase: Option<String>) -> Uint8Array`
-- `share_threshold(share: &str, encoding: &str) -> u8`
-- `inspect_share(share: &str, encoding: &str) -> { k, n, x, encrypted }`
+JavaScript exports (Rust implementations return `Result<_, JsValue>`; failures throw)
+- `split_secret(secret, k, n, encoding, passphrase)`: Uint8Array input, number k/n, string encoding, optional string passphrase; returns an array of share strings.
+- `combine_shares(shares, encoding, passphrase)`: array of individual share strings; returns Uint8Array.
+- `combine_share_input(input, encoding, passphrase)`: complete input string; returns Uint8Array using the core wrapped parser.
+- `share_threshold(share, encoding)`: returns a number.
+- `inspect_share(share, encoding)` and `inspect_share_input(input, encoding)`: return `{ k, n, x, encrypted, encoding, shareCount }`. Input inspection reports first-packet metadata and parsed share count, not proof of successful recovery.
+
+Input-oriented exports delegate complete-line-first/wrapped-fallback parsing to core. Recovery exports throw stable redacted objects; inspection/split retain string errors. See `docs/dev/surfaces/wasm.md#recovery-error-contract` for validated fields and fallback rules.
 
 Encoding strings (WASM/web)
 - `base64url`
 - `base58check`
 - `mnemo-words`
 - `mnemo-bip39`
-These are not the same strings as the CLI flags. Do not mix them.
+These are the same four canonical names used by CLI and core. CLI also accepts the shorter `base64` and `base58` aliases. `auto` is an input mode, not an output encoding.
 
 Minimal JS usage pattern
 ```js
@@ -275,7 +277,7 @@ await init();
 const secret = new TextEncoder().encode("secret");
 const shares = sp.split_secret(secret, 2, 3, "base64url", null);
 const recoveredBytes = sp.combine_shares([shares[0], shares[1]], "base64url", null);
-const recovered = new TextDecoder().decode(recoveredBytes);
+const recovered = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(recoveredBytes);
 ```
 
 ### Web UI
@@ -287,14 +289,14 @@ const recovered = new TextDecoder().decode(recoveredBytes);
 Important limitations (current behavior)
 - The web UI currently treats the secret as UTF-8 text.
   - Split uses `TextEncoder().encode(secretString)`.
-  - Combine uses `TextDecoder().decode(bytes)`.
+  - Combine uses `TextDecoder('utf-8', { fatal: true, ignoreBOM: true })`: reject invalid UTF-8 and preserve a leading BOM as part of the secret. It refuses display/copy of invalid UTF-8 and directs users to CLI/TUI file recovery.
 - The web UI only exposes `base64url` and `mnemo-words` in the encoding selector.
   - This is enforced by the `Encoding` union in `web/src/components/ui/encoding-selector.tsx`.
 
 Combine UI share parsing nuance
 - Each share box is intended to hold one share.
-- A single share box can also contain multiple shares if they are separated by blank lines.
-- Base64url shares must be a single token (whitespace inside a share will break decoding).
+- Input-oriented WASM exports use the core parser: complete mnemonic shares per line first, wrapped paragraphs as fallback, and whitespace-separated compact shares. The UI delegates parsing rather than reimplementing it.
+- A base64url share is a single token; whitespace can separate shares, not split one share.
 
 Combine UI ergonomics (useful when debugging)
 - It heuristically detects encoding from pasted text and may auto-switch the selected encoding.
@@ -320,22 +322,16 @@ Docs integration (web)
 
 ## Build, tests, CI
 
-Rust (matches `.github/workflows/rust-ci.yml`)
+Basic Rust checks (not the complete CI suite)
 - `cargo fmt --all -- --check`
 - `cargo clippy --all-targets --all-features -- -D warnings`
 - `cargo test --all-features`
 
-Web + docs + e2e (matches `.github/workflows/web-ci.yml`)
-- From `web/`:
-  - `bun install`
-  - `bun run build:wasm`
-  - `bun run build`
-- From `web/help/`:
-  - `bun install`
-  - `bun run build`
-- Web tests (from `web/`):
-  - `bun run test:e2e:smoke`
-  - `bun run test:e2e:full`
+Setup and verification are owned by `docs/dev/onboarding.md` and `docs/dev/verification.md`.
+- `mise run verify` runs Rust format/lint/tests, the combined static-site build, DX checks, and workflow policy/actionlint. It omits live RustSec/Trivy scans, coverage, WASM browser tests, browser e2e/accessibility, and Docker smoke.
+- Build the app and bilingual help with `mise run web:build:site`; a later standalone app build deletes help.
+- Bare browser suites start development servers. To test built output, follow the verification guide's Chromium installation and loopback static-server recipe with `PLAYWRIGHT_BASE_URL`.
+- Manual browser checks use the browser skill / local `browse`, not Playwright automation.
 
 Where tests live
 - CLI e2e: `crates/safeparts/tests/e2e.rs`
@@ -374,7 +370,7 @@ Add binary-secret support to the web UI
 ## Common pitfalls
 - Mixing share sets: different `set_id`/k/n/payload length will fail combine.
 - Mixing encrypted and unencrypted shares: `CryptoParamsMismatch`.
-- Confusing encoding names: CLI uses `base64` but WASM/web uses `base64url`.
+- Canonical encoding names are shared across interfaces; CLI additionally accepts `base64` and `base58` aliases.
 - Base64url shares must be one token per share; whitespace inside a share breaks decode.
 - `k=1` is valid but provides no threshold secrecy.
 
