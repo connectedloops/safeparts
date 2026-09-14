@@ -7,7 +7,7 @@ Owns browser smoke, end-to-end, docs route, and accessibility tests for the supp
 ## Ownership
 
 - `*.spec.ts`: Playwright and axe coverage used by CI. `desktop-*.spec.ts` is dormant reference source excluded by the standard Playwright config.
-- `docs.smoke.spec.ts` and `docs.a11y.spec.ts`: bilingual help route/accessibility coverage, including generated changelog navigation, literal history text, and LTR isolation.
+- `docs.smoke.spec.ts` and `docs.a11y.spec.ts`: bilingual help route/accessibility coverage, including generated changelog navigation, literal history text, LTR isolation, same-tab references, and localized opener-isolated app links.
 - `container-smoke.sh`: clean image build and offline runtime HTTP checks used by CI.
 - `a11y-utils.ts`: shared accessibility and WASM-ready helpers.
 - `tsconfig.json`: test TypeScript settings.

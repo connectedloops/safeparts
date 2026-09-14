@@ -102,36 +102,46 @@ test.describe('Docs Site Accessibility @full', () => {
     expect(htmlDataTheme).toBe('dark')
   })
 
-  test('External links announce they open in new tab', async ({ page }) => {
-    await page.goto('/help/')
-    
-    // Find external links
-    const externalLinks = await page.locator('a[target="_blank"]').all()
-    
-    for (const link of externalLinks) {
-      // Should have rel="noopener noreferrer"
-      await expect(link).toHaveAttribute('rel', /noopener/)
-      
-      // Should have accessible label or title indicating external behavior
-      const hasExternalIndicator = await link.evaluate((linkElement) => {
-        const ariaLabel = linkElement.getAttribute('aria-label')
-        const title = linkElement.getAttribute('title')
-        const text = linkElement.textContent
-        return (
-          ariaLabel?.includes('new tab') ||
-          ariaLabel?.includes('new window') ||
-          title?.includes('new tab') ||
-          title?.includes('new window') ||
-          text?.includes('↗') ||
-          text?.includes('external')
+  for (const locale of ['', 'ar/']) {
+    const notice = locale ? 'علامة تبويب جديدة' : 'new tab'
+    for (const slug of ['', 'getting-started/', 'web-ui/', 'technical-design/']) {
+      test(`Predictable localized links: ${locale}${slug || 'index'}`, async ({ page }) => {
+        await page.goto(`/help/${locale}${slug}`)
+        const appLinks = page.locator('a[href="/"][target="_blank"]')
+        expect(await appLinks.count()).toBeGreaterThan(0)
+        for (const link of await appLinks.all()) {
+          await expect(link).toContainText(notice)
+          // Starlight also renders a hidden mobile copy of the social links.
+          if (await link.isVisible()) {
+            await expect(link).toHaveAccessibleName(new RegExp(notice))
+          }
+          await expect(link).toHaveAttribute('rel', /noopener/)
+          await expect(link).toHaveAttribute('rel', /noreferrer/)
+        }
+        await expect(page.locator('a[target="_blank"]:not([href="/"])')).toHaveCount(0)
+        const references = page.locator('a[href^="https://"]')
+        expect(await references.count()).toBeGreaterThan(0)
+        for (const link of await references.all()) {
+          await expect(link).not.toHaveAttribute('target', '_blank')
+        }
+        const headerApp = page.locator('header a.app-link')
+        await expect(headerApp).toHaveAccessibleName(
+          locale ? 'افتح التطبيق (علامة تبويب جديدة)' : 'Open app (new tab)',
         )
       })
-      
-      // Log for manual review if missing
-      if (!hasExternalIndicator) {
-        const text = await link.textContent()
-        console.log(`Warning: External link may need better accessibility: "${text}"`)
-      }
     }
-  })
+
+    test(`App link preserves help with no opener: ${locale || 'en'}`, async ({ page, context }) => {
+      await page.goto(`/help/${locale}web-ui/`)
+      const helpUrl = page.url()
+      const opened = context.waitForEvent('page')
+      await page.locator('header a.app-link').click()
+      const app = await opened
+      await app.waitForLoadState('domcontentloaded')
+      expect(new URL(app.url()).pathname).toBe('/')
+      expect(await app.evaluate(() => window.opener === null)).toBe(true)
+      await expect(page).toHaveURL(helpUrl)
+      await app.close()
+    })
+  }
 })
