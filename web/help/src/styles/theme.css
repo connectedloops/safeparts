@@ -203,6 +203,12 @@ starlight-theme-select {
   when the content is not actually code or a terminal command.
 */
 
+/* Keep whole inline flags and API expressions in reading order within Arabic prose. */
+:where(html[lang='ar'] main) :not(pre) > code {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 :where(main) var {
   font-style: italic;
   font-weight: 650;

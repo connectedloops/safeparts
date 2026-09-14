@@ -101,8 +101,8 @@ fn encrypted_round_trip() -> CoreResult<()> {
 | `Encoding` | `Auto`, `Base64url`, `Base58check`, `MnemoWords`, و`MnemoBip39`. |
 | `Encoding::CONCRETE` | ترميزات الخرج المحددة، دون `Encoding::Auto`. |
 | `Encoding::WITH_AUTO` | الترميزات المحددة مع التحليل التلقائي. |
-| `Encoding::label()` | تسمية canonical للواجهة أو metadata التخزين. |
-| `Encoding::parse_name(name)` | يحلل الأسماء canonical وأسماء CLI المستعارة. |
+| `Encoding::label()` | الاسم المعتمد للواجهة أو بيانات التخزين الوصفية. |
+| `Encoding::parse_name(name)` | يحلل الأسماء المعتمدة وأسماء CLI المستعارة. |
 | `ParsedSharePackets` | الحزم المحللة مع الترميز المكتشف. |
 | `encode_packet(packet, encoding)` | ترميز حزمة واحدة كنص. |
 | `decode_packet(text, encoding)` | تحليل حزمة واحدة. |

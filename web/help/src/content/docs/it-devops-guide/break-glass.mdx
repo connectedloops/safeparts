@@ -9,7 +9,7 @@ A break-glass secret is used rarely and usually grants elevated access. The proc
 
 ## Example custody model
 
-A platform team needs emergency access to a cloud account if normal identity systems fail. They choose a 3-of-5 plan: five shares exist, and any three can recover.
+A platform team needs emergency access to a cloud account if normal identity systems fail. They choose a 3-of-5 plan: five shares exist, and any three distinct, valid shares from that split can recover with the original passphrase, if protection was used.
 
 Suggested custody:
 
@@ -25,16 +25,16 @@ Three independent participants are required. One unavailable person does not blo
 
 <Steps>
 1. Learn the workflow with a synthetic drill, including a failed verification. This does not validate the real backup.
-2. Generate or export the source Secret in a controlled environment. Keep a known-good working copy until verification succeeds.
-3. Split it with the chosen Threshold, Share encoding, and Passphrase protection policy. Save each Recovery share on its intended custody medium and give each custodian only their own share.
-4. Record custody, holder contacts, Threshold, and Share encoding without recording sensitive material.
+2. Generate or export the source secret in a controlled environment. Keep a known-good working copy until verification succeeds.
+3. Split it with the chosen threshold, share encoding, and passphrase protection policy. Save each recovery share on its intended custody medium and give each custodian only their own share.
+4. Record custody, holder contacts, threshold, and share encoding without recording sensitive material.
 5. Complete the [saved-backup checkpoint](#verify-saved-backup) below using the actual saved material.
 6. Restore separated custody and clean up verification material. Only then treat the backup as established and retire the working copy according to policy.
 </Steps>
 
 <h2 id="verify-saved-backup">Verify the saved backup</h2>
 
-This checkpoint applies to personal backups too. A synthetic drill teaches the process; only recovery from the actual saved Recovery shares can check the real backup. A successful combine or integrity check alone does not prove that you backed up the intended Secret.
+This checkpoint applies to personal backups too. A synthetic drill teaches the process; only recovery from the actual saved recovery shares can check the real backup. A successful combine or integrity check alone does not prove that you backed up the intended secret.
 
 ### Prepare the session
 
@@ -83,7 +83,7 @@ Stop on any read error, combine failure, wrong passphrase, byte mismatch, or com
 - Confirm that no account, device, administrator domain, or transport channel retains enough shares to recover. Keep the passphrase on its separate custody path.
 - Only after successful verification and cleanup, retire the source working copy under policy.
 
-Verification necessarily exposes the Secret and a Threshold-sized selection inside the controlled session. If that environment or its cleanup is suspect, treat the Secret as exposed, rotate it, and verify a fresh backup. Routine synthetic drills remain useful after setup, but never replace this checkpoint for a new or rewritten backup.
+Verification necessarily exposes the secret and a threshold-sized selection inside the controlled session. If that environment or its cleanup is suspect, treat the secret as exposed, rotate it, and verify a fresh backup. Routine synthetic drills remain useful after setup, but never replace this checkpoint for a new or rewritten backup.
 
 Practice both outcomes with the [synthetic saved-backup rehearsal](../automation/#saved-backup-rehearsal).
 
