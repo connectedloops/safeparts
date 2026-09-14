@@ -26,7 +26,7 @@ Owns contributor onboarding, local workflow docs, feature coverage maps, and sur
 - Update `feature-matrix.md` whenever a change adds, removes, or changes a feature surface.
 - Keep every surface guide aligned with the nearest source `AGENTS.md` contract.
 - Active workflows cover core, CLI, TUI, WASM, web, help, and CLI/TUI releases for Linux/macOS/Windows. Retired application and UniFFI guides are concise dormant-reference notices; omit obsolete commands and parity obligations.
-- Local dependency-report guidance must keep live scans separate from offline fixtures and the independent RustSec audit. Retired inventory gaps are disclosed limitations, not a reinstated verification gate.
+- Local dependency-report guidance must keep live scans separate from offline fixtures and the independent RustSec audit. Bun completeness means exact canonical identity reconciliation, not a nonempty scanner response; preserve source-key mappings and distinguish lock records from identity/advisory counts. Retired inventory gaps are disclosed limitations, not a reinstated verification gate.
 - Apply the `humanizer` skill before finalizing prose edits.
 
 ## Work Guidance

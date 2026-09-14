@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -15,6 +16,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 TRIVY_VERSION = "0.74.0"
 BUN_VERSION = "1.3.11"
@@ -62,8 +64,28 @@ def input_file(repo: Path, relative: str) -> Path:
     return path
 
 
-def validate_inputs(repo: Path, work: Path, graphs: dict[str, str], report: dict[str, Any]) -> None:
+def unique_object(pairs: list[tuple[str, Any]]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def strict_jsonc(text: str) -> dict:
+    # Preserve strings while removing JSONC comments, then trailing commas.
+    strings = r'"(?:[^"\\]|\\.)*"'
+    text = re.sub(strings + r'|//[^\n]*|/\*.*?\*/',
+                  lambda m: m[0] if m[0].startswith('"') else ' ', text, flags=re.S)
+    text = re.sub(strings + r'|,\s*(?=[}\]])',
+                  lambda m: m[0] if m[0].startswith('"') else '', text)
+    return json.loads(text, object_pairs_hook=unique_object)
+
+
+def validate_inputs(repo: Path, work: Path, graphs: dict[str, str], report: dict[str, Any]) -> dict[str, dict]:
     manifests = []
+    bun_inventories = {}
     if report["scope"] == "supported":
         workspace = tomllib.loads(input_file(repo, "Cargo.toml").read_text())["workspace"]
         if set(workspace["members"]) != ACTIVE_CRATES or not {"desktop/src-tauri", "crates/safeparts_uniffi"} <= set(workspace.get("exclude", [])):
@@ -90,6 +112,8 @@ def validate_inputs(repo: Path, work: Path, graphs: dict[str, str], report: dict
         manifest = json.loads(input_file(repo, manifest_path).read_text())
         manifests.append(manifest_path)
         lock = json.loads(run(["bun", "-e", "console.log(JSON.stringify(Bun.JSONC.parse(await Bun.file(process.argv[1]).text())))", str(path)], work, report))
+        if lock != strict_jsonc(path.read_text()):
+            raise ValueError(f"Bun JSONC parse disagrees with strict inventory: {relative}")
         if lock.get("lockfileVersion") != 1 or set(lock["workspaces"]) != {""} or not lock.get("packages"):
             raise ValueError(f"unsupported or empty Bun graph: {relative}")
         root = lock["workspaces"][""]
@@ -98,7 +122,57 @@ def validate_inputs(repo: Path, work: Path, graphs: dict[str, str], report: dict
                 raise ValueError(f"{manifest_path} {key} differs from {relative}")
         if manifest.get("workspaces") or manifest.get("overrides") or manifest.get("resolutions"):
             raise ValueError(f"{manifest_path}: workspace or override policy requires explicit scan review")
+        bun_inventories[relative] = bun_inventory(lock, relative)
     report["manifests"] = [{"path": path, "sha256": sha256(input_file(repo, path))} for path in manifests]
+    return bun_inventories
+
+
+def bun_inventory(lock: dict, relative: str) -> dict:
+    # Bun keys are resolution paths, not npm names. The tuple's first field is
+    # canonical even for nested/scoped packages and npm aliases.
+    identities: dict[tuple[str, str], list[str]] = {}
+    number = r"(?:0|[1-9][0-9]*)"
+    prerelease = r"(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+    version_pattern = rf"{number}\.{number}\.{number}(?:-{prerelease}(?:\.{prerelease})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+    if not isinstance(lock["packages"], dict):
+        raise ValueError(f"invalid Bun packages: {relative}")
+    for key, record in lock["packages"].items():
+        if not isinstance(key, str) or not key or not isinstance(record, list) or not record or not isinstance(record[0], str):
+            raise ValueError(f"invalid Bun package: {relative}: {key}")
+        match = re.fullmatch(r"(@[a-z0-9._~-]+/[a-z0-9._~-]+|[a-z0-9._~-]+)@"
+                             rf"({version_pattern})", record[0])
+        if not match:
+            raise ValueError(f"unsupported Bun package identity: {relative}: {key}: {record[0]}")
+        identities.setdefault((match[1], match[2]), []).append(key)
+    return {"path": relative, "lock_records": len(lock["packages"]),
+            "identities": [{"name": name, "version": version, "lock_keys": sorted(keys)}
+                           for (name, version), keys in sorted(identities.items())]}
+
+
+def bun_sbom(inventory: dict) -> dict:
+    components = []
+    for identity in inventory["identities"]:
+        name, version = identity["name"], identity["version"]
+        purl = f"pkg:npm/{quote(name, safe='/')}@{quote(version, safe='')}"
+        components.append({"type": "library", "name": name, "version": version,
+                           "purl": purl, "bom-ref": purl})
+    return {"bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1, "components": components}
+
+
+def reconcile_bun_inventory(result: dict, inventory: dict) -> None:
+    expected = {(p["name"], p["version"]): p["lock_keys"] for p in inventory["identities"]}
+    actual = {(p["Name"], p["Version"]) for p in result["Packages"]}
+    missing, unexpected = set(expected) - actual, actual - set(expected)
+    inventory.update(scanned_identities=len(actual), missing=sorted(missing), unexpected=sorted(unexpected))
+    if missing or unexpected:
+        raise ValueError(f"Bun advisory inventory mismatch: {inventory['path']}: missing={sorted(missing)}, unexpected={sorted(unexpected)}")
+    for package in result["Packages"]:
+        package["BunLockKeys"] = expected[(package["Name"], package["Version"])]
+    for finding in result.get("Vulnerabilities", []):
+        identity = (finding["PkgName"], finding["InstalledVersion"])
+        if identity not in actual:
+            raise ValueError(f"finding outside scanned inventory: {inventory['path']}: {identity}")
+        finding["BunLockKeys"] = expected[identity]
 
 
 def validate_results(raw: dict[str, Any], graphs: dict[str, str]) -> list[dict[str, Any]]:
@@ -140,12 +214,14 @@ def scan(repo: Path, output: Path, report: dict[str, Any]) -> None:
                     "reason": "No usable locked graph in the scan contract; dependencies are unresolved and were not restored.",
                     "manifests": [{"path": path, "present": (repo / path).is_file(),
                                    "sha256": sha256(repo / path) if (repo / path).is_file() else None} for path in paths]})
-        validate_inputs(repo, work, graphs, report)
-        for path in graphs:
+        bun_inventories = validate_inputs(repo, work, graphs, report)
+        report["bun_inventory_comparison"] = list(bun_inventories.values())
+        for path, kind in graphs.items():
             destination = stage / path
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(input_file(repo, path), destination)
-            report["inventory"].append({"path": path, "sha256": sha256(destination)})
+            if kind == "cargo":
+                shutil.copyfile(input_file(repo, path), destination)
+            report["inventory"].append({"path": path, "sha256": sha256(input_file(repo, path))})
         (work / "trivy.yaml").write_text("{}\n")
         (work / "empty.ignore").write_text("")
         version = json.loads(run(["trivy", "version", "--format", "json"], work, report))
@@ -172,7 +248,24 @@ def scan(repo: Path, output: Path, report: dict[str, Any]) -> None:
         raw_text = run(command, work, report)
         (output / "scanner.json").write_text(raw_text)
         raw = json.loads(raw_text)
-        report["results"] = validate_results(raw, graphs)
+        report["results"] = validate_results(raw, {path: kind for path, kind in graphs.items() if kind == "cargo"})
+        for path, inventory in bun_inventories.items():
+            stem = path.replace("/", "-")
+            sbom_path = output / f"{stem}.cdx.json"
+            sbom_path.write_text(json.dumps(bun_sbom(inventory), indent=2) + "\n")
+            inventory["sbom"] = {"path": sbom_path.name, "sha256": sha256(sbom_path)}
+            # Scan every identity, including optional/platform/dev-only records.
+            # SBOM has no reachability classification; do not infer Dev from names.
+            sbom_command = ["trivy", "sbom", *base[2:], "--skip-db-update", "--scanners", "vuln",
+                            "--pkg-types", "library", "--list-all-pkgs", "--severity", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+                            "--ignorefile", str(work / "empty.ignore"), "--exit-code", "0", "--format", "json", str(sbom_path)]
+            raw_text = run(sbom_command, work, report)
+            (output / f"scanner-{stem}.json").write_text(raw_text)
+            result = validate_results(json.loads(raw_text), {"Node.js": "node-pkg"})[0]
+            reconcile_bun_inventory(result, inventory)
+            result["Target"] = path
+            report["results"].append(result)
+        report["results"].sort(key=lambda item: item["Target"])
     severities: Counter[str] = Counter()
     dev_findings = 0
     for item in report["results"]:
@@ -203,6 +296,9 @@ def write_report(output: Path, report: dict[str, Any]) -> None:
         database = report["database"]
         lines.append(f"Database updated {database['metadata']['UpdatedAt']}; next update {database['metadata']['NextUpdate']}")
         lines.append(f"Database SHA-256: {database['sha256']}")
+    for item in report.get("bun_inventory_comparison", []):
+        lines.append(f"{item['path']} inventory: {item['lock_records']} lock records; "
+                     f"{len(item['identities'])} expected identities; {item.get('scanned_identities', 'not scanned')} scanned")
     for item in report["summaries"]:
         severity = ", ".join(f"{key}={value}" for key, value in sorted(item["by_severity"].items())) or "none"
         lines.append(f"{item['path']}: {item['findings']} findings; {item['packages']} packages; {severity}; "
@@ -223,13 +319,15 @@ def main() -> int:
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[2]
     output = repo / "target/security" / args.scope
-    report: dict[str, Any] = {"schema": 1, "scope": args.scope, "started_at": datetime.now(timezone.utc).isoformat(),
+    report: dict[str, Any] = {"schema": 2, "scope": args.scope, "started_at": datetime.now(timezone.utc).isoformat(),
                               "inventory": [], "include_dev_dependencies": True, "results": [], "summaries": [],
                               "finding_count": None, "status": "error", "errors": [], "commands": [],
                               "coverage_complete": False, "coverage_gaps": []}
     try:
         output.mkdir(parents=True, exist_ok=True)
-        (output / "scanner.json").unlink(missing_ok=True)
+        for pattern in ("scanner*.json", "*.cdx.json"):
+            for artifact in output.glob(pattern):
+                artifact.unlink()
         # Invalidate an older success before running external tools.
         (output / "report.json").write_text(json.dumps(report) + "\n")
         (output / "summary.txt").write_text("Dependency scan: INCOMPLETE\n")
