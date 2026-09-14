@@ -17,6 +17,7 @@ Complete main-branch history and published releases. Commit subjects retain thei
 
 ### Fixes
 
+- fix&#40;container&#41;&#58; use explicit help working directories ([86e8273](https://github.com/connectedloops/safeparts/commit/86e82732d94d0acdaf0aa86f0fc88f19276179b5))
 - fix&#40;help&#41;&#58; remediate vulnerable Astro and Starlight dependencies ([c34d21f](https://github.com/connectedloops/safeparts/commit/c34d21f8b791624fab76c962611f3d203f71a4ed))
 - fix&#40;ci&#41;&#58; allow 8&#45;vCPU Blacksmith runner in actionlint ([f5605ec](https://github.com/connectedloops/safeparts/commit/f5605ecd7e00790f14eddd85655e7cb203bc72bb))
 - fix&#58; reject nul private output paths ([c50534e](https://github.com/connectedloops/safeparts/commit/c50534ef83f29b1f58dc18af911908830256bf5c))
