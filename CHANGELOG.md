@@ -45,6 +45,10 @@ Complete main-branch history and published releases. Commit subjects retain thei
 - test&#40;ci&#41;&#58; align changelog handoff with supported workloads &#40;&#35;97&#41; ([adff569](https://github.com/connectedloops/safeparts/commit/adff56970d12ba033daf296e32602ab5d8455585))
 - test&#40;web&#41;&#58; intercept built WASM recovery mocks &#40;&#35;93&#41; ([e6e56ce](https://github.com/connectedloops/safeparts/commit/e6e56cea656d0b27c88258e5bc8f8babdd7b1348))
 
+### Build
+
+- build&#40;security&#41;&#58; add reproducible scoped dependency reports ([6e3d748](https://github.com/connectedloops/safeparts/commit/6e3d7486e453f3c37786c287290f26b78683981f))
+
 ### Automation
 
 - ci&#58; install actionlint from checked release ([13086d9](https://github.com/connectedloops/safeparts/commit/13086d902696726301351b3a672fb600631291ed))
