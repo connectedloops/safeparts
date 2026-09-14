@@ -12,7 +12,7 @@ Use the TUI when you want a guided terminal workflow, offline operation, clipboa
 ## What the TUI supports
 
 - Split and combine workflows.
-- All concrete encodings: <span class="token">base64url</span>, <span class="token">base58check</span>, <span class="token">mnemo-words</span>, and <span class="token">mnemo-bip39</span>.
+- All four formats: <span class="token">base64url</span>, <span class="token">base58check</span>, <span class="token">mnemo-words</span>, and <span class="token">mnemo-bip39</span>.
 - Auto-detection on combine.
 - Optional passphrases.
 - Loading secrets or share files.
@@ -20,14 +20,14 @@ Use the TUI when you want a guided terminal workflow, offline operation, clipboa
 
 ## Recovery share input
 
-In the combine tab, paste Recovery shares or press <kbd>Ctrl</kbd>+<kbd>L</kbd> to load share files. For <span class="token">mnemo-words</span> and <span class="token">mnemo-bip39</span>, the TUI accepts:
+In the combine tab, paste recovery shares or press <kbd>Ctrl</kbd>+<kbd>L</kbd> to load share files. For <span class="token">mnemo-words</span> and <span class="token">mnemo-bip39</span>, the TUI accepts:
 
-- One complete Recovery share per line, including a CLI output file. You do not need to add blank lines or rewrite the file.
-- A Recovery share wrapped across several lines. Separate multiple wrapped Recovery shares with a blank line.
+- One complete recovery share per line, including a CLI output file. You do not need to add blank lines or rewrite the file.
+- A recovery share wrapped across several lines. Separate multiple wrapped recovery shares with a blank line.
 
-Both layouts work with Auto encoding or the matching explicit encoding, with LF or CRLF line endings. You can supply the Threshold number of Recovery shares or more from the same set. The TUI rejects malformed or duplicate Recovery shares and mixed sets rather than skipping them.
+Both layouts work with Auto encoding or the matching explicit encoding, with LF or CRLF line endings. You can supply the threshold number of recovery shares or more from the same set. The TUI rejects malformed or duplicate recovery shares and mixed sets rather than skipping them.
 
-For <span class="token">base64url</span> and <span class="token">base58check</span>, separate Recovery shares with whitespace.
+For <span class="token">base64url</span> and <span class="token">base58check</span>, separate recovery shares with whitespace.
 
 ## Offline workflow
 
@@ -37,10 +37,10 @@ For <span class="token">base64url</span> and <span class="token">base58check</sp
 3. Choose the required share count, total share count, and encoding.
 4. Enter or load the secret.
 5. Split and export shares to separate media or holders.
-6. Recover once with the required number of shares if your policy allows verification.
+6. Complete the [saved-backup checkpoint](../it-devops-guide/break-glass/#verify-saved-backup) using the actual saved custody copies before relying on the backup or retiring the working copy. If policy does not allow verification, retain the working copy and leave setup incomplete.
 </Steps>
 
-Offline execution only helps if custody stays separated. Keep fewer Recovery shares than the Threshold in every account, device, location, administrator domain, and transport channel.
+Offline execution only helps if custody stays separated. Keep fewer recovery shares than the threshold in every account, device, location, administrator domain, and transport channel.
 
 ## If a file operation fails
 

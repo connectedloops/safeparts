@@ -13,7 +13,7 @@ import { Card, CardGrid, LinkButton, Steps } from '@astrojs/starlight/components
 
 توصف الخطط عادة بصيغة "2 من 3" أو "3 من 5".
 
-خطة 2 من 3 تنشئ ثلاث حصص. أي حصتين تستطيعان استرداد السر. ضياع حصة واحدة لا يوقف الاسترداد، وحامل واحد لا يستطيع الاسترداد وحده.
+خطة 2 من 3 تنشئ ثلاث حصص. تتيح حصتان مختلفتان وصالحتان من التقسيم نفسه استرداد السر، مع عبارة المرور الأصلية إذا فُعّلت الحماية. ضياع حصة واحدة لا يوقف الاسترداد، وحامل واحد لا يستطيع الاسترداد وحده.
 
 في الأوامر والصفحات التقنية، يسمى العدد المطلوب العتبة ويُكتب <var>k</var>. أما إجمالي عدد الحصص فيُكتب <var>n</var>. تدعم النواة المجال <span class="token" dir="ltr">1 &lt;= k &lt;= n &lt;= 255</span>، لكن خطط الاسترداد الحقيقية تستخدم عادة عتبة لا تقل عن اثنين.
 
@@ -29,7 +29,7 @@ import { Card, CardGrid, LinkButton, Steps } from '@astrojs/starlight/components
 1. افتح تبويب <span class="token">تقسيم</span>.
 2. أدخل <span class="token" dir="ltr">synthetic-secret</span> كسر.
 3. عيّن عدد الحصص المطلوبة إلى <span class="token" dir="ltr">2</span> وإجمالي الحصص إلى <span class="token" dir="ltr">3</span>.
-4. اختر <span class="token">Words</span> إذا كنت تريد قراءة الحصص أو طباعتها، أو <span class="token">Letters</span> إذا كنت تريد نصاً مضغوطاً.
+4. اختر <samp>كلمات</samp> إذا أردت قراءة الحصص أو طباعتها، أو <samp>أحرف</samp> إذا أردت نصاً قصيراً.
 5. اضغط <span class="token">تقسيم</span> وانسخ الحصص الثلاث إلى ملاحظات مؤقتة.
 6. افتح تبويب <span class="token">استعادة</span> واستعد السر باستخدام أي حصتين.
 7. احذف الحصص والملاحظات الاصطناعية.
@@ -39,12 +39,12 @@ import { Card, CardGrid, LinkButton, Steps } from '@astrojs/starlight/components
 
 <CardGrid>
 	<Card title="تطبيق الويب" icon="laptop">
-		مناسب لسير عمل سريع ومحلي داخل المتصفح. يعرض واجهة الويب <span class="token" dir="ltr">base64url</span> و<span class="token" dir="ltr">mnemo-words</span>.
+		مناسب لسير عمل سريع ومحلي داخل المتصفح. تعرض واجهة الويب <span class="token" dir="ltr">base64url</span> و<span class="token" dir="ltr">mnemo-words</span>.
 		
 		[استخدم تطبيق الويب](../web-ui/)
 	</Card>
 	<Card title="CLI" icon="document">
-		مناسب للـ runbooks القابلة للتكرار والملفات والأتمتة.
+		مناسب للإجراءات التشغيلية القابلة للتكرار والملفات والأتمتة.
 		
 		[استخدم CLI](../cli/)
 	</Card>
@@ -58,7 +58,7 @@ import { Card, CardGrid, LinkButton, Steps } from '@astrojs/starlight/components
 ## قبل استخدام سر حقيقي
 
 1. اختر خطة استرداد يمكن تنفيذها تحت الضغط.
-2. خزّن الحصص في نطاقات فشل منفصلة: أشخاص أو حسابات أو أجهزة أو مواقع مختلفة.
+2. خزّن الحصص لدى أشخاص مختلفين وفي حسابات وأجهزة ومواقع منفصلة. يجب ألا تكشف سرقة واحدة أو تُفقد حادثة انقطاع واحدة حصصاً كافية لبلوغ العتبة.
 3. اكتب من يحمل كل حصة وكيف تتم الموافقة على الاسترداد.
 4. نفّذ تدريباً واحداً ببيانات اصطناعية.
 5. اقرأ [نموذج الأمان](../security/) قبل التعامل مع مادة إنتاجية.

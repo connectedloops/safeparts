@@ -17,4 +17,6 @@ Retirement does not invalidate existing Recovery shares. Keep your saved shares 
 2. Gather at least the Threshold number of Recovery shares from the same set in a controlled recovery environment. Supply the original passphrase if Passphrase protection was used. Keep Secrets, shares, and passphrases out of online converters and logs.
 3. Verify recovery with the supported tool before relying on it. Follow the [saved-backup checkpoint](../it-devops-guide/break-glass/#verify-saved-backup) to check your actual saved copies, compare exact bytes, and restore separated custody after the check. A synthetic practice run alone does not verify your saved shares.
 
+When using CLI passphrase files, check the [trailing CR/LF normalization rule](../cli/#passphrase-file-bytes). Existing passphrases that intentionally end with these bytes need a trusted byte-preserving input route; keep saved shares unchanged.
+
 If recovery fails, retain the original shares and passphrase records and consult [troubleshooting](../troubleshooting/). Do not replace them with incomplete or altered output.

@@ -17,7 +17,7 @@ hero:
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-Safeparts helps you avoid one fragile backup. In a 2-of-3 plan, for example, you create three recovery shares and need any two of them to restore the secret.
+Safeparts splits a secret into recovery shares. In a 2-of-3 plan, two distinct, valid shares from the same split can restore it. If you enable passphrase protection, you also need the original passphrase.
 
 Use these docs to choose a recovery plan, pick an interface, and avoid common handling mistakes.
 
@@ -45,7 +45,7 @@ Use these docs to choose a recovery plan, pick an interface, and avoid common ha
 		[Web app](web-ui/) · [CLI](cli/) · [TUI](tui/)
 	</Card>
 	<Card title="Run an operations process" icon="setting">
-		Build CLI runbooks for break-glass recovery, drills, and guarded automation.
+		Build CLI runbooks for break-glass recovery, drills, and operator-approved automation.
 		
 		[Open operations guide](it-devops-guide/)
 	</Card>
@@ -61,7 +61,7 @@ For support requests, tests, and screenshots, use synthetic examples instead of 
 ## What Safeparts does
 
 - Splits arbitrary bytes with Shamir-style threshold sharing over <span class="token token--mono">GF(256)</span>.
-- Adds a BLAKE3 integrity tag so recovery fails when shares are corrupted or mixed.
+- Checks set metadata and a BLAKE3 integrity tag to reject mixed sets and detect corruption. These checks [do not authenticate the sender](technical-design/#integrity-tag).
 - Can encrypt before splitting with Argon2id and ChaCha20-Poly1305 when you add a passphrase.
 - Exposes the same core through CLI, TUI, WASM, web, and Rust APIs.
 

@@ -5,14 +5,14 @@ description: استخدم واجهة الطرفية التفاعلية للتق�
 
 import { Steps } from '@astrojs/starlight/components';
 
-اسم binary الخاص بواجهة TUI هو <span class="token token--mono" dir="ltr">safeparts-tui</span>. يمكنك تشغيلها أيضاً عبر CLI باستخدام <span class="token token--mono" dir="ltr">safeparts tui</span>.
+اسم الملف التنفيذي لواجهة TUI هو <span class="token token--mono" dir="ltr">safeparts-tui</span>. يمكنك تشغيلها أيضاً عبر CLI باستخدام <span class="token token--mono" dir="ltr">safeparts tui</span>.
 
-استخدم TUI عندما تريد سير عمل موجهاً داخل الطرفية، وتشغيلاً دون اتصال، ودعم clipboard، وإجراءات تحميل أو حفظ للملفات.
+استخدم TUI عندما تريد سير عمل موجهاً داخل الطرفية، وتشغيلاً دون اتصال، ودعم الحافظة، وإجراءات تحميل أو حفظ للملفات.
 
 ## ماذا تدعم TUI
 
 - سير التقسيم والاسترداد.
-- كل الترميزات الملموسة: <span class="token" dir="ltr">base64url</span> و<span class="token" dir="ltr">base58check</span> و<span class="token" dir="ltr">mnemo-words</span> و<span class="token" dir="ltr">mnemo-bip39</span>.
+- الترميزات الأربعة المدعومة: <span class="token" dir="ltr">base64url</span> و<span class="token" dir="ltr">base58check</span> و<span class="token" dir="ltr">mnemo-words</span> و<span class="token" dir="ltr">mnemo-bip39</span>.
 - كشف تلقائي عند الاسترداد.
 - عبارات مرور اختيارية.
 - تحميل ملفات الأسرار أو ملفات الحصص.
@@ -20,7 +20,7 @@ import { Steps } from '@astrojs/starlight/components';
 
 ## إدخال حصص الاسترداد
 
-في تبويب الاسترداد، الصق حصص الاسترداد أو اضغط <kbd>Ctrl</kbd>+<kbd>L</kbd> لتحميل ملفاتها. عند استخدام <span class="token" dir="ltr">mnemo-words</span> أو <span class="token" dir="ltr">mnemo-bip39</span>، تقبل واجهة الطرفية:
+في تبويب الاسترداد، الصق حصص الاسترداد أو اضغط <span dir="ltr"><kbd>Ctrl</kbd>+<kbd>L</kbd></span> لتحميل ملفاتها. عند استخدام <span class="token" dir="ltr">mnemo-words</span> أو <span class="token" dir="ltr">mnemo-bip39</span>، تقبل واجهة الطرفية:
 
 - حصة استرداد كاملة في كل سطر، بما في ذلك ملف ناتج من CLI. لا تحتاج إلى إضافة أسطر فارغة أو إعادة كتابة الملف.
 - حصة استرداد موزعة على عدة أسطر. افصل بين الحصص الموزعة على عدة أسطر بسطر فارغ.
@@ -37,14 +37,14 @@ import { Steps } from '@astrojs/starlight/components';
 3. اختر عدد الحصص المطلوبة، وإجمالي عدد الحصص، والترميز.
 4. أدخل السر أو حمّله.
 5. قسّم وصدّر الحصص إلى وسائط أو حاملين منفصلين.
-6. استرد مرة واحدة باستخدام العدد المطلوب من الحصص إذا سمحت السياسة بالتحقق.
+6. قبل التخلص من نسخة العمل أو الاعتماد على النسخة الاحتياطية، أكمل [نقطة التحقق من النسخة المحفوظة](../it-devops-guide/break-glass/#verify-saved-backup) باستخدام نسخ الحيازة الفعلية. إذا لم تسمح السياسة بالتحقق، فاحتفظ بنسخة العمل واترك الإعداد غير مكتمل.
 </Steps>
 
 التشغيل دون اتصال لا يفيد إلا إذا بقيت الحيازة منفصلة. احتفظ بعدد من حصص الاسترداد أقل من العتبة في كل حساب وجهاز وموقع ونطاق إدارة وقناة نقل.
 
 ## إذا فشلت عملية ملف
 
-إذا كان الملف مفقوداً أو غير قابل للقراءة، أو كان المسار غير صالح، أو تعذرت الكتابة إلى الوجهة، تعرض TUI خطأ بدلاً من إغلاق الجلسة. تحقق من المسار وأذونات الملف، ثم اضغط <kbd>Ctrl</kbd>+<kbd>L</kbd> لإعادة فتح التحميل، أو <kbd>Ctrl</kbd>+<kbd>S</kbd> لاختيار وجهة حفظ والمحاولة مجدداً.
+إذا كان الملف مفقوداً أو غير قابل للقراءة، أو كان المسار غير صالح، أو تعذرت الكتابة إلى الوجهة، تعرض TUI خطأ بدلاً من إغلاق الجلسة. تحقق من المسار وأذونات الملف، ثم اضغط <span dir="ltr"><kbd>Ctrl</kbd>+<kbd>L</kbd></span> لإعادة فتح التحميل، أو <span dir="ltr"><kbd>Ctrl</kbd>+<kbd>S</kbd></span> لاختيار وجهة حفظ والمحاولة مجدداً.
 
 يحافظ فشل التحميل على إدخال السر أو حصص الاسترداد السابق. عند تحميل عدة ملفات لحصص الاسترداد، تحدد الرسالة الملف الذي فشلت قراءته بحسب ترتيبه في القائمة. لا تستبدل TUI الإدخال إلا بعد قراءة جميع الملفات. يجب أن تحتوي ملفات حصص الاسترداد على نص بترميز UTF-8.
 
@@ -54,20 +54,20 @@ import { Steps } from '@astrojs/starlight/components';
 
 ## اختصارات لوحة المفاتيح
 
-عندما يكون التركيز على حقل نصي، تُكتب فيه المحارف القابلة للطباعة مثل <kbd>?</kbd>. في محرري السر وحصص الاسترداد، تحرّك مفاتيح الأسهم المؤشر داخل النص. تدعم حقول عبارة المرور الكتابة والحذف باستخدام <kbd>Backspace</kbd> والمسح باستخدام <kbd>Ctrl</kbd>+<kbd>U</kbd>.
+عندما يكون التركيز على حقل نصي، تُكتب فيه المحارف القابلة للطباعة مثل <kbd>?</kbd>. في محرري السر وحصص الاسترداد، تحرّك مفاتيح الأسهم المؤشر داخل النص. تدعم حقول عبارة المرور الكتابة والحذف باستخدام <kbd>Backspace</kbd> والمسح باستخدام <span dir="ltr"><kbd>Ctrl</kbd>+<kbd>U</kbd></span>.
 
 | المفاتيح | الإجراء |
 | --- | --- |
-| <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> | نقل التركيز. |
-| <kbd>Alt</kbd>+<kbd>Left</kbd> / <kbd>Alt</kbd>+<kbd>Right</kbd> | التبديل بين تبويبي التقسيم والاسترداد. |
-| <kbd>Left</kbd> / <kbd>Right</kbd> / <kbd>Up</kbd> / <kbd>Down</kbd> | تحريك المؤشر في المحرر متعدد الأسطر الذي عليه التركيز. |
-| <kbd>Up</kbd> / <kbd>Down</kbd> | تعديل الإعداد الرقمي أو ترميز الحصص أو اختيار حصة الاسترداد عندما يكون التركيز على ذلك العنصر. |
+| <span dir="ltr"><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></span> | نقل التركيز. |
+| <span dir="ltr"><kbd>Alt</kbd>+<kbd>Left</kbd> / <kbd>Alt</kbd>+<kbd>Right</kbd></span> | التبديل بين تبويبي التقسيم والاسترداد. |
+| <span dir="ltr"><kbd>Left</kbd> / <kbd>Right</kbd> / <kbd>Up</kbd> / <kbd>Down</kbd></span> | تحريك المؤشر في المحرر متعدد الأسطر الذي عليه التركيز. |
+| <span dir="ltr"><kbd>Up</kbd> / <kbd>Down</kbd></span> | تعديل الإعداد الرقمي أو ترميز الحصص أو اختيار حصة الاسترداد عندما يكون التركيز على ذلك العنصر. |
 | <kbd>Enter</kbd> | تنفيذ التقسيم أو الاسترداد. |
-| <kbd>Ctrl</kbd>+<kbd>L</kbd> | تحميل ملف سر أو ملفات حصص. |
-| <kbd>Ctrl</kbd>+<kbd>S</kbd> | الحفظ أو التصدير. |
-| <kbd>Ctrl</kbd>+<kbd>C</kbd> | نسخ حصة الاسترداد المحددة أو السر المستعاد. |
-| <kbd>Ctrl</kbd>+<kbd>V</kbd> | اللصق في المحرر المركز عندما يتوفر clipboard. |
-| <kbd>Ctrl</kbd>+<kbd>U</kbd> | مسح حقل عبارة المرور المركز. |
+| <span dir="ltr"><kbd>Ctrl</kbd>+<kbd>L</kbd></span> | تحميل ملف سر أو ملفات حصص. |
+| <span dir="ltr"><kbd>Ctrl</kbd>+<kbd>S</kbd></span> | الحفظ أو التصدير. |
+| <span dir="ltr"><kbd>Ctrl</kbd>+<kbd>C</kbd></span> | نسخ حصة الاسترداد المحددة أو السر المستعاد. |
+| <span dir="ltr"><kbd>Ctrl</kbd>+<kbd>V</kbd></span> | اللصق في المحرر الذي عليه التركيز عندما تتوفر الحافظة. |
+| <span dir="ltr"><kbd>Ctrl</kbd>+<kbd>U</kbd></span> | مسح حقل عبارة المرور الذي عليه التركيز. |
 | <kbd>F1</kbd> | فتح المساعدة من أي حقل أو عنصر تحكم خارج النافذة المنبثقة. |
 | <kbd>Esc</kbd> | إغلاق المساعدة أو إلغاء نافذة. |
-| <kbd>Ctrl</kbd>+<kbd>Q</kbd> | الخروج. |
+| <span dir="ltr"><kbd>Ctrl</kbd>+<kbd>Q</kbd></span> | الخروج. |

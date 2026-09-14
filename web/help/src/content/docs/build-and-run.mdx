@@ -17,17 +17,34 @@ Download CLI and TUI archives for Linux, Windows, and macOS. Choose the archive 
 
 Historical GUI installers are unsupported. The release history is unchanged; its older desktop downloads are not current recommendations. Existing users should read the [desktop retirement and recovery guide](../desktop/) before changing tools.
 
-Quick check after installing CLI/TUI binaries:
+### Verify and extract
+
+Download the archive and `SHA256SUMS.txt` from the same trusted release into a new directory. In that directory, calculate the archive's SHA-256 hash (replace the example filename):
+
+| Platform and shell | Command |
+| --- | --- |
+| Linux, Bash | `sha256sum safeparts-release.tar.gz` |
+| macOS, Bash | `shasum -a 256 safeparts-release.tar.gz` |
+| Windows, PowerShell | `Get-FileHash -Algorithm SHA256 -LiteralPath .\safeparts-release.zip` |
+
+Compare all 64 hexadecimal characters with the manifest entry for that exact filename; letter case does not matter. **Stop on a mismatch or missing entry.** A matching hash checks the download against the manifest, not the trustworthiness of its publisher.
+
+Only after the hash matches, extract into a new release directory:
+
+- Linux/macOS: `mkdir safeparts-release`, then `tar -xzf safeparts-release.tar.gz -C safeparts-release`.
+- Windows PowerShell: `Expand-Archive -LiteralPath .\safeparts-release.zip -DestinationPath .\safeparts-release`.
+
+Windows command references: [Get-FileHash](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-filehash) and [Expand-Archive](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.archive/expand-archive).
 
 <Steps>
-1. Put the binaries on your <span class="token token--mono">PATH</span>.
-2. Run <span class="token token--mono">safeparts --help</span>.
-3. Run <span class="token token--mono">safeparts-tui --help</span>.
+1. Add the extracted directory containing the binaries to your user <span class="token token--mono">PATH</span>, then open a new terminal. Alternatively, run from that directory using `./safeparts` on Linux/macOS or `.\safeparts.exe` in PowerShell.
+2. Run <span class="token token--mono">safeparts --help</span>; it should print CLI usage.
+3. In an interactive terminal, run <span class="token token--mono">safeparts-tui</span>. Press <kbd>F1</kbd> for help and <span dir="ltr"><kbd>Ctrl</kbd>+<kbd>Q</kbd></span> to quit.
 </Steps>
 
 ### macOS Gatekeeper
 
-If macOS quarantines a downloaded binary and you trust the release artifact, remove the quarantine attribute:
+If macOS quarantines a binary after you have verified the archive above and trust its publisher, remove quarantine only from that extracted release directory, not your whole Downloads folder:
 
 ```bash
 xattr -dr com.apple.quarantine /path/to/safeparts-release/
@@ -35,10 +52,7 @@ xattr -dr com.apple.quarantine /path/to/safeparts-release/
 
 ## Build Rust binaries from source
 
-Prerequisites:
-
-- Rust stable
-- `rustfmt` and `clippy`
+Follow the repository [onboarding prerequisites](https://github.com/connectedloops/safeparts/blob/main/docs/dev/onboarding.md) first. The commands below use Bash and start from the repository root; they are not PowerShell commands. Use the pinned Rust toolchain with `rustfmt` and `clippy`.
 
 ```bash
 cargo build
@@ -62,14 +76,13 @@ cargo build --release -p safeparts -p safeparts_tui
 
 The web app lives in <span class="token token--mono">web/</span>. It requires a WASM build step.
 
-Prerequisites:
+Complete [onboarding](https://github.com/connectedloops/safeparts/blob/main/docs/dev/onboarding.md) for Rust/rustup, Bun, Node, and Bash. The WASM script may install or replace pinned `wasm-pack` and `wasm-bindgen-cli` versions and download the WASM target.
 
-- Bun
-- `wasm-pack`, or allow the build script to install it
+From the repository root:
 
 ```bash
 cd web
-bun install
+bun install --frozen-lockfile
 bun run build:wasm
 bun run dev
 ```
@@ -115,9 +128,11 @@ docker rm --force safeparts-web
 
 The help site lives in <span class="token token--mono">web/help/</span> and is served under <span class="token token--mono">/help/</span>.
 
+Start a fresh shell at the repository root, with the onboarding tools installed:
+
 ```bash
 cd web/help
-bun install
+bun install --frozen-lockfile
 bun run dev
 ```
 
@@ -128,3 +143,5 @@ Build the static help site:
 ```bash
 bun run build
 ```
+
+This builds only the help site into `web/dist/help/`. For the app and bilingual help together, run `mise run web:build:site` from the repository root. Do not run the standalone app build afterward, because it clears the help output.

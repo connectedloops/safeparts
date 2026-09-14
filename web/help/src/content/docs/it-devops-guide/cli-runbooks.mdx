@@ -43,7 +43,7 @@ safeparts combine \
 
 ## Passphrase file pattern
 
-Prefer a passphrase file over a command-line literal.
+Prefer a passphrase file over a command-line literal. The CLI removes all trailing CR and LF bytes from that file; other bytes remain unchanged. Use the same convention for split and recovery. See [passphrase file bytes](../../cli/#passphrase-file-bytes) for existing passphrases that intentionally end with those bytes.
 
 ```bash
 safeparts split \

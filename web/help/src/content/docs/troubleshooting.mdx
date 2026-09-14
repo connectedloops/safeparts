@@ -43,9 +43,11 @@ The web app explains recovery errors in your selected language. Each input has a
 | --- | --- | --- |
 | <samp>no shares provided</samp> | The input was empty after trimming whitespace. | Paste or load at least one share. |
 | <samp>could not detect share encoding</samp> | Auto-detection could not choose a format. | Select the encoding explicitly and retry. |
-| <samp>need at least k shares</samp> | Too few shares were supplied. Duplicate shares may also reduce the usable count. | Provide enough unique shares from the same split. |
+| <samp>need at least k shares</samp> | Too few shares were supplied. | Provide enough unique shares from the same split. |
 | <samp>duplicate x coordinate</samp> | The same share index appeared more than once. | Replace the duplicate with a different holder's share. |
-| <samp>share set metadata mismatch</samp> | Shares do not belong to the same split set or crypto parameters differ. | Restart collection and verify custody records. |
+| <samp>share set metadata mismatch</samp> | Shared metadata, such as set ID, threshold, or share count, differs. | Restart collection and verify custody records. |
+| <samp>crypto params mismatch</samp> | Encryption parameters differ between shares. | Use intact shares from the same split; do not edit their parameters. |
+| <samp>recovery shares could not be decoded</samp> | The share input could not be parsed. | Use complete saved text and check the encoding; do not send the shares to support. |
 | <samp>integrity check failed</samp> | Reconstruction produced bytes that did not match the internal tag. | Check for mixed or corrupted shares. |
 | <samp>passphrase required</samp> | The shares were created with passphrase protection. | Provide the passphrase through the approved channel. |
 | <samp>decryption failed</samp> | The passphrase is wrong or encrypted data was tampered with. | Verify the passphrase and do not retry in a loop. |

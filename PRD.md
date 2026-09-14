@@ -53,7 +53,8 @@ Non-goals:
   - `k`, `n`, share index `x`
   - payload bytes
   - optional crypto parameters
-- Integrity: BLAKE3 tag ensures reconstruction fails for corrupted/mismatched shares.
+- Recovery: any `k` distinct, valid shares from the same split can recover the secret, with the original passphrase if protection was enabled.
+- Integrity: metadata checks reject mixed sets; an unkeyed BLAKE3 tag detects corruption. It does not authenticate the sender or prevent replacement with another valid set.
 - Optional encryption: encrypt-before-split using Argon2id -> ChaCha20-Poly1305.
 
 ### 2.2 Encodings
@@ -139,8 +140,8 @@ Requirements:
 
 Security:
 
-- Threshold secrecy: fewer than `k` shares reveal nothing about the secret.
-- Integrity: reconstruction fails when shares are corrupted or mismatched.
+- Threshold secrecy: fewer than `k` shares do not reveal secret contents. Packets expose metadata such as threshold, share count, encryption status, and payload length.
+- Integrity: validate shared metadata and the reconstructed BLAKE3 tag, subject to the [documented integrity limits](web/help/src/content/docs/technical-design.mdx).
 - Optional passphrase encryption uses modern KDF + AEAD.
 - Zeroize secret material where practical (`zeroize`).
 - Minimize sensitive logging. Treat shares and reconstructed secrets as secrets.
@@ -207,10 +208,7 @@ Backlog / future ideas (not required for current release):
 - Optional import/export compatibility with other tools.
 - Improved CLI/TUI archive distribution and release integrity.
 
-## Git workflow
+## Contributor workflow
 
-- Always commit atomically after each meaningful task 
-- Write conventional commits style commit messages
-- Prefer rebase over merge
-- When starting a new feature, create a feature branch
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution steps and [AGENTS.md](AGENTS.md) for agent work contracts.
 

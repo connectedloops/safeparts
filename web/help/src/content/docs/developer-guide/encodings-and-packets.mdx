@@ -59,7 +59,7 @@ Each `SharePacket` contains:
 - `payload`: share bytes;
 - `crypto_params`: optional Argon2id and nonce parameters for encrypted splits.
 
-The metadata is not secret. It lets combine reject mixed sets, duplicate indexes, and incompatible crypto parameters.
+Metadata such as `set_id`, `k`, `n`, `x`, and `crypto_params` is not secret. It lets combine reject mixed sets, duplicate indexes, and incompatible crypto parameters. The share bytes in `payload` are sensitive; never publish or log them.
 
 ## Storage pattern
 
@@ -72,4 +72,4 @@ A typical application flow:
 5. Later parse at least <var>k</var> encoded shares.
 6. Combine packets and handle recovered bytes as sensitive output.
 
-Do not keep enough shares together in one database row, vault item, CI secret store, or log stream unless policy treats that location like the original secret.
+Every storage and administrator domain must retain fewer than the threshold number of shares. This includes databases, vaults, and CI secret stores; never log shares. Aggregate enough shares only during approved temporary setup, verification, or recovery sessions, then remove temporary material and restore separated custody. Complete the [saved-backup checkpoint](../../it-devops-guide/break-glass/#verify-saved-backup) before relying on saved shares.

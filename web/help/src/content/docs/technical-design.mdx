@@ -60,7 +60,7 @@ For each byte in the tagged payload:
 3. Evaluate the polynomial at share coordinates <span class="token" dir="ltr">x = 1..n</span>.
 4. Store each result byte in that share's payload.
 
-A share payload is the same length as the tagged payload. Reconstruction uses any <var>k</var> unique share coordinates from the same set and interpolates each byte back at <span class="token" dir="ltr">x = 0</span>.
+A share payload is the same length as the tagged payload. Reconstruction requires at least <var>k</var> distinct, valid shares from the same split and interpolates each byte back at <span class="token" dir="ltr">x = 0</span>. Recovering a passphrase-protected secret also requires the original passphrase.
 
 The core range is <span class="token" dir="ltr">1 &lt;= k &lt;= n &lt;= 255</span>. The field has 256 values and Safeparts reserves <span class="token" dir="ltr">x = 0</span> for reconstruction.
 
@@ -90,7 +90,7 @@ payload     : bytes
 
 Version 2 packets can carry encryption parameters. Version 1 packets remain decodable for compatibility where supported by the packet parser.
 
-Packet metadata is not secret. Security comes from threshold sharing and, when enabled, encryption before splitting.
+Packet metadata is not secret: it exposes the set ID, threshold, share count, share index, encryption status and parameters, and payload length. The share bytes in `payload` are sensitive; do not publish or log them. Secret contents are protected by threshold sharing and, when enabled, encryption before splitting.
 
 ## Integrity tag
 
@@ -103,7 +103,7 @@ The tag detects:
 - transcription errors that pass the text encoding layer;
 - reconstructed ciphertext that does not match the original encrypted payload.
 
-The BLAKE3 tag is not a keyed MAC. It is an internal consistency check, not proof that a trusted party created the shares.
+The BLAKE3 tag is not a keyed MAC. It checks internal consistency, not sender identity, and does not prevent wholesale replacement with another valid set. Metadata checks reject mixed sets.
 
 ## Passphrase protection
 
