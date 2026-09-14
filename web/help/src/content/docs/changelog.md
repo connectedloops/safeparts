@@ -17,6 +17,7 @@ Complete main-branch history and published releases. Commit subjects retain thei
 
 ### Fixes
 
+- fix&#40;help&#41;&#58; remediate vulnerable Astro and Starlight dependencies ([c34d21f](https://github.com/connectedloops/safeparts/commit/c34d21f8b791624fab76c962611f3d203f71a4ed))
 - fix&#40;ci&#41;&#58; allow 8&#45;vCPU Blacksmith runner in actionlint ([f5605ec](https://github.com/connectedloops/safeparts/commit/f5605ecd7e00790f14eddd85655e7cb203bc72bb))
 - fix&#58; reject nul private output paths ([c50534e](https://github.com/connectedloops/safeparts/commit/c50534ef83f29b1f58dc18af911908830256bf5c))
 - fix&#40;tui&#41;&#58; satisfy stable Clippy match&#45;guard lint &#40;&#35;100&#41; ([cb75f54](https://github.com/connectedloops/safeparts/commit/cb75f54396a9c78e952c3fca8e04df54e614dbda))
