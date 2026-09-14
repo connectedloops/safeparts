@@ -56,6 +56,10 @@ Avoid decorative components and long procedural bullet lists.
 - Use variables freely in technical design, API, and command references where they match code or flags.
 - On client-facing pages, explain what the number choice means for people: who can recover, who can be unavailable, and what gets lost if shares disappear.
 
+## Prose capitalization
+
+Lowercase common concepts in running prose: secret, recovery share, threshold, share encoding, and passphrase protection. Preserve exact UI labels, named types, identifiers, and historical commit subjects. Use the same domain term consistently rather than cycling through synonyms.
+
 ## Inline tokens
 
 - Variables: `<var>` for <var>k</var> and <var>n</var> after notation is introduced.

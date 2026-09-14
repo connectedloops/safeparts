@@ -13,7 +13,7 @@ Use a synthetic secret such as <span class="token">synthetic-secret</span>. Save
 
 Plans are usually described as "2 of 3" or "3 of 5".
 
-A 2-of-3 plan creates three shares. Any two can recover the secret. One lost share is fine, and one holder alone cannot recover.
+A 2-of-3 plan creates three shares. Any two distinct, valid shares from that split can recover the secret, with the original passphrase if protection was enabled. One lost share is fine, and one holder alone cannot recover.
 
 In commands and technical pages, the required count is called the threshold and is written as <var>k</var>. The total share count is written as <var>n</var>. The core supports <span class="token" dir="ltr">1 &lt;= k &lt;= n &lt;= 255</span>, but real recovery plans usually use a threshold of at least two.
 
@@ -58,7 +58,7 @@ The web app is the fastest way to learn the flow.
 ## Before using a real secret
 
 1. Choose a recovery plan you can run under stress.
-2. Store shares in separate failure domains: different people, accounts, devices, or locations.
+2. Store shares with different people and in separate accounts, devices, or locations. One theft or outage must not expose or lose enough shares to meet the threshold.
 3. Write down who holds each share and how recovery is approved.
 4. Run one recovery drill with synthetic data.
 5. Read the [security model](../security/) before handling production material.

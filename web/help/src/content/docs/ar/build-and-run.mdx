@@ -17,28 +17,42 @@ import { Steps } from '@astrojs/starlight/components';
 
 مثبتات الواجهات الرسومية التاريخية غير مدعومة. يبقى سجل الإصدارات دون تغيير؛ تنزيلات سطح المكتب القديمة ليست توصيات حالية. على المستخدمين الحاليين قراءة [دليل توقف دعم سطح المكتب والاسترداد](../desktop/) قبل تغيير الأدوات.
 
-فحص سريع بعد تثبيت binaries الخاصة بـ CLI/TUI:
+### تحقّق من الأرشيف واستخرجه
+
+نزّل الأرشيف و`SHA256SUMS.txt` من الإصدار الموثوق نفسه إلى مجلد جديد. احسب تجزئة SHA-256 للأرشيف من ذلك المجلد، مع استبدال اسم الملف في المثال:
+
+| النظام وبيئة الأوامر | الأمر |
+| --- | --- |
+| Linux، Bash | `sha256sum safeparts-release.tar.gz` |
+| macOS، Bash | `shasum -a 256 safeparts-release.tar.gz` |
+| Windows، PowerShell | `Get-FileHash -Algorithm SHA256 -LiteralPath .\safeparts-release.zip` |
+
+قارن المحارف الستة عشرية البالغ عددها 64 مع السطر الخاص باسم الملف نفسه في البيان؛ لا يهم اختلاف حالة الأحرف. **توقّف عند عدم التطابق أو غياب السطر.** تطابق التجزئة يتحقق من التنزيل مقابل البيان، لا من موثوقية ناشره.
+
+بعد التطابق فقط، استخرج الأرشيف إلى مجلد إصدار جديد:
+
+- Linux/macOS: شغّل `mkdir safeparts-release` ثم `tar -xzf safeparts-release.tar.gz -C safeparts-release`.
+- Windows PowerShell: شغّل `Expand-Archive -LiteralPath .\safeparts-release.zip -DestinationPath .\safeparts-release`.
+
+مراجع أوامر Windows: [Get-FileHash](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-filehash) و[Expand-Archive](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.archive/expand-archive).
 
 <Steps>
-1. ضع binaries على <span class="token token--mono" dir="ltr">PATH</span>.
-2. شغّل <span class="token token--mono" dir="ltr">safeparts --help</span>.
-3. شغّل <span class="token token--mono" dir="ltr">safeparts-tui --help</span>.
+1. أضف المجلد المستخرج الذي يحتوي الملفات التنفيذية إلى <span class="token token--mono" dir="ltr">PATH</span> للمستخدم، ثم افتح طرفية جديدة. أو شغّل من ذلك المجلد باستخدام `./safeparts` على Linux/macOS أو `.\safeparts.exe` في PowerShell.
+2. شغّل <span class="token token--mono" dir="ltr">safeparts --help</span>؛ يجب أن يعرض طريقة استخدام CLI.
+3. في طرفية تفاعلية، شغّل <span class="token token--mono" dir="ltr">safeparts-tui</span>. اضغط <kbd>F1</kbd> للمساعدة و<span dir="ltr"><kbd>Ctrl</kbd>+<kbd>Q</kbd></span> للخروج.
 </Steps>
 
 ### Gatekeeper في macOS
 
-إذا عزل macOS ملفاً تم تنزيله وكنت تثق بمخرج الإصدار، أزل خاصية العزل:
+إذا عزل macOS ملفاً بعد التحقق من الأرشيف أعلاه وكنت تثق بناشره، فأزل خاصية العزل من مجلد الإصدار المستخرج فقط، لا من مجلد التنزيلات كله:
 
 ```bash
 xattr -dr com.apple.quarantine /path/to/safeparts-release/
 ```
 
-## بناء binaries من المصدر
+## بناء الملفات التنفيذية من المصدر
 
-المتطلبات:
-
-- Rust stable
-- `rustfmt` و`clippy`
+اتبع [متطلبات إعداد المستودع](https://github.com/connectedloops/safeparts/blob/main/docs/dev/onboarding.md) أولاً. تستخدم الأوامر التالية Bash وتبدأ من جذر المستودع؛ وليست أوامر PowerShell. استخدم إصدار Rust المحدد مع `rustfmt` و`clippy`.
 
 ```bash
 cargo build
@@ -52,7 +66,7 @@ cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-Binaries الإصدار:
+الملفات التنفيذية للإصدار:
 
 ```bash
 cargo build --release -p safeparts -p safeparts_tui
@@ -62,14 +76,13 @@ cargo build --release -p safeparts -p safeparts_tui
 
 يوجد تطبيق الويب في <span class="token token--mono" dir="ltr">web/</span>. يحتاج إلى خطوة بناء WASM.
 
-المتطلبات:
+أكمل [إعداد المستودع](https://github.com/connectedloops/safeparts/blob/main/docs/dev/onboarding.md) لتثبيت Rust/rustup وBun وNode وBash. قد يثبّت برنامج بناء WASM إصداري `wasm-pack` و`wasm-bindgen-cli` المحددين أو يستبدلهما، وينزّل هدف WASM.
 
-- Bun
-- `wasm-pack`، أو دع script البناء يثبته
+من جذر المستودع:
 
 ```bash
 cd web
-bun install
+bun install --frozen-lockfile
 bun run build:wasm
 bun run dev
 ```
@@ -115,9 +128,11 @@ docker rm --force safeparts-web
 
 يوجد موقع المساعدة في <span class="token token--mono" dir="ltr">web/help/</span> ويُخدم تحت <span class="token token--mono" dir="ltr">/help/</span>.
 
+ابدأ بطرفية جديدة في جذر المستودع بعد تثبيت أدوات الإعداد:
+
 ```bash
 cd web/help
-bun install
+bun install --frozen-lockfile
 bun run dev
 ```
 
@@ -128,3 +143,5 @@ bun run dev
 ```bash
 bun run build
 ```
+
+يبني هذا موقع المساعدة فقط في `web/dist/help/`. لبناء التطبيق والمساعدة باللغتين معاً، شغّل `mise run web:build:site` من جذر المستودع. لا تشغّل بناء التطبيق المنفرد بعد ذلك لأنه يحذف مخرجات المساعدة.

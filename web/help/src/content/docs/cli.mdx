@@ -11,7 +11,7 @@ Use the CLI when you need repeatable commands, binary input, all supported encod
 
 ## Split
 
-This command creates three shares and requires any two of them to recover:
+Run these examples in Bash. Inline examples are for synthetic practice data only: real secrets, shares, or passphrases in shell arguments can remain in shell history. This command creates three shares and requires two distinct, valid shares from that split to recover:
 
 ```bash
 printf '%s' 'synthetic secret' | safeparts split -k 2 -n 3 -e base64url
@@ -30,15 +30,17 @@ safeparts split \
   --out shares.txt
 ```
 
-The output file contains one share per line for compact encodings. Do not keep a file containing all shares unless your policy treats it like the original secret.
+The output contains all generated shares. Treat it as sensitive temporary material, distribute the saved shares, and remove the aggregate after the [saved-backup checkpoint](../it-devops-guide/break-glass/#verify-saved-backup). Do not retain it as the backup.
 
 ## Combine
 
-Combine shares from stdin:
+Combine synthetic practice shares from stdin:
 
 ```bash
 printf '%s\n%s\n' '<share1>' '<share2>' | safeparts combine
 ```
+
+For real material, use controlled files in an approved temporary recovery session and keep recovered bytes out of terminal output. The selected-share file also aggregates sensitive shares; remove it after use and restore separated custody.
 
 Combine from a file and write recovered bytes to a file:
 
@@ -72,13 +74,17 @@ safeparts split -k 2 -n 3 -e base64url -P passphrase.txt -i secret.bin -o shares
 safeparts combine -P passphrase.txt -i selected-shares.txt -o recovered-secret.bin
 ```
 
+<a id="passphrase-file-bytes"></a>
+
+`--passphrase-file` removes all trailing carriage-return (CR) and newline (LF) bytes. Other file bytes remain unchanged. Use the same input convention for split and recovery. If an existing passphrase intentionally ends with CR or LF, use a trusted byte-preserving recovery route, such as the Rust API with the original passphrase bytes. Do not alter saved shares to work around this difference.
+
 ## Safe runbook shape
 
 <Steps>
 1. Test the command sequence with a synthetic secret.
 2. Split the real secret from stdin or a controlled file.
 3. Save and distribute shares to separate holders or locations.
-4. Complete the [saved-backup checkpoint](../it-devops-guide/break-glass/#verify-saved-backup) using actual saved Recovery shares, including every custody share and the intended Passphrase protection. A synthetic drill is not backup verification.
+4. Complete the [saved-backup checkpoint](../it-devops-guide/break-glass/#verify-saved-backup) using actual saved recovery shares, including every custody share and the intended passphrase protection. A synthetic drill is not backup verification.
 5. After success, restore separated custody and remove temporary material before retiring the working copy or relying on the backup. On failure, keep a known-good working copy, correct or recreate the backup, and repeat verification.
 6. Record custody, threshold, encoding, and approval steps without recording share text.
 </Steps>

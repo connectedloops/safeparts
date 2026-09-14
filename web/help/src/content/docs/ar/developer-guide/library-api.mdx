@@ -49,35 +49,13 @@ fn split_then_recover() -> CoreResult<()> {
 
 ## ترميز الحصص للتخزين
 
-```rust
-use safeparts_core::encoding::{self, Encoding};
-use safeparts_core::{split_secret, CoreResult};
-
-fn split_for_storage() -> CoreResult<Vec<String>> {
-    let packets = split_secret(b"synthetic storage secret", 2, 3, None)?;
-
-    packets
-        .iter()
-        .map(|packet| encoding::encode_packet(packet, Encoding::Base64url))
-        .collect()
-}
-```
+استخدم `encode_packet(packet, encoding)` مع ترميز خرج محدد. راجع [مثال الترميز](../encodings-and-packets/#ترميز-الحزم).
 
 خزّن كل حصة مرمزة في نطاق فشل منفصل. إبقاء عدد كافٍ من الحصص معاً يهدم خطة العتبة.
 
 ## تحليل الحصص الملصقة والاسترداد
 
-```rust
-use safeparts_core::encoding::{self, Encoding};
-use safeparts_core::{combine_shares, CoreResult};
-
-fn recover_from_paste(input: &str) -> CoreResult<Vec<u8>> {
-    let parsed = encoding::parse_share_packets(input, Encoding::Auto)?;
-    combine_shares(&parsed.packets, None)
-}
-```
-
-استخدم `parse_share_packets_wrapped_mnemonics` لمناطق النص وملفات الحصص بالكلمات. تقبل الدالة حصة استرداد كاملة في كل سطر، بما في ذلك ناتج CLI، إذا نجح فك ترميز كل سطر غير فارغ مع التحقق الصارم. وإلا، تفك ترميز كل فقرة تفصلها أسطر فارغة كحصة استرداد واحدة موزعة على عدة أسطر. تقبل نهايات الأسطر <span class="token" dir="ltr">LF</span> و<span class="token" dir="ltr">CRLF</span> مع الكشف التلقائي أو الترميز المحدد، وترفض المدخلات التالفة دون تجاهل كلمات أو إطارات.
+استخدم `parse_share_packets(input, encoding)` للتحليل الصارم، أو `parse_share_packets_wrapped_mnemonics(input, encoding)` لمناطق النص وملفات الحصص بالكلمات. مرّر الحزم الناتجة إلى `combine_shares`. راجع [أمثلة التحليل وقواعد الإدخال متعدد الأسطر](../encodings-and-packets/#تحليل-مدخلات-ملصقة). أبقِ الحصص الملصقة والبايتات المستعادة خارج السجلات.
 
 ## إضافة حماية عبارة مرور
 
@@ -121,8 +99,8 @@ fn encrypted_round_trip() -> CoreResult<()> {
 | العنصر | الاستخدام |
 | --- | --- |
 | `Encoding` | `Auto`, `Base64url`, `Base58check`, `MnemoWords`, و`MnemoBip39`. |
-| `Encoding::CONCRETE` | ترميزات الخرج الملموسة. |
-| `Encoding::WITH_AUTO` | الترميزات الملموسة مع التحليل التلقائي. |
+| `Encoding::CONCRETE` | ترميزات الخرج المحددة، دون `Encoding::Auto`. |
+| `Encoding::WITH_AUTO` | الترميزات المحددة مع التحليل التلقائي. |
 | `Encoding::label()` | تسمية canonical للواجهة أو metadata التخزين. |
 | `Encoding::parse_name(name)` | يحلل الأسماء canonical وأسماء CLI المستعارة. |
 | `ParsedSharePackets` | الحزم المحللة مع الترميز المكتشف. |
@@ -138,7 +116,7 @@ fn encrypted_round_trip() -> CoreResult<()> {
 | --- | --- |
 | `SharePacket` | حزمة فيها `set_id` و`k` و`n` و`x` وpayload ومعلمات تشفير اختيارية. |
 | `SharePacket::is_encrypted()` | يرجع true عند استخدام حماية عبارة مرور. |
-| `SharePacket::encode_binary()` | serializes إلى صيغة حزمة Safeparts الثنائية. |
+| `SharePacket::encode_binary()` | يحوّل الحزمة إلى صيغة Safeparts الثنائية. |
 | `SharePacket::decode_binary(bytes)` | يحلل صيغة الحزمة الثنائية. |
 | `packet::binary_total_len(bytes)` | يحسب طول الحزمة الكامل من بادئة بايتات. |
 

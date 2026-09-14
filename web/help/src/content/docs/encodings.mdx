@@ -21,9 +21,9 @@ Choose the format your recovery process can store and re-enter accurately.
 | Interface | Split output | Combine input |
 | --- | --- | --- |
 | Web app | <span class="token">base64url</span>, <span class="token">mnemo-words</span> | Same two formats, with best-effort detection on paste. |
-| CLI | All four concrete encodings | Auto-detect when `--encoding` is omitted, or pass a concrete encoding. |
-| TUI | All four concrete encodings | Auto-detect or choose a concrete encoding. |
-| Rust library | All four concrete encodings through `safeparts_core::encoding` | Auto parse and concrete parse APIs. |
+| CLI | All four formats | Auto-detect when `--encoding` is omitted, or choose a format. |
+| TUI | All four formats | Auto-detect or choose a format. |
+| Rust library | All four formats through `safeparts_core::encoding` | Automatic detection or parsing with a specified encoding. |
 
 ## Choosing a format
 

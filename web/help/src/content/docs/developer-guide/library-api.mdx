@@ -49,35 +49,13 @@ Recovery needs enough packets from the same split set to meet the threshold.
 
 ## Encode shares for storage
 
-```rust
-use safeparts_core::encoding::{self, Encoding};
-use safeparts_core::{split_secret, CoreResult};
-
-fn split_for_storage() -> CoreResult<Vec<String>> {
-    let packets = split_secret(b"synthetic storage secret", 2, 3, None)?;
-
-    packets
-        .iter()
-        .map(|packet| encoding::encode_packet(packet, Encoding::Base64url))
-        .collect()
-}
-```
+Use `encode_packet(packet, encoding)` with an explicit output encoding. See the [working encoding example](../encodings-and-packets/#encode-packets).
 
 Store each encoded share in a separate failure domain. Keeping enough shares together defeats the threshold plan.
 
 ## Parse and recover pasted shares
 
-```rust
-use safeparts_core::encoding::{self, Encoding};
-use safeparts_core::{combine_shares, CoreResult};
-
-fn recover_from_paste(input: &str) -> CoreResult<Vec<u8>> {
-    let parsed = encoding::parse_share_packets(input, Encoding::Auto)?;
-    combine_shares(&parsed.packets, None)
-}
-```
-
-Use `parse_share_packets_wrapped_mnemonics` for text areas and mnemonic files. It accepts one complete Recovery share per line when every nonempty line strictly decodes, including CLI output. Otherwise, it decodes each blank-line-separated paragraph as one wrapped Recovery share. It accepts LF and CRLF with Auto or explicit encoding and rejects malformed input without skipping words or frames.
+Use `parse_share_packets(input, encoding)` for strict input or `parse_share_packets_wrapped_mnemonics(input, encoding)` for text areas and mnemonic files. Pass the resulting packets to `combine_shares`. See [parsing examples and wrapped-input rules](../encodings-and-packets/#parse-pasted-input). Keep pasted shares and recovered bytes out of logs.
 
 ## Add passphrase protection
 

@@ -7,7 +7,7 @@ Safeparts has one job: split a secret so recovery requires enough matching share
 
 ## Threshold sharing
 
-A plan like 2 of 3 creates three shares and requires any two to recover. In the implementation, the required number is the threshold, written as <var>k</var>, and the total number of shares is <var>n</var>.
+A plan like 2 of 3 creates three shares and requires two distinct, valid shares from that split to recover. If passphrase protection was enabled, you also need the original passphrase. In the implementation, the required number is the threshold, written as <var>k</var>, and the total number of shares is <var>n</var>.
 
 Safeparts uses Shamir-style secret sharing over <span class="token token--mono">GF(256)</span>. The scheme works on bytes, so the input can be text, a binary key, or another byte sequence.
 
@@ -23,13 +23,13 @@ Safeparts wraps each raw share in a versioned packet. The packet includes:
 - share payload bytes
 - optional encryption parameters when a passphrase was used
 
-This metadata is not secret. It helps the combine path reject duplicate shares, mixed share sets, and incompatible passphrase parameters.
+The metadata is not secret and helps reject duplicate shares, mixed sets, and incompatible encryption parameters. The share payload bytes are sensitive: do not publish or log them.
 
 ## Integrity checks
 
 Secret sharing alone does not reliably tell you when an operator typed a share wrong or mixed shares from different splits. Safeparts appends a BLAKE3 integrity tag before splitting.
 
-On recovery, Safeparts reconstructs the tagged bytes and verifies the tag. If shares are corrupted or mismatched, recovery fails instead of returning silent garbage.
+On recovery, Safeparts reconstructs the tagged bytes and verifies the tag. Metadata checks reject mixed sets; the tag detects corruption. It does not authenticate the sender or prevent replacement with another valid set. See the [integrity limits](../technical-design/#integrity-tag).
 
 ## Optional passphrase protection
 

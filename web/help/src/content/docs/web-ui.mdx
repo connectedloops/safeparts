@@ -13,13 +13,13 @@ The web app runs at the site root and performs split and combine in the browser 
 
 ## What the web app exposes
 
-- Split text Secrets entered in the browser UI, and display recovered Secrets only when they are valid UTF-8 text.
+- Split text secrets entered in the browser UI, and display recovered secrets only when they are valid UTF-8 text.
 - Recovery plans such as 2 of 3 or 3 of 5, with up to 255 total shares.
 - Two share formats: <span class="token">Words</span> (<span class="token">mnemo-words</span>) and <span class="token">Letters</span> (<span class="token">base64url</span>).
 - Optional passphrase protection.
 - Best-effort format detection when you paste shares into the combine form.
 
-For binary files, arbitrary-byte recovery, or all Share encodings, use the [CLI](../cli/) or [TUI](../tui/) with file output. These workflows preserve the exact bytes instead of turning them into text.
+For binary files, arbitrary-byte recovery, or all share encodings, use the [CLI](../cli/) or [TUI](../tui/) with file output. These workflows preserve the exact bytes instead of turning them into text.
 
 ## Split
 
@@ -28,9 +28,10 @@ For binary files, arbitrary-byte recovery, or all Share encodings, use the [CLI]
 2. Enter a secret.
 3. Choose how many shares are required and how many total shares to create.
 4. Choose <span class="token">Words</span> or <span class="token">Letters</span>.
-5. If your plan uses Passphrase protection, enter the passphrase twice exactly as you intend to keep it.
+5. If your plan uses passphrase protection, enter the passphrase twice exactly as you intend to keep it.
 6. Click <span class="token">Split</span>.
 7. Store each share in a separate place.
+8. Complete the [saved-backup checkpoint](../it-devops-guide/break-glass/#verify-saved-backup) using actual saved custody copies before relying on the backup or retiring the working copy. If policy does not allow verification, retain the working copy and leave setup incomplete.
 </Steps>
 
 Passphrases are masked by default. Use the reveal button to check either entry. You will need the exact passphrase for recovery, and Safeparts cannot reset it.
@@ -43,10 +44,10 @@ Passphrases are masked by default. Use the reveal button to check either entry. 
 3. Confirm the detected or selected format.
 4. Enter the passphrase if the split used one.
 5. Click <span class="token">Combine</span>.
-6. Copy the recovered Secret only into the system that needs it.
+6. Copy the recovered secret only into the system that needs it.
 </Steps>
 
-The web app refuses to display or copy a recovered Secret that is not valid UTF-8. If that happens, use the CLI or TUI with file output to recover the exact bytes. Changing a Recovery share, the Share encoding, or Passphrase protection clears the previous result, so the displayed Secret always belongs to the current inputs.
+The web app refuses to display or copy a recovered secret that is not valid UTF-8. If that happens, use the CLI or TUI with file output to recover the exact bytes. Changing a recovery share, the share encoding, or passphrase protection clears the previous result, so the displayed secret always belongs to the current inputs.
 
 ## Privacy boundary
 
