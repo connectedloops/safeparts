@@ -17,6 +17,7 @@ description: تاريخ الفرع الرئيسي والإصدارات المن�
 
 ### إصلاحات
 
+- <span dir="ltr">fix&#40;ci&#41;&#58; allow 8&#45;vCPU Blacksmith runner in actionlint ([f5605ec](https://github.com/connectedloops/safeparts/commit/f5605ecd7e00790f14eddd85655e7cb203bc72bb))</span>
 - <span dir="ltr">fix&#58; reject nul private output paths ([c50534e](https://github.com/connectedloops/safeparts/commit/c50534ef83f29b1f58dc18af911908830256bf5c))</span>
 - <span dir="ltr">fix&#40;tui&#41;&#58; satisfy stable Clippy match&#45;guard lint &#40;&#35;100&#41; ([cb75f54](https://github.com/connectedloops/safeparts/commit/cb75f54396a9c78e952c3fca8e04df54e614dbda))</span>
 - <span dir="ltr">fix&#40;docs&#41;&#58; isolate recovery encoding labels in retirement guidance &#40;&#35;97&#41; ([8b2cdc2](https://github.com/connectedloops/safeparts/commit/8b2cdc2d3f67052bc5bf8ebfe46fc29b90ee5ade))</span>
