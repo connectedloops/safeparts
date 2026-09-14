@@ -30,6 +30,7 @@ Owns local developer-experience diagnostics and verification helpers.
 ## Local Contracts
 
 - Scripts must be deterministic and explicit about failures; generated reports belong under `target/`.
+- Changelog framing is generator-owned and links current installation and retired-desktop recovery in each locale without changing historical subjects.
 - Changelogs are intentional tracked outputs: root `CHANGELOG.md` and both help `changelog.md` pages. Generate them together; normal site builds consume the snapshots without Git or network access.
 - Changelog history uses explicit main refs and published-release ancestry, never feature HEAD. Preserve original subjects as safely escaped text. Ignore only the fixed generated-only commit contract; generation must remain byte-identical after those commits.
 - The changelog writer is restricted to this repository's main branch and the three explicit outputs. Use non-force pushes and the existing main-only Web dispatch; preserve its complete artifact verification/deployment gates.

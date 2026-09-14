@@ -58,7 +58,7 @@ Keep English and Arabic routes aligned.
 | `/help/project/` | Curious users | Understand the main mechanics. | Threshold sharing, packets, integrity, passphrases. |
 | `/help/technical-design/` | Engineers and reviewers | Review implementation design. | Data flow, packet format, crypto choices, limits. |
 | `/help/build-and-run/` | Installers and self-hosters | Install or build Safeparts. | CLI/TUI archives, historical installer distinction, Rust, web, Docker, docs. |
-| `/help/changelog/` | Users and contributors | Read main-branch and published-release history. | Generated release groups, original commit subjects, and source links; full copy also in root `CHANGELOG.md`. |
+| `/help/changelog/` | Users and contributors | Read main-branch and published-release history. | Generated release groups, original commit subjects, source links, and pointers to current installation and retired-desktop recovery; full copy also in root `CHANGELOG.md`. |
 | `/help/troubleshooting/` | Users with errors | Diagnose failures safely. | Common errors, WASM setup, build fixes. |
 | `/help/developer-guide/` | Rust integrators | Decide whether to use the library. | Library boundary and next pages. |
 | `/help/developer-guide/library-api/` | Rust integrators | Call the public API correctly. | Split, combine, encoding, passphrase, API reference. |
