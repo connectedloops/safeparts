@@ -73,6 +73,21 @@ class ChangelogTests(unittest.TestCase):
         self.assertIn('### Features', outputs['CHANGELOG.md'])
         self.assertIn('### Other changes', outputs['CHANGELOG.md'])
 
+    def test_current_support_links_are_localized_without_rewriting_history(self):
+        subject = 'feat(windows): publish native preview'
+        sha = self.commit(subject)
+        outputs = self.generate([])
+        import html
+        for index, name in enumerate(OUTPUTS):
+            text = outputs[name]
+            locale = 'ar/' if index == 2 else ''
+            self.assertIn(f'https://safeparts.netlify.app/help/{locale}build-and-run/', text)
+            self.assertIn(f'https://safeparts.netlify.app/help/{locale}desktop/', text)
+            self.assertIn(subject, html.unescape(text))
+            self.assertEqual(1, text.count('/commit/' + sha))
+        self.assertIn('not current installation recommendations', outputs[OUTPUTS[0]])
+        self.assertIn('ليست توصيات تثبيت حالية', outputs[OUTPUTS[2]])
+
     def test_dates_same_commit_prereleases_and_divergent_ancestry(self):
         root = self.commit('Initial import')
         self.git('tag', 'v1')

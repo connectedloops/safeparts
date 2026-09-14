@@ -7,6 +7,8 @@ description: Main history and published releases.
 
 Complete main-branch history and published releases. Commit subjects retain their original wording.
 
+Historical entries describe support at the time of each change, not current installation recommendations. [Current installation](https://safeparts.netlify.app/help/build-and-run/) · [Retired-desktop recovery](https://safeparts.netlify.app/help/desktop/)
+
 ## Unreleased
 
 ### Features
