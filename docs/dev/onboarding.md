@@ -32,7 +32,14 @@ mise run setup
 mise run doctor
 ```
 
-If you do not use mise, install the same tools manually and use the commands in [verification.md](verification.md).
+If you do not use mise, install the same tools manually, then install both dependency graphs from the repository root:
+
+```bash
+bun install --cwd web --frozen-lockfile
+bun install --cwd web/help --frozen-lockfile
+```
+
+Continue with the direct commands in [verification.md](verification.md).
 
 ## 3. Run something useful
 
