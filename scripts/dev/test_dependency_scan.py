@@ -59,20 +59,32 @@ if mode == "malformed":
     print("not JSON")
     sys.exit(0)
 results = []
-for path in sorted(pathlib.Path(args[-1]).rglob("*.lock")):
+paths = [pathlib.Path(args[-1])] if args[0] == "sbom" else sorted(pathlib.Path(args[-1]).rglob("*.lock"))
+for path in paths:
     text = path.read_text()
     # This sentinel is deliberately a development-only dependency finding.
-    vulnerable = "fixture-vulnerable" in text and "--include-dev-deps" in args
+    vulnerable = "fixture-vulnerable" in text and (args[0] == "sbom" or "--include-dev-deps" in args)
     if os.environ.get("TRIVY_SEVERITY") == "CRITICAL":
         vulnerable = False
     ignore = pathlib.Path(args[args.index("--ignorefile") + 1]) if "--ignorefile" in args else pathlib.Path(".trivyignore")
     if ignore.exists() and "GHSA-fixture-dev" in ignore.read_text():
         vulnerable = False
     package = {"ID": "fixture@1.0.0", "Name": "fixture", "Version": "1.0.0", "Dev": True}
-    results.append({"Target": str(path.relative_to(args[-1])), "Class": "lang-pkgs",
-        "Type": "cargo" if path.name == "Cargo.lock" else "bun", "Packages": [package],
-        "Vulnerabilities": [{"VulnerabilityID": "GHSA-fixture-dev", "PkgID": "fixture@1.0.0",
-            "PkgName": "fixture", "InstalledVersion": "1.0.0", "Severity": "HIGH"}] if vulnerable else []})
+    packages = [package]
+    if args[0] == "sbom":
+        packages = [{"ID": c["name"] + "@" + c["version"], "Name": c["name"], "Version": c["version"]}
+                    for c in json.loads(text)["components"]]
+        if mode == "omit-nested":
+            packages = [p for p in packages if p["Version"] != "0.9.0"]
+        if mode == "extra-package":
+            packages.append({"Name": "unexpected", "Version": "1.0.0"})
+        if mode == "bad-package":
+            packages[0]["Version"] = None
+    finding_package = next((p for p in packages if p["Name"] == "fixture-vulnerable"), package)
+    results.append({"Target": "Node.js" if args[0] == "sbom" else str(path.relative_to(args[-1])), "Class": "lang-pkgs",
+        "Type": "node-pkg" if args[0] == "sbom" else "cargo", "Packages": packages,
+        "Vulnerabilities": [{"VulnerabilityID": "GHSA-fixture-dev", "PkgID": finding_package["ID"],
+            "PkgName": finding_package["Name"], "InstalledVersion": finding_package["Version"], "Severity": "HIGH"}] if vulnerable else []})
 if mode == "missing-result":
     results.pop()
 if mode == "extra-result":
@@ -134,7 +146,7 @@ class DependencyScanTests(unittest.TestCase):
 
     def test_supported_scan_retains_dev_findings_without_example_or_retired_inputs(self) -> None:
         path = self.root / "web/help/bun.lock"
-        path.write_text(path.read_text().replace('"integrity"', '"fixture-vulnerable"'))
+        path.write_text(path.read_text().replace('"fixture@1.0.0"', '"fixture-vulnerable@1.0.0"'))
         for poison in ("mobile/src-native/Cargo.lock", "desktop/bun.lock",
                        "web/node_modules/example/Gemfile.lock", "web/help/dist/bun.lock",
                        "web/src/wasm_pkg/Cargo.lock", "target/generated/Cargo.lock",
@@ -151,6 +163,40 @@ class DependencyScanTests(unittest.TestCase):
         self.assertEqual(report["status"], "findings")
         self.assertTrue(report["include_dev_dependencies"])
         self.assertTrue(report["coverage_complete"])
+
+    @unittest.skipUnless(os.environ.get("DEPENDENCY_SCAN_LIVE") == "1", "explicit live Trivy/database check")
+    def test_live_patched_root_does_not_hide_vulnerable_nested_dev_package(self) -> None:
+        # Real Bun JSONC and Trivy advisory lookup; Cargo metadata alone is a fixture.
+        for name in ("bun", "trivy"):
+            (self.root / "bin" / name).unlink()
+        shutil.copyfile(ROOT / "Cargo.lock", self.root / "Cargo.lock")
+        manifest = {"name": "fixture", "devDependencies": {"picomatch": "4.0.7", "tinyglobby": "0.2.14"}}
+        lock = {"lockfileVersion": 1, "workspaces": {"": manifest}, "packages": {
+            "picomatch": ["picomatch@4.0.7", "", {}, "integrity"],
+            "tinyglobby": ["tinyglobby@0.2.14", "", {"dependencies": {"fdir": "^6.4.4", "picomatch": "^4.0.2"}}, "integrity"],
+            "fdir": ["fdir@6.4.6", "", {}, "integrity"],
+            "tinyglobby/picomatch": ["picomatch@4.0.3", "", {}, "integrity"]}}
+        self.put("web/package.json", json.dumps(manifest))
+        self.put("web/bun.lock", json.dumps(lock))
+        # Reuse only the cache; production still checks/updates its current DB.
+        cache = self.root / "target/security/supported/cache"
+        cache.parent.mkdir(parents=True)
+        shutil.copytree(ROOT / "target/security/supported/cache", cache)
+        result, report = self.scan()
+        evidence = os.environ.get("DEPENDENCY_SCAN_LIVE_OUTPUT")
+        if evidence:
+            destination = Path(evidence)
+            destination.mkdir(parents=True, exist_ok=True)
+            for path in cache.parent.glob("*.json"):
+                shutil.copyfile(path, destination / path.name)
+            (destination / "stdout.txt").write_text(result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        web = next(item for item in report["results"] if item["Target"] == "web/bun.lock")
+        self.assertIn(("picomatch", "4.0.3", "CVE-2026-33671"), {
+            (v["PkgName"], v["InstalledVersion"], v["VulnerabilityID"]) for v in web["Vulnerabilities"]})
+        self.assertTrue(report["coverage_complete"])
+        self.assertEqual({(p["Name"], p["Version"]) for p in web["Packages"]}, {
+            ("picomatch", "4.0.7"), ("picomatch", "4.0.3"), ("tinyglobby", "0.2.14"), ("fdir", "6.4.6")})
 
     def test_operational_failures_replace_previous_success_with_error_report(self) -> None:
         result, report = self.scan()
@@ -196,6 +242,49 @@ class DependencyScanTests(unittest.TestCase):
                 self.assertEqual(report["status"], "error")
                 self.assertIsNone(report["finding_count"])
 
+    def test_scoped_nested_optional_and_duplicate_identities_are_all_reconciled(self) -> None:
+        path = self.root / "web/bun.lock"
+        lock = json.loads(path.read_text())
+        lock["packages"].update({
+            "parent/@scope/name": ["@scope/name@0.9.0", "", {}, "integrity"],
+            "@scope/name": ["@scope/name@1.0.0", "", {}, "integrity"],
+            "other/@scope/name": ["@scope/name@0.9.0", "", {"os": "win32", "cpu": "x64"}, "integrity"],
+            "parent/fixture": ["fixture-vulnerable@1.0.0", "", {}, "integrity"]})
+        path.write_text(json.dumps(lock))
+        result, report = self.scan()
+        self.assertEqual(result.returncode, 1, result.stdout)
+        comparison = next(p for p in report["bun_inventory_comparison"] if p["path"] == "web/bun.lock")
+        self.assertEqual(comparison["lock_records"], 5)
+        self.assertEqual(comparison["scanned_identities"], 4)
+        self.assertEqual(comparison["missing"], [])
+        web = next(p for p in report["results"] if p["Target"] == "web/bun.lock")
+        scoped = next(p for p in web["Packages"] if p["Name"] == "@scope/name" and p["Version"] == "0.9.0")
+        self.assertEqual(scoped["BunLockKeys"], ["other/@scope/name", "parent/@scope/name"])
+        self.assertEqual(web["Vulnerabilities"][0]["BunLockKeys"], ["parent/fixture"])
+        for mode in ("omit-nested", "extra-package", "bad-package"):
+            with self.subTest(mode=mode):
+                result, report = self.scan(mode=mode)
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertFalse(report["coverage_complete"])
+                self.assertIsNone(report["finding_count"])
+
+    def test_malformed_or_unsupported_bun_records_never_disappear(self) -> None:
+        path = self.root / "web/bun.lock"
+        original = json.loads(path.read_text())
+        for record in ([], None, [None], ["file:../local"], ["@scope/name@"], ["name@not-a-version"],
+                       ["name@01.0.0"], ["name@1.0.0-pre..bad"], ["name@1.0.0-01"]):
+            with self.subTest(record=record):
+                lock = dict(original, packages=dict(original["packages"], nested=record))
+                path.write_text(json.dumps(lock))
+                result, report = self.scan()
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertFalse(report["coverage_complete"])
+                self.assertIsNone(report["finding_count"])
+        # Duplicate JSON keys must not silently discard a locked identity.
+        path.write_text(json.dumps(original).replace('"packages": {', '"packages": {"fixture": ["fixture@0.9.0"],'))
+        result, report = self.scan()
+        self.assertEqual(result.returncode, 2, result.stdout)
+
     def test_invalid_inputs_and_manifest_graph_drift_fail_closed(self) -> None:
         cases = {
             "missing-lock": ("web/help/bun.lock", None),
@@ -231,7 +320,7 @@ class DependencyScanTests(unittest.TestCase):
 
     def test_reports_record_reproduction_metadata_and_ignore_ambient_suppressions(self) -> None:
         path = self.root / "web/bun.lock"
-        path.write_text(path.read_text().replace('"integrity"', '"fixture-vulnerable"'))
+        path.write_text(path.read_text().replace('"fixture@1.0.0"', '"fixture-vulnerable@1.0.0"'))
         self.put(".trivyignore", "GHSA-fixture-dev\n")
         self.put("trivy.yaml", "severity: [CRITICAL]\nignore-unfixed: true\n")
         self.env.update(TRIVY_SEVERITY="CRITICAL", TRIVY_SKIP_DB_UPDATE="true",
@@ -245,10 +334,10 @@ class DependencyScanTests(unittest.TestCase):
         self.assertTrue(report["finished_at"])
         self.assertEqual(len(report["inventory"][0]["sha256"]), 64)
         self.assertEqual(report["totals"]["by_severity"], {"HIGH": 1})
-        self.assertEqual(report["totals"]["dev_findings"], 1)
+        self.assertEqual(report["totals"]["other_or_unknown_findings"], 1)
         self.assertIn("Trivy 0.74.0", result.stdout)
         self.assertIn("HIGH=1", result.stdout)
-        self.assertIn("dev=1", result.stdout)
+        self.assertIn("other/unknown=1", result.stdout)
         self.assertTrue((self.root / "target/security/supported/scanner.json").is_file())
 
 
