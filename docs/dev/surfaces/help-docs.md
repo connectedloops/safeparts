@@ -19,6 +19,12 @@ This developer guide is only for contributors working on that site.
 - Update `web/help/DOCS_MAP.md` for navigation or structure changes.
 - Update `web/help/DOCS_STYLE.md` for style rules.
 
+## Dependency upgrades
+
+Read the [help dependency review](help-dependencies.md) before changing the Astro/Starlight stack. Check published peer and Node requirements, refresh transitive dependencies within compatible ranges, and scan the help lockfile at every severity with development dependencies included. Preserve the explicit remark processor and HTML-aware compression in `astro.config.mjs`; Astro 7 defaults differ.
+
+Use the toolchain pinned in `mise.toml`. Commit `web/help/package.json` and `web/help/bun.lock` together, and verify a clean frozen install before the combined site build. Astro 7 can background development servers when it detects an agent; use `ASTRO_DEV_BACKGROUND=0 bun run dev` when a task runner must own the foreground process, or `bun run astro dev stop` to stop a background instance.
+
 ## Generated changelog
 
 The English and Arabic changelog pages contain full main-branch and published-release history, also available in root `CHANGELOG.md`. Run `mise run changelog:generate` from the repository root to refresh all three. Do not edit the generated pages or translate commit subjects. Normal builds use the committed pages without Git or network access.

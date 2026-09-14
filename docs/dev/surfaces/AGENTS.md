@@ -13,6 +13,7 @@ Owns focused contributor guides for each Safeparts surface.
 - `web.md`: Vite/React app, WASM package boundary, and browser checks.
 - `desktop.md`: retired Tauri source notice and recovery pointers.
 - `help-docs.md`: Astro/Starlight help-site contributor notes.
+- `help-dependencies.md`: help dependency compatibility, exposure review, and scan reproduction.
 - `release.md`: release packaging and workflow notes.
 - `mobile.md`: dormant mobile prototype expectations.
 - `macos.md`: retired SwiftUI and dedicated UniFFI reference notice.

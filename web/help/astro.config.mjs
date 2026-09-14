@@ -1,10 +1,14 @@
 // @ts-check
+import { unified } from '@astrojs/markdown-remark';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
 export default defineConfig({
 	devToolbar: { enabled: false },
+	// Preserve Markdown plugins and HTML-aware whitespace handling across Astro upgrades.
+	markdown: { processor: unified() },
+	compressHTML: true,
 	// This Starlight site is deployed under the main web UI at `/help/`.
 	base: '/help',
 	// Build into the Vite app's dist directory so Netlify can publish both.
