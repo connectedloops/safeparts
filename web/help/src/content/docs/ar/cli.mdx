@@ -1,13 +1,13 @@
 ---
 title: CLI
-description: استخدم أمر safeparts للملفات والـ runbooks والاسترداد القابل للبرمجة.
+description: استخدم أمر safeparts للملفات والإجراءات التشغيلية والاسترداد القابل للبرمجة.
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
-اسم binary الخاص بواجهة CLI هو <span class="token token--mono" dir="ltr">safeparts</span>. يقرأ من stdin افتراضياً ويكتب إلى stdout إلا إذا مررت مسارات ملفات.
+اسم الملف التنفيذي لواجهة CLI هو <span class="token token--mono" dir="ltr">safeparts</span>. يقرأ من stdin افتراضياً ويكتب إلى stdout إلا إذا مررت مسارات ملفات.
 
-استخدم CLI عندما تحتاج إلى أوامر قابلة للتكرار أو مدخلات ثنائية أو كل الترميزات المدعومة أو runbooks للمشغلين.
+استخدم CLI عندما تحتاج إلى أوامر قابلة للتكرار أو مدخلات ثنائية أو كل الترميزات المدعومة أو إجراءات تشغيلية للمشغّلين.
 
 ## التقسيم
 
@@ -89,4 +89,4 @@ safeparts combine -P passphrase.txt -i selected-shares.txt -o recovered-secret.b
 6. سجّل الحيازة والعتبة والترميز وخطوات الموافقة دون تسجيل نص الحصص.
 </Steps>
 
-لإرشادات تشغيلية أعمق، راجع [Runbooks للـ CLI](../it-devops-guide/cli-runbooks/).
+لإرشادات تشغيلية أعمق، راجع [الإجراءات التشغيلية لواجهة CLI](../it-devops-guide/cli-runbooks/).

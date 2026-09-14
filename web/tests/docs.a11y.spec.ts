@@ -83,6 +83,20 @@ test.describe('Docs Site Accessibility @full', () => {
     })
   }
 
+  test('Arabic inline API and shortcut expressions retain LTR isolation', async ({ page }) => {
+    await page.goto('/help/ar/developer-guide/library-api/')
+    const signature = page.locator('main code').filter({ hasText: /^split_secret\(secret, k, n, passphrase\)$/ })
+    await expect(signature).toHaveCount(1)
+    await expect(signature).toHaveCSS('direction', 'ltr')
+    await expect(signature).toHaveCSS('unicode-bidi', 'isolate')
+    await page.goto('/help/ar/tui/')
+    const shortcut = page.locator('main table span[dir="ltr"]').filter({ hasText: /^Ctrl\+L$/ })
+    await expect(shortcut).toHaveCount(1)
+    await expect(shortcut).toHaveCSS('direction', 'ltr')
+    await page.goto('/help/ar/technical-design/')
+    await expect(page.locator('main span[dir="ltr"]').filter({ hasText: /^k - 1$/ })).toBeVisible()
+  })
+
   test('Docs are dark-only (no light theme toggle)', async ({ page }) => {
     await page.goto('/help/')
     

@@ -66,7 +66,7 @@ Lowercase common concepts in running prose: secret, recovery share, threshold, s
 - Keys: `<kbd>`.
 - UI and status strings: `<samp>`.
 - Small labels: `<span class="token">...</span>`.
-- Use `dir="ltr"` in Arabic pages for command names, encodings, equations, and code-like tokens.
+- Use `dir="ltr"` around whole expressions and shortcut combinations in Arabic pages, not just a variable or key. The theme isolates inline code as LTR for flags and API signatures; fenced command bytes remain unchanged.
 - Use inline code only for code, commands, file paths, APIs, and package names.
 
 ## Links
