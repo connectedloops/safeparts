@@ -16,6 +16,7 @@ Owns the Astro + Starlight documentation site served under `/help/` in English a
 - Apply the `humanizer` skill before finalizing edits to user-facing docs.
 - Keep English and Arabic documentation structures aligned when changing navigation or core user guidance.
 - Preserve the `/help/` base path behavior.
+- Keep the explicit remark Markdown processor and HTML-aware compression when upgrading Astro; defaults differ in Astro 7. For dependency changes, read `../../docs/dev/surfaces/help-dependencies.md` for compatibility constraints, exposure assessment, and the all-severity scan including development dependencies.
 - English/Arabic `changelog.md` pages are tracked generated Markdown, not hand-maintained MDX. Regenerate them with root `CHANGELOG.md` through `mise run changelog:generate`; see `scripts/dev/README.md#changelog-snapshots`. Preserve full history in both locales and original commit wording; localize only fixed presentation text.
 - Keep `/help/desktop/` and `/help/ar/desktop/` as retirement/recovery notices, outside supported-interface navigation. Recommend web for UTF-8 text and CLI/TUI file output for exact bytes; retain shares/passphrases and verify saved recovery before relying on a new tool. Historical GUI installers are unsupported, with no replacement promise.
 - English/Arabic security guidance describes browser writing-assistance restrictions as a limited mitigation, not control over extensions, browser-provider features, or clipboard safety; do not imply an observed disclosure.
@@ -30,7 +31,7 @@ Owns the Astro + Starlight documentation site served under `/help/` in English a
 
 ## Verification
 
-- Install: `bun install`
+- Install: `bun install --frozen-lockfile`
 - Dev server: `bun run dev`
 - Build: `bun run build`
 - Saved-backup rehearsal: build the CLI with `cargo build -p safeparts`, put its target/debug directory on `PATH`, then run `python3 scripts/dev/test_backup_rehearsal.py` from the repository root. This executes the synthetic Bash example in both locales through the public CLI.
