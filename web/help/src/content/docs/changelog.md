@@ -17,6 +17,9 @@ Complete main-branch history and published releases. Commit subjects retain thei
 
 ### Fixes
 
+- fix&#40;web&#41;&#58; refresh compatible nested dependencies for &#35;122 ([a7efcab](https://github.com/connectedloops/safeparts/commit/a7efcabd4f17f406d634061ce35daa03fc38a062))
+- fix&#40;security&#41;&#58; reconcile all Bun advisory identities ([6f89cb3](https://github.com/connectedloops/safeparts/commit/6f89cb37fbee65df6214fdda6569949239c506e9))
+- fix&#40;web&#41;&#58; remediate development dependency vulnerabilities ([473d6c8](https://github.com/connectedloops/safeparts/commit/473d6c85f2326bbe13ccc8e21cdafa2ca092219a))
 - fix&#40;container&#41;&#58; use explicit help working directories ([86e8273](https://github.com/connectedloops/safeparts/commit/86e82732d94d0acdaf0aa86f0fc88f19276179b5))
 - fix&#40;help&#41;&#58; remediate vulnerable Astro and Starlight dependencies ([c34d21f](https://github.com/connectedloops/safeparts/commit/c34d21f8b791624fab76c962611f3d203f71a4ed))
 - fix&#40;ci&#41;&#58; allow 8&#45;vCPU Blacksmith runner in actionlint ([f5605ec](https://github.com/connectedloops/safeparts/commit/f5605ecd7e00790f14eddd85655e7cb203bc72bb))
