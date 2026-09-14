@@ -4,8 +4,7 @@
 
 # Safeparts
 
-Safeparts is a threshold secret-sharing toolkit.
-You split one secret into *n* recovery shares, then later recover it from any *k* of them.
+Safeparts splits a secret into recovery shares. With a 2-of-3 setup, any two distinct, valid shares from the same split can recover it. If you enable passphrase protection, you also need the original passphrase.
 
 - Web app: https://safeparts.netlify.app
 - Docs: https://safeparts.netlify.app/help/ (English) and https://safeparts.netlify.app/help/ar/ (Arabic)
@@ -14,81 +13,74 @@ You split one secret into *n* recovery shares, then later recover it from any *k
 
 ## What it's for
 
-Safeparts is useful when you want recovery to require cooperation instead of one perfect backup.
-
-Common examples:
+Use Safeparts when recovery should require cooperation:
 
 - Password manager recovery keys / master keys
 - 2FA backup codes
-- API tokens, signing keys, "break-glass" credentials
-- Family / executor planning (no single person holds full access)
-- Team secrets where you want separation of duties
+- API tokens, signing keys, emergency-access credentials
+- Family / executor planning where no single person holds full access
+- Team secrets that require separation of duties
 
-## Mental model
+The threshold (*k*) is the number of shares needed to recover; the share count (*n*) is the number you create. Limits: `1 <= k <= n <= 255`. Fewer than *k* shares do not reveal the secret contents, but packets expose metadata such as threshold and payload length. Losing too many shares makes recovery impossible.
 
-You pick a threshold (*k* of *n*):
+Common starting points are 2 of 3 for personal recovery and 3 of 5 for teams. Pick a plan people can execute under stress.
 
-- Fewer than *k* shares: reconstruction is impossible (and they don't reveal the secret).
-- Any *k* shares: reconstruction succeeds.
+## Choose an interface
 
-Limits: `1 <= k <= n <= 255`. If you lose shares until fewer than *k* remain, recovery is impossible.
+- **Web UI**: text workflows, processed locally in your browser via WASM.
+- **CLI** (`safeparts`): scripts and operator-approved automation.
+- **TUI** (`safeparts-tui` or `safeparts tui`): interactive terminal workflows.
+- **Rust crate** (`safeparts_core`) and **WASM bindings** (`safeparts_wasm`): integration APIs.
 
-If you want reasonable defaults:
+The CLI and TUI support Linux, macOS, and Windows. Desktop applications are retired; see [existing desktop users](#existing-desktop-users) for supported recovery tools.
 
-- Personal recovery: `k=2, n=3`
-- Teams: `k=3, n=5`
+## Install
 
-Pick a plan people can execute under stress. If it's too clever, it won't get used.
+Download a CLI/TUI archive from [GitHub Releases](https://github.com/connectedloops/safeparts/releases). Follow the [installation and checksum steps](https://safeparts.netlify.app/help/build-and-run/) before running the binaries. Historical desktop installers remain available but are unsupported.
 
-## What it does (and what it doesn't)
+## CLI quickstart
 
-**Included**
+Run these examples in Bash. **Synthetic practice data only:** substituting real secrets, shares, or passphrases in shell arguments can leave them in shell history.
 
-- Shamir-style secret sharing over `GF(256)` (byte-wise)
-- Integrity check on combine (BLAKE3 tag)
-- Optional passphrase protection (encrypt, then split): Argon2id -> ChaCha20-Poly1305
-- Multiple encodings for the same share packet bytes:
-  - `base64` (`base64url`, no padding)
-  - `base58` (`base58check`)
-  - `mnemo-words` (word-based + CRC16)
-  - `mnemo-bip39` (BIP-39-valid phrases; a share may be multiple phrases separated by `/`)
+```bash
+printf '%s' 'example secret' | safeparts split -k 2 -n 3 -e base64url
+printf '%s\n%s\n' '<share1>' '<share2>' | safeparts combine
+```
 
-The web UI currently offers `base64url` and `mnemo-words`. The CLI/TUI support all encodings.
+For actual material, use controlled files inside an approved temporary setup, verification, or recovery session:
 
-Internally, Safeparts encrypts (optional), appends a BLAKE3 tag, then applies Shamir sharing byte-by-byte. On combine, it reconstructs, checks the tag, and only then decrypts.
+```bash
+safeparts split --in secret.bin -k 2 -n 3 -e base64url --out shares.txt
+safeparts combine --in selected-shares.txt --out recovered.bin
+```
 
-**Not included**
+These commands are not a complete backup procedure. `shares.txt` contains every generated share; `selected-shares.txt` brings recovery shares together. Treat both as sensitive temporary material, not the backup. Distribute shares into separate custody and complete the [saved-backup checkpoint](https://safeparts.netlify.app/help/it-devops-guide/break-glass/#verify-saved-backup) before retiring the working copy and removing temporary aggregates. Keep real recovered bytes out of terminal output.
 
-- Storage. Safeparts won't manage where shares live.
-- Protection against someone who legitimately holds *k* shares.
-- Wallet/seed functionality. Mnemonic shares are an encoding, not wallet seeds.
+For optional passphrase protection, use `--passphrase-file` (`-P`) rather than a shell argument. It removes all trailing CR and LF bytes; use the same input convention for split and recovery. See the [CLI guide](https://safeparts.netlify.app/help/cli/) for byte-preserving recovery caveats.
 
-## Safety rules (please read)
+`split` supports `base64url` (CLI alias: `base64`), `base58check` (alias: `base58`), `mnemo-words`, and `mnemo-bip39`. `combine` auto-detects the encoding when you omit `--encoding`.
 
-If you take one thing from this section: **Recovery shares are as sensitive as the Secret**.
+For the interactive workflow, run `safeparts-tui` in a terminal. Press F1 for help and Ctrl+Q to quit. See the [TUI guide](https://safeparts.netlify.app/help/tui/) for shortcuts.
 
-- Don't paste real Secrets or Recovery shares into chat, tickets, issues, logs, or screenshots.
-- Keep fewer Recovery shares than the Threshold in every account, device, location, administrator domain, and transport channel. Apply this rule to storage and delivery: one provider or administrator must never be able to collect enough Recovery shares to recover the Secret.
-- Write down the runbook: who holds which share, and how to reach them.
-- Do a practice run with a synthetic secret before you rely on a real recovery plan.
-- After any "break-glass" recovery, assume the gathered shares were exposed. Rotate the underlying secret and re-split.
+## Safety
 
-## Interfaces
+Handle recovery shares as carefully as the secret.
 
-Safeparts ships as a few different front-ends over the same core:
+- Don't paste real secrets or shares into chat, tickets, issues, logs, or screenshots.
+- Keep fewer than the threshold number of shares in every account, device, location, administrator domain, and transport channel. Aggregate shares only during approved temporary setup, verification, or recovery sessions.
+- Write down who holds each share and how to reach them.
+- Practice with a synthetic secret, then verify the actual saved custody copies before relying on the backup. If verification fails or policy prevents it, keep the working copy and leave setup incomplete.
+- After emergency recovery, assume the gathered shares were exposed. Rotate the underlying secret and re-split.
 
-- **Web UI** (WASM, runs entirely in your browser; no backend): easiest for one-off workflows.
-- **CLI** (`safeparts`): script-friendly; good for runbooks and automation.
-- **TUI** (`safeparts-tui` or `safeparts tui`): interactive terminal workflow; nice for offline machines.
-- **Rust crate** (`safeparts_core`): core algorithms and packet formats.
-- **WASM bindings** (`safeparts_wasm`): core APIs for the browser app.
-- **Help site**: English and Arabic guidance under `/help/`.
+The web app processes secrets and recovery shares locally in your browser. Use a trusted browser and device; extensions, clipboard sync, and screen recording can still expose sensitive data. Loading the site also requires ordinary network requests. See the [security guide](https://safeparts.netlify.app/help/security/) for boundaries and cleanup limits.
 
-The CLI and TUI support Linux, macOS, and Windows. All desktop applications (Tauri, SwiftUI macOS, and WinUI Windows) are retired. Their source and dedicated UniFFI bridge remain dormant reference, outside supported builds, tests, releases, and feature parity. There is no replacement plan or timeline; a future replacement needs a new decision.
+Safeparts uses Shamir-style sharing over `GF(256)`. Optional passphrase protection uses Argon2id and ChaCha20-Poly1305 before splitting. A BLAKE3 digest detects corruption during recovery; it does not authenticate the sender or prevent replacement with another valid set. See [technical design](https://safeparts.netlify.app/help/technical-design/) for packet metadata and integrity limits.
+
+Safeparts does not store your shares or prevent recovery by someone with enough valid shares and the passphrase, if used. Mnemonic shares are encodings, **not wallet seeds**. The web UI offers `base64url` and `mnemo-words`; CLI/TUI support all four encodings.
 
 ## Rust library
 
-If you want to embed Safeparts in a Rust project, start with `safeparts_core`:
+See the [Rust integration manual](docs/dev/manuals/rust-library.md) for dependency setup. A synthetic round trip:
 
 ```rust
 use safeparts_core::{combine_shares, split_secret, CoreResult};
@@ -101,119 +93,33 @@ fn main() -> CoreResult<()> {
 }
 ```
 
-For text encodings, see `safeparts_core::ascii`, `safeparts_core::mnemo_words`, and `safeparts_core::mnemo_bip39`.
+For text conversion, use `safeparts_core::encoding::{encode_packet, parse_share_packets}`.
 
-## Install
+## Local development and self-hosting
 
-Download a CLI/TUI archive for Linux, macOS, or Windows from GitHub Releases. Supported releases include `safeparts` (CLI) and `safeparts-tui` (terminal UI), not desktop installers. Historical releases remain available unchanged; their desktop assets are unsupported.
-
-Platform-specific steps (and build-from-source notes) live in the docs:
-
-- https://safeparts.netlify.app/help/build-and-run/
-
-## CLI quickstart
-
-Split a secret into 3 shares, requiring any 2 to recover:
+Start with [onboarding](docs/dev/onboarding.md) for prerequisites, pinned tools, and installation side effects. Run the following Bash commands from the repository root after setup:
 
 ```bash
-echo -n "my secret" | safeparts split -k 2 -n 3 -e base64
-```
-
-Combine (paste any *k* shares on stdin):
-
-```bash
-printf "%s\n%s\n" "<share1>" "<share2>" | safeparts combine
-```
-
-Write shares and recovered secret to files:
-
-```bash
-echo -n "my secret" | safeparts split -k 2 -n 3 -e base64 -o shares.txt
-printf "%s\n%s\n" "<share1>" "<share2>" | safeparts combine -o secret.bin
-```
-
-Passphrases (optional):
-
-- Prefer `--passphrase-file` (`-P`) over `--passphrase` (`-p`) in shells that keep history.
-
-```bash
-echo -n "my secret" | safeparts split -k 2 -n 3 -e base64 -P passphrase.txt
-printf "%s\n%s\n" "<share1>" "<share2>" | safeparts combine -P passphrase.txt
-```
-
-Encodings:
-
-- `split` supports: `base64`, `base58`, `mnemo-words`, `mnemo-bip39`
-- `combine` can auto-detect the encoding if you omit `--encoding`
-
-## TUI
-
-Run the interactive terminal UI:
-
-```bash
-safeparts-tui
-```
-
-Or launch it via the CLI:
-
-```bash
-safeparts tui
-```
-
-For shortcuts and an offline workflow, see: https://safeparts.netlify.app/help/tui/
-
-## Existing desktop users
-
-Keep your saved recovery shares and any passphrase. Retirement does not change the Share packet format or require you to split the secret again. Supported tools retain decoding for released Safeparts V1 and V2 shares.
-
-Use the CLI or TUI for all share encodings and exact binary-file recovery. The web app is suitable for text workflows. Gather at least the threshold number of shares from the same set and supply the original passphrase if protection was enabled. Keep originals until you have checked the recovered bytes in your trusted environment; never send shares or passphrases to an issue or support chat.
-
-See the [build and recovery guidance](https://safeparts.netlify.app/help/build-and-run/) and its [Arabic version](https://safeparts.netlify.app/help/ar/build-and-run/). Dormant source is described in [developer reference notices](docs/dev/README.md#dormant-reference). Old native build commands are not supported after workspace exclusion.
-
-## Web UI (local)
-
-The web UI runs split/combine locally in your browser via WASM.
-It does not upload anything unless you choose to copy/paste it elsewhere or deploy a modified build.
-
-```bash
-cd web
-bun install
-bun run build:wasm
-bun run dev
+(cd web && bun run build:wasm && bun run dev)
 ```
 
 Open http://localhost:5173.
 
-## Web UI + docs (Docker)
+### Help development
 
-This self-hosting route builds the static Web app and bilingual help site into an unprivileged Nginx image. It is separate from hosted-provider deployment and does not add a backend: Secrets and Recovery shares stay in the browser.
-
-Run these commands from the repository root:
+From the repository root, after installing help dependencies:
 
 ```bash
-docker build --pull --tag safeparts-webui --file web/Dockerfile .
-docker run --detach --name safeparts-web --publish 8080:8080 safeparts-webui
-docker inspect --format '{{.State.Health.Status}}' safeparts-web
-curl --fail --silent --show-error http://localhost:8080/healthz >/dev/null
+(cd web/help && bun run dev)
 ```
 
-Open http://localhost:8080. English help is at http://localhost:8080/help/, and Arabic help is at http://localhost:8080/help/ar/.
+Open http://localhost:4321/help/. A standalone help build writes only `web/dist/help/`. For the app and bilingual help together, run `mise run web:build:site` from the root. Do not run the standalone app build afterward: it clears the help output.
 
-Run `bash web/tests/container-smoke.sh` for the same local route and header checks used by CI. See [the Docker self-hosting guide](docs/deployment/docker.md) for verification and cleanup commands.
+### Docker self-hosting
 
-Docs site (served under `/help/`):
+The [Docker guide](docs/deployment/docker.md) covers building the static app and bilingual help into an unprivileged Nginx image, checking health and routes, and cleanup. Self-hosting does not add a secret-processing backend.
 
-```bash
-cd web/help
-bun install
-bun run dev
-```
-
-Open http://localhost:4321/help/.
-
-## Development
-
-Rust (matches CI):
+### Basic Rust checks
 
 ```bash
 cargo fmt --all -- --check
@@ -221,50 +127,24 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-features
 ```
 
-Web a11y tests (Playwright + axe):
+These are not the full CI suite. See [verification](docs/dev/verification.md) for `mise run verify`, independent RustSec checks, browser test setup, and additional gates. The [developer index](docs/dev/README.md) maps supported surfaces and repository structure.
 
-```bash
-cd web
-bun install
-bun run test:a11y:install
-bun run test:a11y
-```
+## Existing desktop users
 
-## Repo layout
+Keep your saved recovery shares and any passphrase. Retirement does not change the share packet format or require re-splitting. Supported tools retain decoding for released Safeparts V1 and V2 shares.
 
-- `crates/safeparts_core/`: core algorithms, packet format, encodings, crypto
-- `crates/safeparts/`: CLI wrapper (binary: `safeparts`)
-- `crates/safeparts_tui/`: terminal UI (binary: `safeparts-tui`)
-- `crates/safeparts_wasm/`: wasm-bindgen exports used by the web UI
-- `crates/safeparts_uniffi/`: dormant UniFFI bridge for retired native apps
-- `web/`: Vite + React app
-- `web/help/`: Astro + Starlight docs
-- `desktop/`: dormant Tauri + React reference source
-- `macos/`: dormant SwiftUI reference source
-- `windows/`: dormant WinUI reference source, model, bindings, and tests
-- `mobile/`: dormant prototype artifacts
+Use CLI/TUI file output for all encodings and exact binary recovery; use the web app for text workflows. Keep originals until you have checked the recovered bytes in a trusted environment. Never send shares or passphrases to support.
+
+See the [retired-desktop recovery notice](https://safeparts.netlify.app/help/desktop/) ([Arabic](https://safeparts.netlify.app/help/ar/desktop/)) and [dormant source references](docs/dev/README.md#dormant-reference). There is no replacement plan or timeline.
+
+## Contributing
+
+Start with an issue to agree on scope and acceptance criteria. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and checks.
 
 ## Stewardship
 
 Safeparts was created by [Mustafa Mohsen](https://github.com/mustafamohsen) and is maintained under the [Connected Loops](https://github.com/connectedloops) GitHub organization.
 
-## Contributing
-
-Contributions are welcome.
-Start with an issue so we can agree on scope, direction, and acceptance criteria before writing code.
-
-Workflow:
-
-1. Open or pick an issue.
-2. Fork the repo.
-3. Create a dedicated branch (e.g. `feat/<short-slug>` or `fix/<short-slug>`).
-4. Make changes and run checks:
-   - `cargo fmt --all`
-   - `cargo clippy --all-targets --all-features -- -D warnings`
-   - `cargo test --all-features`
-   - `cd web && bun run test:a11y` (if you touched the web/docs)
-5. Open a PR and link the issue (e.g. "Fixes #123").
-
 ## License
 
-MIT. See LICENSE.
+MIT. See [LICENSE](LICENSE).
