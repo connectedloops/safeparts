@@ -12,6 +12,8 @@ node = "22.12.0"
 "cargo:cargo-llvm-cov" = "0.9.0"
 "cargo:cargo-audit" = "0.22.2"
 "aqua:rhysd/actionlint" = "1.7.12"
+# Local supported dependency reports; keep in sync with dependency_scan.py.
+"aqua:aquasecurity/trivy" = "0.74.0"
 
 [env]
 # Keep tool output readable in local terminals and CI logs.
@@ -57,6 +59,10 @@ run = "python3 scripts/dev/rust_coverage.py"
 description = "Enforce the reviewed RustSec dependency policy."
 run = "python3 scripts/dev/rustsec_audit.py"
 
+[tasks."security:scan"]
+description = "Report supported locked dependencies against a current vulnerability database."
+run = "python3 scripts/dev/dependency_scan.py"
+
 [tasks.check]
 description = "Run Rust format, lint, and tests."
 depends = ["verify:rust"]
@@ -76,6 +82,7 @@ run = [
   "python3 scripts/dev/test_ci_triggers.py",
   "python3 scripts/dev/test_rust_coverage.py",
   "python3 scripts/dev/test_rustsec_audit.py",
+  "python3 scripts/dev/test_dependency_scan.py",
   "python3 scripts/dev/test_workflow_policy.py",
   "python3 scripts/dev/test_merge_gate.py",
   "python3 scripts/dev/workflow_policy.py",

@@ -28,8 +28,13 @@ mise run doctor
 mise run dx:verify
 mise run coverage
 mise run audit
+mise run security:scan
 mise run workflow:check
 ```
+
+## Dependency reports
+
+`mise run security:scan` checks the explicit supported Cargo, web and help graphs with development dependencies included. It writes JSON and a summary under `target/security/supported/`. See [dependency scans](../../docs/dev/dependency-scans.md) for prerequisites, freshness, exit codes and the separate retired-source inventory command. Run `python3 scripts/dev/test_dependency_scan.py` for offline orchestration fixtures. The RustSec audit remains independent.
 
 ## Changelog snapshots
 
