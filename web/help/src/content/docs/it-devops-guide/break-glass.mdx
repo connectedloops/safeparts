@@ -38,19 +38,19 @@ This checkpoint applies to personal backups too. A synthetic drill teaches the p
 
 ### Prepare the session
 
-- [ ] Approve a short session on a trusted, access-restricted machine, offline where practical. If policy cannot permit it, keep the working copy and leave setup incomplete until a safe procedure is approved.
-- [ ] Use a private workspace on encrypted temporary storage, outside sync and backup folders.
-- [ ] Disable shell tracing, session recording, screen capture, and clipboard history. Do not use shared CI, support tools, or online comparison services.
-- [ ] Read back the files actually exported to custody media, or transcribe the actual paper or metal copies. Do not use only the original in-memory split output or aggregate export. Exercise each custody copy of each share in turn.
-- [ ] Keep the source secret unchanged in a separate private file for comparison.
+- Approve a short session on a trusted, access-restricted machine, offline where practical. If policy cannot permit it, keep the working copy and leave setup incomplete until a safe procedure is approved.
+- Use a private workspace on encrypted temporary storage, outside sync and backup folders.
+- Disable shell tracing, session recording, screen capture, and clipboard history. Do not use shared CI, support tools, or online comparison services.
+- Read back the files actually exported to custody media, or transcribe the actual paper or metal copies. Do not use only the original in-memory split output or aggregate export. Exercise each custody copy of each share in turn.
+- Keep the source secret unchanged in a separate private file for comparison.
 
 ### Recover and compare each selection
 
-- [ ] Bring together exactly the threshold number of distinct shares from the same split. This is approved temporary aggregation, not a storage plan.
-- [ ] Retrieve the intended passphrase through its separate recovery path, if used. Keep passphrase protection intact.
-- [ ] Use CLI file input and `--out` to a fresh private file, not terminal output. Never overwrite the source.
-- [ ] Compare exact bytes locally. In a Unix-like environment, `cmp -s source.bin recovered.bin` returns 0 for identical files, 1 for different files, and another status for an error. Only 0 passes. For Windows, use the [Python comparison procedure](#windows-byte-comparison) below.
-- [ ] Record only the result, non-sensitive share identifiers, approvals, and time. Do not open the recovered file for visual inspection or print, log, screenshot, or upload secrets, shares, passphrases, recovered bytes, or hashes.
+- Bring together exactly the threshold number of distinct shares from the same split. This is approved temporary aggregation, not a storage plan.
+- Retrieve the intended passphrase through its separate recovery path, if used. Keep passphrase protection intact.
+- Use CLI file input and `--out` to a fresh private file, not terminal output. Never overwrite the source.
+- Compare exact bytes locally. In a Unix-like environment, `cmp -s source.bin recovered.bin` returns 0 for identical files, 1 for different files, and another status for an error. Only 0 passes. For Windows, use the [Python comparison procedure](#windows-byte-comparison) below.
+- Record only the result, non-sensitive share identifiers, approvals, and time. Do not open the recovered file for visual inspection or print, log, screenshot, or upload secrets, shares, passphrases, recovered bytes, or hashes.
 
 ### Cover every saved share
 
@@ -62,7 +62,7 @@ First verify shares 1 through <var>k</var>. Keep the first <var>k</var> minus 1 
 | 3 of 5 | 1/2/3, then 1/2/4, then 1/2/5 |
 | 1 of <var>n</var> | Each share alone |
 
-- [ ] Exercise every share intended for custody, including each saved copy.
+- Exercise every share intended for custody, including each saved copy.
 
 One passing subset says nothing about untested shares. These checks exercise every saved share, not every possible combination, and do not prove future readability.
 
@@ -70,18 +70,18 @@ One passing subset says nothing about untested shares. These checks exercise eve
 
 Stop on any read error, combine failure, wrong passphrase, byte mismatch, or comparison error.
 
-- [ ] Keep the known-good working copy. Correct the saved copy or recreate the backup from the source, then repeat the full checkpoint with corrected saved material.
-- [ ] Keep passphrase protection intact; do not bypass it to make a check pass.
-- [ ] For a recreated split, make fresh custody copies. Retire superseded shares only after the replacement passes.
-- [ ] Before leaving the failed session, perform the cleanup below while preserving the known-good source.
+- Keep the known-good working copy. Correct the saved copy or recreate the backup from the source, then repeat the full checkpoint with corrected saved material.
+- Keep passphrase protection intact; do not bypass it to make a check pass.
+- For a recreated split, make fresh custody copies. Retire superseded shares only after the replacement passes.
+- Before leaving the failed session, perform the cleanup below while preserving the known-good source.
 
 ### Restore custody and clean up
 
-- [ ] Return custody media to separate holders. Remove temporary selections, aggregate exports, recovered files, and temporary passphrase copies.
-- [ ] Clear clipboard history and close verification tools.
-- [ ] Use the approved encrypted-workspace disposal procedure. File deletion alone does not guarantee erasure on SSDs, snapshots, or backups.
-- [ ] Confirm that no account, device, administrator domain, or transport channel retains enough shares to recover. Keep the passphrase on its separate custody path.
-- [ ] Only after successful verification and cleanup, retire the source working copy under policy.
+- Return custody media to separate holders. Remove temporary selections, aggregate exports, recovered files, and temporary passphrase copies.
+- Clear clipboard history and close verification tools.
+- Use the approved encrypted-workspace disposal procedure. File deletion alone does not guarantee erasure on SSDs, snapshots, or backups.
+- Confirm that no account, device, administrator domain, or transport channel retains enough shares to recover. Keep the passphrase on its separate custody path.
+- Only after successful verification and cleanup, retire the source working copy under policy.
 
 Verification necessarily exposes the Secret and a Threshold-sized selection inside the controlled session. If that environment or its cleanup is suspect, treat the Secret as exposed, rotate it, and verify a fresh backup. Routine synthetic drills remain useful after setup, but never replace this checkpoint for a new or rewritten backup.
 

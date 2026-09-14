@@ -16,6 +16,7 @@ Owns the Astro + Starlight documentation site served under `/help/` in English a
 - Apply the `humanizer` skill before finalizing edits to user-facing docs.
 - Keep English and Arabic documentation structures aligned when changing navigation or core user guidance.
 - Preserve the `/help/` base path behavior.
+- Ordinary references and social links stay in the current tab. App-entry links keep opener isolation and explicitly announce a new tab in visible and accessible English/Arabic labels; set attributes at the link, not with a global URL-rewriting script.
 - Keep the explicit remark Markdown processor and HTML-aware compression when upgrading Astro; defaults differ in Astro 7. For dependency changes, read `../../docs/dev/surfaces/help-dependencies.md` for compatibility constraints, exposure assessment, and the all-severity scan including development dependencies.
 - English/Arabic `changelog.md` pages are tracked generated Markdown, not hand-maintained MDX. Regenerate them with root `CHANGELOG.md` through `mise run changelog:generate`; see `scripts/dev/README.md#changelog-snapshots`. Preserve full history in both locales and original commit wording; localize only fixed presentation text.
 - Keep `/help/desktop/` and `/help/ar/desktop/` as retirement/recovery notices, outside supported-interface navigation. Recommend web for UTF-8 text and CLI/TUI file output for exact bytes; retain shares/passphrases and verify saved recovery before relying on a new tool. Historical GUI installers are unsupported, with no replacement promise.

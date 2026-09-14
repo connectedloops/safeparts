@@ -69,6 +69,10 @@ Lowercase common concepts in running prose: secret, recovery share, threshold, s
 - Use `dir="ltr"` in Arabic pages for command names, encodings, equations, and code-like tokens.
 - Use inline code only for code, commands, file paths, APIs, and package names.
 
+## Links
+
+Keep ordinary references in the current tab. App-entry links open a new tab to preserve the current page; include a visible, localized new-tab notice and `rel="noopener noreferrer"` on those links. Accessible names must include the notice too.
+
 ## Bilingual parity
 
 - Keep a 1:1 file map: `docs/<slug>.mdx` and `docs/ar/<slug>.mdx`; generated changelogs use matching `.md` files.

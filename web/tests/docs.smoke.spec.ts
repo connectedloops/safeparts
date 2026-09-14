@@ -45,7 +45,7 @@ test.describe('Docs Accessibility Smoke @smoke', () => {
   test('English custody guidance covers every storage and transport boundary', async ({ page }) => {
     await page.goto('/help/security/')
     await expect(page.locator('main')).toContainText(
-      'Keep fewer Recovery shares than the Threshold in every account, device, location, administrator domain, and transport channel.',
+      'Keep fewer recovery shares than the threshold in every account, device, location, administrator domain, and transport channel.',
     )
   })
 
