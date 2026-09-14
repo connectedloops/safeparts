@@ -19,6 +19,7 @@ Historical entries describe support at the time of each change, not current inst
 
 ### Fixes
 
+- fix&#40;help&#41;&#58; localize app links and make new&#45;tab navigation explicit ([3ebd0de](https://github.com/connectedloops/safeparts/commit/3ebd0de97addf1405f3e0c8ef76d3e43a0e4def5))
 - fix&#40;web&#41;&#58; refresh compatible nested dependencies for &#35;122 ([a7efcab](https://github.com/connectedloops/safeparts/commit/a7efcabd4f17f406d634061ce35daa03fc38a062))
 - fix&#40;security&#41;&#58; reconcile all Bun advisory identities ([6f89cb3](https://github.com/connectedloops/safeparts/commit/6f89cb37fbee65df6214fdda6569949239c506e9))
 - fix&#40;web&#41;&#58; remediate development dependency vulnerabilities ([473d6c8](https://github.com/connectedloops/safeparts/commit/473d6c85f2326bbe13ccc8e21cdafa2ca092219a))
@@ -44,6 +45,15 @@ Historical entries describe support at the time of each change, not current inst
 
 ### Documentation
 
+- docs&#58; reconcile scan guidance after main rebase ([81a2c6e](https://github.com/connectedloops/safeparts/commit/81a2c6e22669c6b21058647ff455622bb75434c3))
+- docs&#58; complete dependency setup without mise ([c10818c](https://github.com/connectedloops/safeparts/commit/c10818cbba71077d5450503ad41935b5dc9b0c8e))
+- docs&#40;help&#41;&#58; distinguish theft exposure from outage tolerance ([fd6bbfc](https://github.com/connectedloops/safeparts/commit/fd6bbfc41067e55379dc6d32d6f01a35c71933b7))
+- docs&#40;help&#41;&#58; finish Arabic terminology and inline direction guidance ([39eff22](https://github.com/connectedloops/safeparts/commit/39eff22790479093b33803b20ab05d582c33f129))
+- docs&#40;changelog&#41;&#58; frame generated history with current support links ([f6c904b](https://github.com/connectedloops/safeparts/commit/f6c904b62f27892b37420ee9ef27d389688d3ab4))
+- docs&#58; correct machine references and supporting policies ([123e845](https://github.com/connectedloops/safeparts/commit/123e845acae5cb417d7681f2864875785c763491))
+- docs&#58; reconcile developer setup and verification references ([070b7e5](https://github.com/connectedloops/safeparts/commit/070b7e5a787ac4c767e1dc64529d736faa032888))
+- docs&#58; align bilingual recovery safety and operator guidance ([c3d6d11](https://github.com/connectedloops/safeparts/commit/c3d6d11491d3a3bcc15eaf743d4c3597a4d452f1))
+- docs&#58; simplify the README and clarify recovery safety ([4cd446e](https://github.com/connectedloops/safeparts/commit/4cd446e84575215822a1e2df8c5665eb43cc0ae2))
 - docs&#58; retire desktop application guidance &#40;&#35;97&#41; ([4c2c317](https://github.com/connectedloops/safeparts/commit/4c2c31720f3c22d6151cebfa944c1c046d37ee2d))
 - docs&#58; define supported surfaces and retire native implementation plan &#40;&#35;97&#41; ([d13dd8a](https://github.com/connectedloops/safeparts/commit/d13dd8a6f54e71f2d12894e42d0f375cf25f0511))
 - docs&#40;recovery&#41;&#58; require saved&#45;backup verification checkpoint &#40;&#35;95&#41; ([b5768e5](https://github.com/connectedloops/safeparts/commit/b5768e5d26d861875ed42043681e96f5df290e53))
