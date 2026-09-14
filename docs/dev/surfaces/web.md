@@ -34,6 +34,10 @@ It owns:
 - Threshold and Share count select their current value on coarse-pointer focus only while that input remains connected and focused. Fine-pointer focus keeps native caret behavior. `web/tests/split-touch-focus.e2e.spec.ts` covers replacement, blur/unmount, steppers, bounds, result invalidation, and English/Arabic layouts.
 - Treat the tested `web/dist` plus help output as one release unit. Netlify and Cloudflare must consume the retained artifact instead of rebuilding source.
 
+## Dependency updates
+
+Read [the web dependency review](web-dependencies.md) before changing build or provider tools. Use the pinned Node runtime for provider commands and keep local and active CI pins synchronized. Preserve the separate help dependency graph and Vite's browser targets.
+
 ## Useful checks
 
 For a complete static site, run `mise run web:build:site` or `bash web/scripts/build-site.sh` from the repository root. It builds the app before help and checks the final routes. The standalone app build below clears `web/dist/`, including any help output. See [output semantics](../verification.md#output-semantics).

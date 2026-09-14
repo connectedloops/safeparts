@@ -59,7 +59,7 @@ python3 web/scripts/deploy-artifact.py prepare \
   --source-commit "$(git rev-parse HEAD)" \
   --rust-version 1.93.0 \
   --bun-version 1.3.11 \
-  --node-version 22.12.0 \
+  --node-version 22.13.0 \
   --wasm-pack-version 0.15.0 \
   --wasm-bindgen-version 0.2.108
 mkdir -p target/web-deploy/site

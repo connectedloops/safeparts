@@ -62,7 +62,7 @@ class DeployArtifactTests(unittest.TestCase):
                 "--bun-version",
                 "1.3.11",
                 "--node-version",
-                "22.12.0",
+                "22.13.0",
                 "--wasm-pack-version",
                 "0.15.0",
                 "--wasm-bindgen-version",
@@ -80,7 +80,7 @@ class DeployArtifactTests(unittest.TestCase):
             metadata = json.loads((site / "safeparts-build" / "metadata.json").read_text())
             self.assertEqual(SOURCE_COMMIT, metadata["sourceCommit"])
             self.assertEqual("1.93.0", metadata["tools"]["rust"])
-            self.assertEqual("22.12.0", metadata["tools"]["node"])
+            self.assertEqual("22.13.0", metadata["tools"]["node"])
             self.assertEqual(hashlib.sha256(manifest.encode()).hexdigest(), metadata["contentDigest"])
             self.assertEqual(
                 (site / "safeparts-build" / "metadata.json").read_bytes(),
@@ -114,7 +114,7 @@ class DeployArtifactTests(unittest.TestCase):
                 "--bun-version",
                 "1.3.11",
                 "--node-version",
-                "22.12.0",
+                "22.13.0",
                 "--wasm-pack-version",
                 "0.15.0",
                 "--wasm-bindgen-version",
@@ -149,7 +149,7 @@ class DeployArtifactTests(unittest.TestCase):
                 "--bun-version",
                 "1.3.11",
                 "--node-version",
-                "22.12.0",
+                "22.13.0",
                 "--wasm-pack-version",
                 "0.15.0",
                 "--wasm-bindgen-version",
@@ -185,7 +185,7 @@ class DeployArtifactTests(unittest.TestCase):
                 "--bun-version",
                 "1.3.11",
                 "--node-version",
-                "22.12.0",
+                "22.13.0",
                 "--wasm-pack-version",
                 "0.15.0",
                 "--wasm-bindgen-version",
@@ -243,7 +243,7 @@ class DeployArtifactTests(unittest.TestCase):
                 "--bun-version",
                 "1.3.11",
                 "--node-version",
-                "22.12.0",
+                "22.13.0",
                 "--wasm-pack-version",
                 "0.15.0",
                 "--wasm-bindgen-version",
@@ -306,7 +306,7 @@ class DeployArtifactTests(unittest.TestCase):
                 "--bun-version",
                 "1.3.11",
                 "--node-version",
-                "22.12.0",
+                "22.13.0",
                 "--wasm-pack-version",
                 "0.15.0",
                 "--wasm-bindgen-version",
@@ -360,7 +360,7 @@ class DeployArtifactTests(unittest.TestCase):
                 "--bun-version",
                 "1.3.11",
                 "--node-version",
-                "22.12.0",
+                "22.13.0",
                 "--wasm-pack-version",
                 "0.15.0",
                 "--wasm-bindgen-version",
@@ -429,7 +429,7 @@ class DeployArtifactTests(unittest.TestCase):
                 "--bun-version",
                 "1.3.11",
                 "--node-version",
-                "22.12.0",
+                "22.13.0",
                 "--wasm-pack-version",
                 "0.15.0",
                 "--wasm-bindgen-version",
@@ -482,7 +482,7 @@ class DeployArtifactTests(unittest.TestCase):
                 "--bun-version",
                 "1.3.11",
                 "--node-version",
-                "22.12.0",
+                "22.13.0",
                 "--wasm-pack-version",
                 "0.15.0",
                 "--wasm-bindgen-version",
@@ -705,8 +705,17 @@ class WorkflowPolicyTests(unittest.TestCase):
         self.assertIn('"directory": "web/dist"', wrangler)
 
         package = json.loads((REPO_ROOT / "web" / "package.json").read_text(encoding="utf-8"))
-        self.assertEqual("27.4.1", package["devDependencies"]["netlify-cli"])
-        self.assertEqual("4.127.1", package["devDependencies"]["wrangler"])
+        self.assertEqual("27.5.2", package["devDependencies"]["netlify-cli"])
+        self.assertEqual("4.131.0", package["devDependencies"]["wrangler"])
+
+    def test_provider_node_runtime_matches_local_and_artifact_pins(self) -> None:
+        # Netlify CLI 27 requires Node >=22.13.0, including no-build deploys.
+        tools = tomllib.loads((REPO_ROOT / "mise.toml").read_text())["tools"]
+        self.assertEqual("22.13.0", tools["node"])
+        workflow = WEB_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn(f"NODE_VERSION: '{tools['node']}'", workflow)
+        setup_versions = re.findall(r"node-version: '([^']+)'", workflow)
+        self.assertEqual([tools["node"]] * 3, setup_versions)
 
 
 if __name__ == "__main__":
