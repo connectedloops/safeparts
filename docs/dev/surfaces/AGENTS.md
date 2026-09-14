@@ -11,6 +11,7 @@ Owns focused contributor guides for each Safeparts surface.
 - `tui.md`: terminal UI workflow and interaction rules.
 - `wasm.md`: wasm-bindgen boundary consumed by the web app.
 - `web.md`: Vite/React app, WASM package boundary, and browser checks.
+- `web-dependencies.md`: main-web dependency compatibility, provider runtime requirements, exposure review and scan reproduction.
 - `desktop.md`: retired Tauri source notice and recovery pointers.
 - `help-docs.md`: Astro/Starlight help-site contributor notes.
 - `help-dependencies.md`: help dependency compatibility, exposure review, and scan reproduction.
