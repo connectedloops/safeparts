@@ -28,6 +28,12 @@ All severities, including unknown severity and findings without fixes, count. De
 
 The script clears `TRIVY_*` environment settings and supplies an empty configuration and ignore file from its temporary working directory. Repository or personal Trivy filters, VEX settings and advisory ignore files do not change this gate. It has no advisory suppression list or severity threshold.
 
+## Known Bun identity limitation
+
+Main currently passes Bun lockfiles to Trivy's native parser. The documentation audit found that nested Bun lock keys can be misidentified as package names. Inventory-presence checks do not reconcile those identities against every lock record, so a completed or zero-finding Bun scan is not proof of complete advisory coverage. [#122](https://github.com/connectedloops/safeparts/issues/122) tracks the scanner correction; it is not present on main.
+
+Distinguish lock records, correctly resolved name/version identities, and advisory occurrences. Preserve the raw evidence and manually review identities when evaluating Bun findings. Do not suppress development dependencies to reduce counts. This limitation does not change command exit semantics or replace the independent RustSec audit.
+
 ## Database and artifacts
 
 Each invocation runs Trivy's database update check using a scope-specific cache. Trivy can reuse a database until its published `NextUpdate`; this is not a forced download on every invocation. The script requires database schema 2, `UpdatedAt` at or before the current UTC time, and `NextUpdate` after it. Missing, expired or future-dated metadata and update failures exit 2. Keep your system clock correct. After that check, the scan uses the same database with updates disabled.
@@ -44,7 +50,7 @@ Run one invocation per scope at a time. Each run replaces that scope's reports a
 
 | Exit | Meaning |
 | --- | --- |
-| `0` | Every selected graph scanned successfully with no vulnerability findings. Retired coverage gaps still apply. |
+| `0` | Scanner and orchestration checks completed with no reported findings. The Bun identity limitation and retired coverage gaps still apply. |
 | `1` | The scan completed and found one or more vulnerabilities at any severity. |
 | `2` | The scan did not complete reliably: tool/version, input, resolution, database, timeout, scanner output or report-writing failure. |
 

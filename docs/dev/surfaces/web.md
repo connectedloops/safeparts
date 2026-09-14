@@ -3,62 +3,49 @@
 Owner: `web/`
 Nearest contracts: [`web/AGENTS.md`](../../../web/AGENTS.md), [`web/src/AGENTS.md`](../../../web/src/AGENTS.md)
 
-## What belongs here
+The Vite + React app owns browser interaction, English/Arabic presentation, accessibility, and WASM integration. Split and combine run locally through core/WASM; there is no backend for secrets.
 
-The web app is a Vite + React browser UI. Split and combine run locally through WASM. There is no backend for secrets.
+## Forms and results
 
-It owns:
+- Build WASM before expecting split/combine to work. Keep generated modules and application boundaries typed.
+- Keep sensitive state in memory. Invalidate stale results when inputs change; pending operations must not restore invalidated output.
+- Render complete, selectable results immediately, preserving Unicode and whitespace. Copy from result state, not presentation markup. Split copies only individual shares.
+- Preserve keyboard access, localized labels, and safe announcements without sensitive contents.
+- Keep browser writing-assistance restrictions on all sensitive fields. They cannot guarantee trustworthy extensions, provider features, or clipboard handling.
 
-- React UI and browser interaction
-- i18n and RTL behavior
-- accessibility behavior
-- WASM package integration
-- browser smoke and accessibility tests
+The [source contract](../../../web/src/AGENTS.md) owns detailed state and input rules. Its linked tests cover exact Selection/clipboard output, synthetic 4 KiB input, both locales and motion preferences, and coarse-pointer numeric focus.
 
-## Change rules
+## Recovery errors
 
-- Run `bun run build:wasm` before expecting split/combine to work locally.
-- Keep Recovery share and Secret handling in memory. Do not add server calls for Split or Combine.
-- Keep the changelog link in the footer rather than primary navigation. It follows the help URL and opens a separate, opener-isolated tab without discarding form input.
-- Remove generated Recovery shares as soon as the Secret, Threshold, Share count, Share encoding, or Passphrase protection changes. A pending Split must not restore an invalid result.
-- Render Recovery shares and recovered Secrets as complete text on the first result render. Preserve Unicode and whitespace, and keep each value selectable exactly once. Reserve character animation for branding.
-- Copy from result state. The recovered-Secret shortcut activates the same `CopyButton` as a click through `data-shortcut="copy-result"`; it does not read presentation markup. Split has only individual Recovery-share Copy buttons.
-- Preserve keyboard access and labels when changing forms. Result text stays accessible outside live regions. Announce success or the Recovery share count without Secret or Recovery share contents.
-- Test actual browser Selection and clipboard writes, including a synthetic 4 KiB Secret, both languages, and both motion preferences in `web/tests/readable-output.e2e.spec.ts`.
-- Explicitly disable spellchecking, autocorrection, and autocapitalization on Secret, Recovery-share, and passphrase inputs in both languages, including dynamically added fields. Preserve entered text. These browser requests cannot guarantee safe extensions, provider features, or clipboard handling; see the English/Arabic security help.
-- Derive cheap values during render. Use memoization only when computation cost or reference identity requires it.
-- Keep generated modules and application boundaries typed instead of using file-wide type-check suppressions or `any` casts.
-- Use local browser automation through the project browser tooling for manual checks. Playwright remains the CI runner.
-- Recovery errors use the [WASM error contract](wasm.md#recovery-error-contract) and English/Arabic guidance. Recovery-share fields have distinct localized names that follow visible numbering. Unknown failures use a safe localized fallback; invalid UTF-8 keeps its separate file-recovery guidance.
-- Supported web changes do not require updates to retired application sources. There is no desktop parity gate.
-- Threshold and Share count select their current value on coarse-pointer focus only while that input remains connected and focused. Fine-pointer focus keeps native caret behavior. `web/tests/split-touch-focus.e2e.spec.ts` covers replacement, blur/unmount, steppers, bounds, result invalidation, and English/Arabic layouts.
-- Treat the tested `web/dist` plus help output as one release unit. Netlify and Cloudflare must consume the retained artifact instead of rebuilding source.
+Use the [WASM error contract](wasm.md#recovery-error-contract), not exception prose. Keep distinct localized field names and safe fallback guidance. Invalid UTF-8 requires separate exact-file recovery guidance; never display lossy text as the recovered secret.
 
 ## Dependency updates
 
 Read [the web dependency review](web-dependencies.md) before changing build or provider tools. Use the pinned Node runtime for provider commands and keep local and active CI pins synchronized. Preserve the separate help dependency graph and Vite's browser targets.
 
-## Useful checks
+## Navigation and packaging
 
-For a complete static site, run `mise run web:build:site` or `bash web/scripts/build-site.sh` from the repository root. It builds the app before help and checks the final routes. The standalone app build below clears `web/dist/`, including any help output. See [output semantics](../verification.md#output-semantics).
+Keep the changelog in the footer. Help/changelog links preserve the app session in an opener-isolated tab. Supported web changes do not require retired-app parity; see [dormant references](../README.md#dormant-reference).
+
+Treat the tested `web/dist` app/help output as one release unit. Netlify and Cloudflare consume the retained artifact without rebuilding source.
+
+## Verification
+
+Complete [onboarding](../onboarding.md#2-install-tools) first. From the repository root, `mise run web:build:site` builds the app before help and checks required output routes. Standalone app builds clear existing help; see [output semantics](../verification.md#output-semantics).
+
+Focused checks from `web/`:
 
 ```bash
-cd web
-bun install --frozen-lockfile
 bun run build:wasm
 bun run typecheck
-bun run build
 bun run test:wasm
-bun run test:e2e:full
 python3 ../scripts/dev/test_web_deploy.py
 ```
 
-Use the credential-free package and dry-run commands in the [Web artifact deployment guide](../../deployment/web-artifact.md) before changing provider configuration.
+The **development-server automated suite**, `bun run test:e2e:full`, starts Vite/Astro unless `PLAYWRIGHT_BASE_URL` is set. Install Chromium once with `bun run test:a11y:install`. Use the [built-site recipe](../verification.md#built-site-browser-suite) to test the combined artifact instead.
+
+Use local browser tooling for manual smoke checks; Playwright remains the automated CI runner. Before changing provider configuration, use the credential-free package checks in the [deployment guide](../../deployment/web-artifact.md).
 
 ## When web changes
 
-Update:
-
-- [`docs/dev/feature-matrix.md`](../feature-matrix.md)
-- `web/tests/` for stable workflow changes
-- help docs only when user-facing guidance changes and the task includes that scope
+Update [feature coverage](../feature-matrix.md), owning contracts, and stable browser tests. Update help when user guidance changes and the task includes that scope.

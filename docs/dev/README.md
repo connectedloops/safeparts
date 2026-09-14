@@ -5,24 +5,8 @@ Start here when you work on Safeparts as a contributor or maintainer.
 ## Quick path
 
 1. Read the root [`AGENTS.md`](../../AGENTS.md) and the nearest child `AGENTS.md` for the files you will touch.
-2. Install tools with `mise install` if you use mise.
-3. Install project dependencies:
-
-   ```bash
-   mise run setup
-   ```
-
-4. Check your local environment:
-
-   ```bash
-   mise run doctor
-   ```
-
-5. Run the checks for your change. The full local gate is:
-
-   ```bash
-   mise run verify
-   ```
+2. Follow [onboarding](onboarding.md#2-install-tools) for prerequisites and setup.
+3. Run the checks for your change, then the [local aggregate gate](verification.md#one-command-checks) when practical. The verification guide also lists checks outside `mise run verify`.
 
 ## What to read
 
@@ -37,11 +21,6 @@ Start here when you work on Safeparts as a contributor or maintainer.
 - [Branch protection rollout](branch-protection.md): prepared merge-gate rule, rollout, rollback, and changelog-writer options.
 - [Troubleshooting](troubleshooting.md): local setup and build fixes.
 
-## Manuals
-
-- [Rust library integration](manuals/rust-library.md)
-- [CLI automation](manuals/cli-automation.md)
-
 ## Surface guides
 
 - [Core library](surfaces/core.md)
@@ -54,7 +33,7 @@ Start here when you work on Safeparts as a contributor or maintainer.
 
 ## Dormant reference
 
-These sources are outside supported builds, tests, packaging, and parity maintenance. Existing native commands are not supported after workspace exclusion. There is no replacement plan or timeline; a replacement requires a new decision. CLI/TUI archives continue to support Linux, macOS, and Windows.
+These sources are unsupported reference, outside active builds, tests, packaging, and parity. See the linked notices for boundaries and recovery guidance. CLI/TUI support on Linux, macOS, and Windows continues.
 
 - [Retired Tauri application](surfaces/desktop.md)
 - [Retired SwiftUI application](surfaces/macos.md)

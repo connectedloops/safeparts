@@ -5,7 +5,7 @@ Nearest contracts: [docs AGENTS](../AGENTS.md), [developer docs AGENTS](AGENTS.m
 
 ## Current boundary
 
-The repository now has an always-reporting PR check named `verification gate`. It runs on every `pull_request`, even when path-filtered Rust or Web workflows do not start. The gate requires:
+The repository has an always-reporting PR check named `verification gate`. It runs on every `pull_request`, even when path-filtered Rust or Web workflows do not start. The gate requires:
 
 - `workflow policy and actionlint` from `.github/workflows/merge-gate.yml`
 - `audit` from `.github/workflows/rustsec.yml`
@@ -24,7 +24,7 @@ Owner-compatible options:
 
 1. **Keep the existing writer and accept the shared bot boundary.** Require `verification gate` before PR merge and restrict direct human pushes, but leave the current `GITHUB_TOKEN` main write path available. GitHub Actions bot identity is shared across workflows, so do not treat a native actor bypass as workflow-scoped or file-scoped. This option preserves current changelog publication, but it does not prove that only `.github/workflows/changelog.yml` can update the three generated files.
 2. **Route generated changelog snapshots through PRs.** Remove bot main pushes, have owners approve generated changelog PRs, and keep `verification gate` as the only required PR check. This is stricter but changes the approved writer model and needs separate owner acceptance.
-3. **Use a separately approved, least-privilege GitHub App.** If owners need direct generated pushes plus narrower trust than the shared GitHub Actions bot, create a dedicated app or equivalent writer with explicit file, workflow, and validation controls. Do not create apps, secrets, bypasses, or repository rules from this ticket alone.
+3. **Use a separately approved, least-privilege GitHub App.** If owners need direct generated pushes plus narrower trust than the shared GitHub Actions bot, create a dedicated app or equivalent writer with explicit file, workflow, and validation controls. Do not create apps, secrets, bypasses, or repository rules without explicit owner approval.
 
 ## Proposed required check
 

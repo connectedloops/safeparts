@@ -29,7 +29,7 @@ The web UI is deployed as a tested, retained static artifact rather than a relea
 
 ## Pinned inputs and publication permissions
 
-The release workflow uses immutable commit SHAs for third-party actions. Each `uses:` line keeps the reviewed action version beside the SHA. Build jobs use the Rust and Bun versions from `mise.toml` and fixed GitHub-hosted runner images.
+The release workflow uses immutable commit SHAs for third-party actions. Each `uses:` line keeps the reviewed action version beside the SHA. CLI/TUI build jobs use the Rust version from `mise.toml` and fixed Blacksmith runner labels. They do not use Bun. Web builds and deployments have separate Bun/Node requirements.
 
 Workflow permissions default to `contents: read`. Artifact assembly stays read-only. The separate `publish` job runs only for a pushed tag and is the only job granted `contents: write`. A manual dispatch still builds, validates, downloads, checksums, and uploads the full candidate, but it cannot create a GitHub Release.
 
@@ -40,7 +40,7 @@ Workflow permissions default to `contents: read`. Artifact assembly stays read-o
 1. Read the upstream release notes and confirm the new action or tool version supports the fixed runner image.
 2. Resolve the reviewed tag to its commit SHA. For an annotated tag, use the dereferenced value from `git ls-remote <repository-url> 'refs/tags/<version>^{}'`.
 3. For `dtolnay/rust-toolchain`, resolve `refs/heads/stable`, review that commit, and update the date in its comment.
-4. Update the SHA and version comment together. Keep Bun aligned with `mise.toml`.
+4. Update the SHA and version comment together.
 5. Run `mise run workflow:check`, then start the release dry run and inspect the assembled artifact before merging.
 
 Do not replace a SHA with a major tag, `stable`, `latest`, an `x` version, or a `*-latest` runner label.
@@ -50,9 +50,9 @@ Do not replace a SHA with a major tag, `stable`, `latest`, an `x` version, or a 
 Treat a Rust compiler update as one coordinated change:
 
 1. Update `mise.toml` first, including the required `rustfmt`, `clippy`, and `llvm-tools-preview` components and the `wasm32-unknown-unknown` target.
-2. Set every `toolchain:` value in `.github/workflows/rust-ci.yml` and `.github/workflows/release.yml` to the same Rust version.
-3. If the `dtolnay/rust-toolchain` action pin changes, follow the pin-review steps above and update the reviewed-date comment in both workflows.
-4. Run `mise run workflow:check` so the regression tests compare ordinary Rust CI, release CI, and `mise.toml`.
+2. Set every `toolchain:` value in `.github/workflows/rust-ci.yml` and `.github/workflows/release.yml` to the same Rust version. In `.github/workflows/web-ci.yml`, update both `RUST_VERSION` and the Rust install step.
+3. Search active build configuration for the old compiler version, including `web/Dockerfile` and its input-validation contract. If the `dtolnay/rust-toolchain` action pin changes, follow the pin-review steps above and update its reviewed-date comments in all affected workflows.
+4. Run `mise run workflow:check`. Also review Web CI and container pins directly; do not assume the policy fixtures cover every duplicated value.
 5. Run the Rust checks that the compiler will gate: `mise run fmt-check`, `mise run lint`, `mise run test`, and `mise run coverage` when practical.
 
 ## Useful checks

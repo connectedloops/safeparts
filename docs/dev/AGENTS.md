@@ -7,12 +7,12 @@ Owns contributor onboarding, local workflow docs, feature coverage maps, and sur
 ## Ownership
 
 - `README.md`: developer-docs entry point.
-- `onboarding.md`: first local setup path.
+- `onboarding.md`: canonical prerequisites, shell assumptions, tool-install side effects, and first local setup path.
 - `architecture.md`: repo map and data flow.
 - `feature-matrix.md`: cross-surface feature coverage and future-update checklist.
 - `workflows.md`: repeatable development workflows.
 - `change-checklist.md`: multi-surface feature checklist template.
-- `verification.md`: check matrix and local command policy.
+- `verification.md`: exact local aggregate gate, additional CI checks, and development-server versus built-site browser recipes.
 - `dependency-scans.md`: local supported dependency scope, scanner/database contract, fail-closed exits, artifacts and explicit retired-source coverage gaps.
 - `generated-artifacts.md`: generated/tracked artifact policy.
 - `branch-protection.md`: prepared PR merge-gate, required-check, rollout, rollback, and changelog-writer compatibility guidance.

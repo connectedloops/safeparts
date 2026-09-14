@@ -8,8 +8,31 @@ Use the smallest check that proves your change, then run the broader gate before
 mise run doctor          # local environment diagnostics
 mise run dx:verify       # docs, AGENTS, lockfile, and generated-artifact checks
 mise run workflow:check  # workflow policy/support tests and actionlint
-mise run verify          # full local gate
+mise run verify          # local aggregate gate (scope below)
 ```
+
+`mise run verify` runs exactly these task groups from `mise.toml`:
+
+| Included group | Checks |
+| --- | --- |
+| `verify:rust` | Rust format, Clippy, and all-feature workspace tests |
+| `web:build:site` | WASM build, app typecheck, app build, bilingual help build, required output routes |
+| `dx:verify` | Documentation/AGENTS and developer-experience consistency checks |
+| `workflow:check` | Offline workflow-policy/support fixtures and actionlint |
+
+It is not a claim of full CI equivalence. Run additional checks for the affected surface:
+
+| Not included in `verify` | Entry point |
+| --- | --- |
+| Rust coverage and floors | `mise run coverage` |
+| Independent live RustSec audit | `mise run audit` |
+| Live supported dependency scan | `mise run security:scan` (see [identity limitations](dependency-scans.md#known-bun-identity-limitation)) |
+| WASM browser bindings | `(cd web && bun run test:wasm)` |
+| Browser end-to-end and accessibility | [Built-site recipe](#built-site-browser-suite) below |
+| Docker image/runtime smoke | `bash web/tests/container-smoke.sh` |
+| Native Windows/macOS CLI/TUI behavior | Host jobs in `.github/workflows/rust-ci.yml` |
+
+Complete [onboarding](onboarding.md#2-install-tools) before these commands. Browser suites need both web/help dependencies, generated WASM, and the browser install step below.
 
 `mise run workflow:check` runs the lightweight workflow-policy, coverage-filter, RustSec-classifier, changelog, and actionlint checks. Rust CI publishes the matching stable check as `workflow policy and actionlint`; branch-protection rules are managed outside this repository. Relevant Rust, dependency, and workflow pull requests also run `cargo test -p safeparts --all-features` and `cargo test -p safeparts_tui --all-features` on pinned Windows and one native macOS runner. GitHub records the hosted job timings; documentation-only changes outside the Rust workflow path filters do not start those host jobs.
 
@@ -113,11 +136,35 @@ bun run build:wasm
 bun run typecheck
 bun run build
 bun run test:wasm
-bun run test:e2e:full
 python3 ../scripts/dev/test_web_deploy.py
 ```
 
-CI serves `web/dist` after the help build and runs the complete browser and accessibility suite against those built files. For local suites, start an external static server (for example, `python3 -m http.server 4173 --directory web/dist` from the repository root), then run `PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 bun run test:e2e:full` from `web/`. Use a plain static server for built-site checks: Vite preview inherits the `/help` development proxy. Do not start retired desktop servers.
+### Development-server automated suite
+
+After onboarding and a WASM build, `(cd web && bun run test:e2e:full)` starts Vite/Astro development servers unless `PLAYWRIGHT_BASE_URL` is set. A preceding build does not make that command test the built output. Install Chromium once with `(cd web && bun run test:a11y:install)`.
+
+### Built-site browser suite
+
+CI tests the combined `web/dist` artifact. To test the same kind of output locally, run from the repository root:
+
+```bash
+mise run web:build:site
+(cd web && bun run test:a11y:install)
+```
+
+In a separate terminal at the root, keep a loopback-only static server running:
+
+```bash
+python3 -m http.server 4173 --bind 127.0.0.1 --directory web/dist
+```
+
+Then, from the root:
+
+```bash
+(cd web && PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 bun run test:e2e:full)
+```
+
+Stop the server with Ctrl+C afterward. Use a plain static server: Vite preview inherits the `/help` development proxy. Do not start retired desktop servers.
 
 Use the [Web artifact deployment guide](../deployment/web-artifact.md) to prepare and dry-run the same credential-free provider package.
 
@@ -159,7 +206,7 @@ python3 scripts/release/package.py --version 0.3.1
 
 Release CI packages CLI/TUI archives for Linux, macOS, and Windows. Future releases exclude retired installers and native bridge output; historical releases remain unchanged. The assembly job generates one checksum manifest that lists only published assets by their release-page filenames. On `workflow_dispatch`, it uploads the complete result as a short-lived dry-run artifact instead of creating a GitHub Release. With explicit authorization for a remote dry run, run the full platform matrix with `gh workflow run release.yml --ref <branch> -f version=v0.3.1`.
 
-The release workflow pins every third-party action to a reviewed commit SHA and records the action version in a comment. Rust and Bun follow `mise.toml`, ordinary Rust CI uses the same Rust pin, and hosted runners use fixed versions. Repository permissions default to `contents: read`; only the tag-only `publish` job has `contents: write`. Follow the pin-review procedure in [`surfaces/release.md`](surfaces/release.md) before updating these inputs.
+The release workflow pins every third-party action to a reviewed commit SHA and records the action version in a comment. Rust follows `mise.toml`; ordinary Rust CI uses the same compiler pin, and release jobs use fixed Blacksmith runner labels. Bun/Node belong to web build and deployment tooling, not the Rust archive jobs. Repository permissions default to `contents: read`; only the tag-only `publish` job has `contents: write`. Follow the pin-review procedure in [`surfaces/release.md`](surfaces/release.md) before updating these inputs.
 
 ## DX checks
 

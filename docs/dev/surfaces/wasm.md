@@ -34,7 +34,7 @@ It should:
 | `unsupported_encoding` | None | Select a supported share encoding. The rejected name is redacted. |
 | `recovery_failed` | None | Safe fallback for unexpected core/crypto failures. |
 
-Core groups unsupported packet versions with malformed packets, so those produce `invalid_share`; its guidance covers version compatibility. No packet format or core/CLI/TUI error contract changes are required.
+Core groups unsupported packet versions with malformed packets, so those produce `invalid_share`; its guidance covers version compatibility. These objects are the WASM recovery boundary contract; packet formats and core/CLI/TUI errors have their own owners.
 
 Split, threshold, and inspection exports retain string errors for compatibility. Web recovery can still call the legacy array-based `combine_shares` export if `combine_share_input` is absent. Older generated packages that throw strings receive the localized fallback, not prose parsing. Unknown codes, malformed numeric fields, module-load failures, and unexpected exceptions also use that fallback without displaying or logging exception text. Only validated missing-share counts drive empty-field feedback; coordinates are never treated as field positions.
 
@@ -59,9 +59,9 @@ The bindings clear Rust-owned passphrase, encoded-share, and recovered-secret co
 
 ```bash
 cargo test -p safeparts_wasm
-cd web && bun run test:wasm
-cd web && bun run build:wasm
-cd web && bun run typecheck
+(cd web && bun run build:wasm)
+(cd web && bun run test:wasm)
+(cd web && bun run typecheck)
 ```
 
 If automatic ChromeDriver selection does not match the installed Chrome version, set `CHROMEDRIVER` to a compatible driver before running `test:wasm`.
