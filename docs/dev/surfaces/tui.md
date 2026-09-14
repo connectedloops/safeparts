@@ -3,38 +3,32 @@
 Owner: `crates/safeparts_tui/`
 Nearest contract: [`crates/safeparts_tui/AGENTS.md`](../../../crates/safeparts_tui/AGENTS.md)
 
-## What belongs here
+The TUI owns terminal state, keyboard interaction, clipboard actions, file workflows, and operator guidance. Core owns sharing, encoding, and parsing.
 
-The TUI is the keyboard-first terminal workflow over `safeparts_core`.
+## Input and result state
 
-It owns:
+- Use the core wrapped-mnemonic parser. It accepts complete shares per line first, then wrapped shares separated by blank lines, with LF/CRLF and Auto or explicit encoding.
+- Invalidate an operation's result when its inputs change or another attempt starts. Preserve results on focus movement, share selection, dialog cancellation, and unchanged edits.
+- Load files and update state according to the owning contract, including re-reading a secret file at split time. Keep CLI-output-to-TUI recovery tests for both threshold-sized selections and full mnemonic files.
 
-- terminal application state
-- split/combine interaction flow
-- clipboard behavior and fallbacks
-- terminal-focused validation and status messages
+## Keyboard and clipboard
 
-## Change rules
+- Keep printable characters, including `?`, in focused text editors. Unmodified arrows navigate text; Alt+Left/Right switches operations and F1 opens help outside modals.
+- Preserve explicit Ctrl actions, Enter submission, Esc cancellation, and the RAII terminal-session guard.
+- Copy only the selected recovery share during split. Keep clipboard contents and recovered bytes out of logs.
+- When keys change, update both locale TUI help pages and test keyboard events, focus, and rendering.
 
-- Keep secret-sharing behavior in core. Mnemonic input uses `parse_share_packets_wrapped_mnemonics`: complete Recovery shares per line (including CLI output files), or wrapped Recovery shares separated by blank lines. Auto and explicit encoding accept LF and CRLF.
-- Keep the CLI-to-TUI file-loading regression: produce real CLI mnemonic output, load both a Threshold-sized selection and the full file into the headless TUI, and compare recovered bytes.
-- Keep keyboard operation reliable before adding mouse-only affordances.
-- Route printable input, including `?`, to the focused editor. Multiline editors own unmodified arrows and other text-navigation keys; Up/Down still adjust focused settings or select a Recovery share.
-- Use Alt+Left/Right to switch operations and F1 to open help from normal focus. Keep Enter submission, explicit Ctrl actions, and Esc modal cancellation intact. Check rendered shortcuts and both language versions of the TUI help page when changing keys.
-- Treat clipboard contents as sensitive. Split clipboard actions copy only the selected Recovery share; they never gather multiple Recovery shares.
-- Avoid writing share text or recovered secrets to logs.
-- Save recovery shares and reconstructed secrets through atomic private-file output. Reject NUL-containing destinations before creating temporary files or replacing outputs. On Unix, exported files must be owner-only.
-- Results last until their operation's inputs change or another attempt starts. Editing Secret or Recovery-share text, Threshold, Share count, Share encoding, or passphrase clears the affected output and result metadata. Copy and save/export become available again only after success.
-- Loading a Secret file clears Split output, including when reloading a path whose contents may have changed. Loading Recovery-share files clears recovered output when the input text changes.
-- Preserve results when users move focus, select a Recovery share, cancel a file dialog, or make an edit that leaves the input unchanged. Cursor movement in an empty Secret editor must not switch away from file input.
-- Add headless app-state tests for split/recovery workflows, recovery failures, focus wrapping, modal and status transitions, keyboard shortcuts, cyclic settings, and rendering. Result-lifetime tests must check clipboard writes and file outcomes, including adding Passphrase protection after an unprotected Split.
-- Handle expected file failures inside the App. Preserve prior input on failed loads and output on failed saves; close the modal and offer Ctrl+L/Ctrl+S to retry. A failed split-time file read preserves input for retry, but starting that Split attempt clears its previous result.
-- Display sanitized operation context, file ordinals, and completed export counts rather than paths or IO error chains. Batch exports can leave completed files; only individual writes are atomic.
-- Test failures and successful retries through keyboard events in the same App, including rendered error guidance. Reserve enough footer space for wrapped status text and borders.
-- Use manual terminal smoke tests for rendering, clipboard integration, and other host behavior.
-- Keep terminal setup behind an RAII session guard so raw mode, alternate-screen state, and cursor visibility are restored on every exit path.
+## File failure recovery
 
-## Useful checks
+- Use atomic private-file output. Reject NUL destinations before touching output; Unix exports are owner-only.
+- Keep previous input after failed loads and results after failed saves. Show sanitized operation context, failed-file ordinals, and completed export counts, not paths or IO chains.
+- A batch export can leave completed files. Test failure and retry in the same app through keyboard events, including rendered guidance and footer space.
+
+The [owning TUI contract](../../../crates/safeparts_tui/AGENTS.md) has the complete state, clipboard, file, and test requirements. Consult it before changing these flows rather than treating this orientation as a substitute.
+
+## Verification
+
+From the repository root:
 
 ```bash
 cargo test -p safeparts_tui
@@ -42,7 +36,7 @@ cargo test --all-features
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-Manual smoke:
+For manual rendering and host clipboard checks in an interactive terminal:
 
 ```bash
 cargo run -p safeparts_tui
@@ -50,8 +44,4 @@ cargo run -p safeparts_tui
 
 ## When TUI changes
 
-Update:
-
-- [`docs/dev/feature-matrix.md`](../feature-matrix.md)
-- CLI/TUI docs if launch or shortcut behavior changes
-- release notes when binary packaging changes
+Update [feature coverage](../feature-matrix.md), the owning contract, and relevant headless tests. Update CLI/TUI help for launch or shortcut changes and release guidance for packaging changes.

@@ -6,14 +6,14 @@ The core crate works on bytes. It zeroizes temporary secret, reconstruction, and
 
 ## Add the crate
 
-Inside this repository, depend on the workspace crate by path:
+For a sibling crate at `crates/your_crate/Cargo.toml` inside this repository, use:
 
 ```toml
 [dependencies]
-safeparts_core = { path = "../safeparts/crates/safeparts_core" }
+safeparts_core = { path = "../safeparts_core" }
 ```
 
-For another repository, use a Git dependency until a published crate is available:
+Cargo resolves a path dependency relative to the consuming `Cargo.toml`, not the shell's current directory. Adjust it to your checkout layout. For another repository, use a Git dependency until a published crate is available:
 
 ```toml
 [dependencies]

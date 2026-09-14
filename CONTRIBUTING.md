@@ -15,25 +15,17 @@ Supported work covers core, CLI, TUI, WASM, web, and help. CLI/TUI archives supp
 
 ## Local setup
 
-If you use mise:
-
-```bash
-mise install
-mise run setup
-mise run doctor
-```
-
-If you do not use mise, install the tools listed in [`mise.toml`](mise.toml) and use the commands in [`docs/dev/verification.md`](docs/dev/verification.md).
+Follow [onboarding](docs/dev/onboarding.md#2-install-tools) for the complete prerequisites, Bash examples, pinned tool setup, and installation side effects. It covers setup with or without mise.
 
 ## Checks
 
-Run the checks for the area you changed. The full local gate is:
+Run the checks for the area you changed. The local aggregate gate is:
 
 ```bash
 mise run verify
 ```
 
-Targeted commands live in [`docs/dev/verification.md`](docs/dev/verification.md).
+[Verification](docs/dev/verification.md#one-command-checks) lists exactly what this gate runs and the additional CI checks it omits.
 
 ## Security-sensitive work
 

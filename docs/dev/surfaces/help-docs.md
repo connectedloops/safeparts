@@ -50,12 +50,7 @@ PATH="${CARGO_TARGET_DIR:-$PWD/target}/debug:$PATH" python3 scripts/dev/test_bac
 
 The check runs only synthetic data, requires Bash and standard Unix tools, and verifies fixed status output and temporary-file cleanup. It does not certify a production backup or its custody environment.
 
-For route parity and accessibility coverage:
-
-```bash
-cd web
-bun run test:e2e:full
-```
+For route parity and accessibility coverage, use the [built-site browser recipe](../verification.md#built-site-browser-suite), including its one-time Chromium installation. The bare development-server suite is `(cd web && bun run test:e2e:full)` from the repository root; it starts Vite/Astro and does not test the preceding build.
 
 ## When help docs change
 

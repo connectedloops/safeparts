@@ -14,7 +14,7 @@ Supported checks cover core, CLI, TUI, WASM, web, and help. CLI/TUI archives ret
 - Environment doctor: `mise run doctor`
 - DX structure checks: `mise run dx:verify`
 - Rust gate: `mise run verify:rust`
-- Full local gate: `mise run verify`
+- Local aggregate gate: `mise run verify`; see [exact scope and additional checks](../dev/verification.md#one-command-checks)
 - Production-only Rust coverage: `mise run coverage`
 - Reviewed RustSec policy: `mise run audit`
 - Release workflow policy and action lint: `mise run workflow:check`
@@ -95,7 +95,7 @@ Tauri, SwiftUI, WinUI, and dedicated UniFFI source and tests remain reference on
 - CI uses `bun`.
 - Lockfiles are committed: `web/bun.lock` and `web/help/bun.lock`.
 - Do not add npm, pnpm, or yarn lockfiles for web packages unless the package-manager policy changes.
-- Install deps: `bun install`
+- Install deps: `bun install --frozen-lockfile`; complete [onboarding](../dev/onboarding.md#2-install-tools) for shell and tool prerequisites.
 
 **WASM build (required before UI works)**
 

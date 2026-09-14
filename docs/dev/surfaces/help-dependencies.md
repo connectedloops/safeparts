@@ -2,9 +2,11 @@
 
 Review: 2026-09-14 for [#115](https://github.com/connectedloops/safeparts/issues/115). Scope: `web/help/bun.lock`, including development dependencies. This is a dated assessment, not a repository-wide security clearance.
 
-## Result and reproduction
+## Historical native-scan result
 
-Trivy 0.74.0, vulnerability DB schema 2, updated `2026-09-14T01:15:36Z`, reproduced the pinned `6f586c8` help baseline. The refreshed lockfile has no reported vulnerabilities at any severity:
+The counts below preserve the #115 evidence, not a current security clearance. The later documentation audit identified nested Bun package-identity gaps in Trivy's native lockfile parser. Treat these native-scan counts as limited historical evidence, superseded as a basis for claiming complete Bun coverage. Identity remediation is tracked in [#122](https://github.com/connectedloops/safeparts/issues/122); main does not yet have the corrected scanner.
+
+Trivy 0.74.0, vulnerability DB schema 2, updated `2026-09-14T01:15:36Z`, reproduced the pinned `6f586c8` help baseline. That scan reported no vulnerabilities in the refreshed help lockfile:
 
 | Severity | Before | After |
 | --- | ---: | ---: |
@@ -15,16 +17,17 @@ Trivy 0.74.0, vulnerability DB schema 2, updated `2026-09-14T01:15:36Z`, reprodu
 | Unknown | 0 | 0 |
 | Total | 29 | 0 |
 
-Run from the repository root, allowing Trivy to check for current advisory data:
+The historical after-scan inventory contained 507 scanner package entries, including `rollup@4.63.2` marked `Dev: true` and optional platform packages. These entries are not independently reconciled package identities. Lock records, package identities, and package/advisory occurrences are different counts.
+
+## Current scan entry point and limitation
+
+Run from the repository root:
 
 ```bash
-trivy --version
-trivy fs --scanners vuln --include-dev-deps \
-  --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
-  --format json --output /tmp/help-trivy.json web/help
+mise run security:scan
 ```
 
-The after-scan inventory contains 507 package entries, including `rollup@4.63.2` marked `Dev: true` and optional platform packages. No findings are ignored, and no security exceptions are required. Keep the JSON report and Trivy DB metadata with dependency PR evidence. A clean scan covers known package advisories; it does not prove that generated content is safe or audit every bundled native library independently.
+Read [dependency scans](../dependency-scans.md#known-bun-identity-limitation) for scope, database freshness, artifacts, and the unresolved native Bun identity limitation on main. This command still uses that native parser; it does not repair or reconcile identities. Keep scanner JSON, input hashes, and DB metadata as evidence, and assess package identities before relying on a clean result. Keep RustSec independent. No fresh scan or corrected counts are asserted here.
 
 ## Compatible versions
 
@@ -56,15 +59,11 @@ The lockfile was regenerated with the pinned Bun 1.3.11 after upgrading direct d
 - **Generated output:** Astro attribute/transition escaping, PostCSS style escaping, and SVGO's incomplete `removeScripts` filtering can leave executable content in generated HTML, CSS, or SVG when supplied attacker-controlled input. The help config does not accept request-derived props or configure SVGO as an upload sanitizer. Reviewed source inputs reduce exposure, but static hosting can still serve poisoned build output. Do not treat an optimizer as a sanitizer. nanoid's invalid-size flaws concern build-tool ID generation here, not Recovery shares, whose generation remains in Rust/WASM.
 - **Server-only paths:** Astro's prerendered error-page Host-header SSRF (CVE-2026-54299) and base-path middleware authorization bypass (CVE-2026-84376) require runtime Astro request handling. `astro.config.mjs` has no server adapter, middleware authorization, or on-demand routes; the build emits static files to `web/dist/help/`. Production serves that artifact rather than an Astro process. This limits those paths specifically, not all 29 findings.
 
-## Remaining findings and scope
+## Historical follow-up and scope
 
-There are no remaining help findings at critical, high, medium, low, or unknown severity, including development dependencies. No suppression file or exception policy was added.
+The #115 scan reported zero help findings and 24 main-web findings (0 critical, 16 high, 6 medium, 2 low, 0 unknown), all marked `Dev: true`. Omitting development dependencies gave zero for the main-web target. That comparison showed the effect of the inclusion flag in that scanner output; it did not establish correct nested Bun identities or complete coverage. No suppression file or exception policy was added.
 
-The repository-wide follow-up scan still reports 24 findings in `web/bun.lock` (0 critical, 16 high, 6 medium, 2 low, 0 unknown). All affected package entries are marked `Dev: true`. A second scan of the same tree with the same DB, omitting `--include-dev-deps`, reports zero for that target, reproducing the initial diagnostic's zero. Development dependency inclusion alone explains this difference on the current tree. `web/bun.lock` is unchanged from the pinned main base `6f586c8`; any earlier main-branch movement is not needed to explain the comparison.
-
-To compare coverage directly, run the command above against `web` once with `--include-dev-deps` and once without it, saving separate JSON files. Inspect the `bun.lock` target separately from `help/bun.lock`.
-
-The repository scan also reports findings in dormant desktop/mobile files and installed mobile example dependencies. Those targets are outside #115 and are not security exceptions or resolved by this change. The remaining supported main-web high findings mean #115 alone does not establish readiness for #118's security gate. Assess or remediate them in their own scope before claiming that supported high/critical vulnerabilities are cleared.
+The broad historical scan also found dormant desktop/mobile and installed example dependencies. The supported scan now stages only its named lockfiles; retired inventory is separate. Neither the historical help result nor a clean help graph establishes that the full supported scan passes. Review the main-web graph and the #122 identity limitation before claiming supported vulnerabilities are cleared.
 
 ## Verification
 

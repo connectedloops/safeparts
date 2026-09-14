@@ -44,7 +44,7 @@ Useful flags:
 | `-e`, `--encoding` | split, combine | Encoding for output or input. Combine can omit it and use auto detection. |
 | `-i`, `--in` | split, combine | Read from a file. Use `-` for stdin. |
 | `-o`, `--out` | split, combine | Write to a file. Use `-` for stdout. |
-| `-P`, `--passphrase-file` | split, combine | Read passphrase from a file. Trailing newline is trimmed. |
+| `-P`, `--passphrase-file` | split, combine | Read passphrase from a file. All trailing CR and LF bytes are removed; other bytes remain unchanged. |
 | `-p`, `--passphrase` | split, combine | Passphrase as an argument. Avoid this in automation because shells and process tools may record it. |
 
 Supported split encodings are `base64url`, `base58check`, `mnemo-words`, and `mnemo-bip39`. CLI aliases `base64` and `base58` are accepted.
@@ -85,7 +85,7 @@ The [synthetic saved-backup rehearsal](../../../web/help/src/content/docs/it-dev
 
 ## Passphrase-protected automation
 
-Use a private passphrase file. Do not put the passphrase on the command line.
+Use a private passphrase file. Do not put the passphrase on the command line. Use the same input convention for split and recovery: `--passphrase-file` removes all trailing CR and LF bytes. Existing passphrases that intentionally end with those bytes require a trusted byte-preserving route, such as the Rust API with the original bytes. See the [CLI normalization note](../../../web/help/src/content/docs/cli.mdx#passphrase-file-bytes); do not alter saved shares.
 
 ```bash
 #!/usr/bin/env bash
@@ -120,7 +120,7 @@ For real passphrases, make the file come from your secret manager or operator in
 
 ## CI scenario 1: synthetic recovery drill
 
-This is safe for regular CI because it does not use production secrets. It proves that the binary works and that split/combine still round-trips.
+This synthetic drill checks that split/combine round-trips without using production secrets. It is a minimal external workflow example, not a pinned release recipe: the runner, action tags, and compiler move. For maintained pinned inputs, follow the repository's [Rust CI workflow](../../../.github/workflows/rust-ci.yml) rather than copying a separate pin inventory.
 
 ```yaml
 name: safeparts synthetic recovery drill
@@ -140,7 +140,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build CLI
-        run: cargo build --release -p safeparts
+        run: cargo build --release --locked -p safeparts
 
       - name: Run synthetic drill
         shell: bash
@@ -207,9 +207,11 @@ Before running Safeparts in automation, confirm:
 
 | Failure | Likely cause | Automation response |
 | --- | --- | --- |
-| `need at least k shares` | Job supplied too few shares or duplicate shares. | Fail closed. Ask an operator to provide the required count. |
+| `need at least k shares` | Job supplied too few shares. | Fail closed. Ask an operator to provide the required count. |
 | `could not detect share encoding` | Input is malformed or mixed with non-share text. | Fail closed. Do not print the input. |
 | `share set metadata mismatch` | Shares come from different split sets. | Fail closed and restart collection. |
+| `crypto params mismatch` | Encryption parameters differ between shares. | Use intact shares from the same split; do not edit their parameters. |
+| `recovery shares could not be decoded` | Share input could not be parsed. | Check complete saved text and encoding without logging input. |
 | `duplicate x coordinate` | Same share was supplied twice. | Fail closed and request a different share holder. |
 | `passphrase required` | Shares were passphrase-protected but no passphrase file was supplied. | Fail closed and request the passphrase through the approved channel. |
 | `decryption failed` | Wrong passphrase or tampered encrypted data. | Fail closed. Do not retry in a tight loop. |

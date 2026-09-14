@@ -14,7 +14,17 @@ The `AGENTS.md` files are the working contracts for this repo. If you add a dura
 
 ## 2. Install tools
 
-Safeparts uses Rust, Bun, wasm-pack, and wasm-bindgen. The repo includes [`mise.toml`](../../mise.toml) with pinned local tool versions and shortcuts. Supported setup covers core, CLI, TUI, WASM, web, and help; it does not require retired application toolchains.
+Run the examples in **Bash from the repository root** on Linux/macOS, or in a separately installed Unix-like shell on Windows. These blocks are not PowerShell commands. Supported setup covers core, CLI, TUI, WASM, web, and help; retired application toolchains are not required.
+
+Install these prerequisites separately:
+
+- Git, [mise](https://mise.jdx.dev/getting-started.html), and Bash. `mise.toml` does not provision Bash.
+- Python **3.11 or newer**, available as `python3`, for doctor, DX/workflow checks, and dependency scans. Mise does not provision Python.
+- Rust/rustup access and the platform's native compiler/linker tools. See [Rust installation](https://www.rust-lang.org/tools/install); Windows Rust builds require the appropriate Visual Studio C++ build tools.
+
+[`mise.toml`](../../mise.toml) pins Rust (including its WASM target and components), Bun, Node, WASM tools, and verification tools. Node is required by Astro and deployment tooling even though Bun manages packages. Use the checked-in versions, not versions from another branch.
+
+`mise install` downloads tools and may build Cargo-installed tools. `mise run setup` installs both web and help dependencies from frozen lockfiles; package install scripts may run. `web/scripts/build-wasm.sh` adds the WASM target and can install or replace the pinned `wasm-pack` and `wasm-bindgen-cli` with `cargo install --locked --force`. These steps need network access on a fresh machine and can change tools in your Cargo bin directory.
 
 ```bash
 mise install
@@ -58,7 +68,7 @@ mise run docs:dev
 
 ## 5. Before opening a PR
 
-Run the smallest relevant checks first, then the full gate if practical:
+Run the smallest relevant checks first, then the [local aggregate gate](verification.md#one-command-checks) if practical. It does not include every CI check:
 
 ```bash
 mise run verify
