@@ -139,6 +139,10 @@ gh api --paginate --slurp 'repos/connectedloops/safeparts/releases?per_page=100'
 python3 scripts/dev/changelog.py --main-ref origin/main --releases-json target/changelog/releases.json
 '''
 
+[tasks."desktop:prototype"]
+description = "Build and run the throwaway native desktop UI prototype."
+run = "apps/desktop/prototype/run.sh"
+
 [tasks."docs:dev"]
 description = "Start the help docs."
 dir = "web/help"

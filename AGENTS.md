@@ -87,6 +87,7 @@ Default section order:
 ## Child DOX Index
 
 - `.agents/`: repository-local agent skills and skill support files.
+- `apps/desktop/`: throwaway native desktop UI prototype for the issue 140 visual checkpoint.
 - `crates/`: Rust workspace crates for core algorithms, CLI, TUI, and WASM bindings.
 - `web/`: Vite + React web app, WASM build integration, browser tests, and docs child site.
   - `web/help/`: Astro + Starlight help docs served under `/help/`.
