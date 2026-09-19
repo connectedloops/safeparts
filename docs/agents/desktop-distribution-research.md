@@ -1,6 +1,6 @@
 # Offline desktop distribution: research evidence
 
-- Scope: [Wayfinder #126](https://github.com/connectedloops/safeparts/issues/126), research [#133](https://github.com/connectedloops/safeparts/issues/133); both read through `gh` on 2026-09-19.
+- Scope: [Wayfinding: define a new offline Safeparts desktop app](https://github.com/connectedloops/safeparts/issues/126), [Research offline desktop installation and update constraints](https://github.com/connectedloops/safeparts/issues/133); both read through `gh` on 2026-09-19.
 - Access date for **all external sources: 2026-09-19 (UTC)**. These are living documents, not price quotations or compatibility commitments.
 - Status: internal research, not a channel, framework, OS-minimum, architecture, or spending decision. No current/retired app implementation was consulted. No product support or release policy changes.
 - Labels: **Fact** = primary documentation; **Inference** = consequence for this scope; **Unknown** = requires a later decision, quote, or experiment. Unlabelled recommendations below are proposed verification work, not tested results.
@@ -38,7 +38,7 @@ Here, **release** means the developer's build/sign/publish environment; **acquis
 
 ## Manual updates, rollback and security servicing
 
-**Approved constraint:** updates are obtained outside the app; no in-app checks/downloads. [#126](https://github.com/connectedloops/safeparts/issues/126)
+**Approved constraint:** updates are obtained outside the app; no in-app checks/downloads. [Wayfinding: define a new offline Safeparts desktop app](https://github.com/connectedloops/safeparts/issues/126)
 
 | Pattern | Viability / tradeoff (inference unless marked fact) |
 | --- | --- |
