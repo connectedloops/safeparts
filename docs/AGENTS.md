@@ -6,7 +6,7 @@ Owns internal repository documentation for agents and developers.
 
 ## Ownership
 
-- `agents/`: coding-agent checks, conventions, and task notes.
+- `agents/`: coding-agent checks, conventions, and task notes. The `qt-memory-printing-prototype.*` files are synthetic-only, throwaway Docker decision evidence; their scope, execution, and limitations are owned by `agents/qt-memory-printing-prototype.md`, not supported desktop setup.
 - `dev/`: human developer onboarding, workflows, surface guides, and DX maintenance docs.
 - `deployment/`: operational guides for supported deployments.
 
