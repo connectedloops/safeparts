@@ -17,6 +17,7 @@ Owns the throwaway native desktop UI prototype used for the issue 140 visual che
 ## Work Guidance
 
 - Keep the implementation direct and limited to the single-window Create/Recover flow.
+- For macOS checkpoints, let Qt use Cocoa window chrome, native controls, the system font, semantic colors, and the system accent. Favor a calm utility hierarchy and balanced whitespace over dashboard styling or broad widget stylesheets.
 - Model duplicate/unknown-token blocking and immediate mode/reset clearing, including hidden input. These are fixture interactions, not real share validation.
 - Keep generated builds and captures under `prototype/build/`.
 
