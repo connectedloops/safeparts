@@ -131,7 +131,7 @@ Use the single-context domain model in `CONTEXT.md` and relevant records under `
 - Support core, CLI, TUI, WASM, web, and help. CLI/TUI remain supported on Linux, macOS, and Windows.
 - Tauri, native macOS, native Windows, and their dedicated `crates/safeparts_uniffi/` bridge are retired. Retain their source as dormant reference; exclude them from supported setup, workspace builds, tests, coverage, releases, and UI parity requirements.
 - Do not port active web changes into retired apps or restore their automation. A replacement or reinstatement requires a separate explicit decision.
-- New desktop planning follows [Wayfinding: define a new offline Safeparts desktop app](https://github.com/connectedloops/safeparts/issues/126). Read the map before desktop design work; it owns the approved scope and decision frontier. Design afresh without current/retired app implementations as inputs. Planning does not reinstate retired products or authorize implementation.
+- New desktop planning follows [Wayfinding: define a new offline Safeparts desktop app](https://github.com/connectedloops/safeparts/issues/126). Read the map before desktop design work; it owns the approved scope and decision frontier. Design the app afresh without current/retired app implementations as inputs, but reuse the existing `safeparts_core` library as the single source of core behavior and share formats. Keep desktop adapters thin and aligned with that library; do not duplicate or fork the Rust core. Planning does not reinstate retired products or authorize implementation.
 - Retiring applications does not invalidate existing Recovery shares. Keep compatibility guarantees and direct users to supported recovery tools. Historical release assets remain unchanged.
 
 ## Context
