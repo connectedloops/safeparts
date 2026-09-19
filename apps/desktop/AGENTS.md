@@ -17,6 +17,7 @@ Owns the throwaway native desktop UI prototype used for the issue 140 visual che
 ## Work Guidance
 
 - Keep the implementation direct and limited to the single-window Create/Recover flow.
+- Model duplicate/unknown-token blocking and immediate mode/reset clearing, including hidden input. These are fixture interactions, not real share validation.
 - Keep generated builds and captures under `prototype/build/`.
 
 ## Verification

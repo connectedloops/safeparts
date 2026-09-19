@@ -263,18 +263,17 @@ private:
             }
         }
 
-        const bool ready = distinctKnown.size() >= 2 && unknownCount == 0;
+        const bool ready = distinctKnown.size() >= 2 && unknownCount == 0 && duplicateCount == 0;
         recoverButton_->setEnabled(ready);
         if (tokens.isEmpty()) {
             status_->setText(QStringLiteral("Add 2 different demo tokens to become ready."));
         } else if (unknownCount > 0) {
             status_->setText(QStringLiteral("Unknown demo token. Use only the three fake tokens from Create shares."));
-        } else if (duplicateCount > 0 && distinctKnown.size() < 2) {
-            status_->setText(QStringLiteral("Duplicate token: the 2-of-3 demo needs 2 different tokens."));
+        } else if (duplicateCount > 0) {
+            status_->setText(QStringLiteral("Duplicate token. Remove repeated lines before recovering."));
         } else if (!ready) {
             status_->setText(QStringLiteral("1 of 2 different demo tokens added. Add one more."));
-        } else if (duplicateCount > 0) {
-            status_->setText(QStringLiteral("Ready with 2 different demo tokens. Duplicate lines are ignored in this mock."));
+
         } else {
             status_->setText(QStringLiteral("Ready to recover with %1 different demo tokens.").arg(distinctKnown.size()));
         }
@@ -293,13 +292,10 @@ private:
     }
 
     void resetCurrentMode() {
-        if (pages_->currentIndex() == 0) {
-            createdShares_->setVisible(false);
-            createButton_->setEnabled(true);
-        } else {
-            recoverInput_->clear();
-            result_->setVisible(false);
-        }
+        createdShares_->setVisible(false);
+        createButton_->setEnabled(true);
+        recoverInput_->clear();
+        result_->setVisible(false);
     }
 
     QStackedWidget *pages_ = nullptr;
