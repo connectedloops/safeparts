@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bip39::Language;
 
 use crate::error::{CoreError, CoreResult};
-use crate::packet::SharePacket;
+use crate::packet::{DecodedSharePacket, SharePacket};
 
 const CRC16_POLY: u16 = 0x1021;
 const CRC16_INIT: u16 = 0xFFFF;
@@ -25,6 +25,11 @@ pub fn encode_packet(packet: &SharePacket) -> CoreResult<String> {
 }
 
 pub fn decode_packet(s: &str) -> CoreResult<SharePacket> {
+    Ok(decode_packet_with_version(s)?.packet)
+}
+
+/// Decode a Words packet and retain its on-wire version for admission policy.
+pub fn decode_packet_with_version(s: &str) -> CoreResult<DecodedSharePacket> {
     let words: Vec<&str> = s.split_whitespace().collect();
     if words.is_empty() {
         return Err(CoreError::Encoding("no words provided".to_string()));
@@ -90,7 +95,7 @@ pub fn decode_packet(s: &str) -> CoreResult<SharePacket> {
     }
 
     let payload = &data[4..];
-    SharePacket::decode_binary(payload)
+    SharePacket::decode_binary_with_version(payload)
 }
 
 fn bytes_to_words(bytes: &[u8]) -> Vec<String> {

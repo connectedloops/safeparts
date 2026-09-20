@@ -6,7 +6,7 @@
 //! `Encoding::Auto` is accepted only by parsing functions.
 
 use crate::error::{CoreError, CoreResult};
-use crate::packet::SharePacket;
+use crate::packet::{DecodedSharePacket, SharePacket};
 use crate::{ascii, mnemo_bip39, mnemo_words};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,6 +141,31 @@ pub fn parse_share_packets_wrapped_mnemonics(
     encoding: Encoding,
 ) -> CoreResult<ParsedSharePackets> {
     parse_share_packets_with_mnemonic_lines(input, encoding, MnemonicLineMode::WrappedShare)
+}
+
+/// Parse one or more wrapped Words shares while retaining each packet version.
+///
+/// This is intended for front ends whose supported-input policy is narrower
+/// than the core compatibility policy. Framing remains core-owned and consumes
+/// every nonempty line or paragraph.
+pub fn parse_mnemo_words_packets_with_versions(input: &str) -> CoreResult<Vec<DecodedSharePacket>> {
+    let lines = nonempty_lines(input);
+    if lines.is_empty() {
+        return Err(CoreError::EmptyShareInput);
+    }
+
+    let line_packets = lines
+        .iter()
+        .map(|line| mnemo_words::decode_packet_with_version(line))
+        .collect::<CoreResult<Vec<_>>>();
+    if let Ok(packets) = line_packets {
+        return Ok(packets);
+    }
+
+    split_mnemonic_input(input, MnemonicLineMode::WrappedShare)
+        .iter()
+        .map(|block| mnemo_words::decode_packet_with_version(block))
+        .collect()
 }
 
 fn parse_share_packets_with_mnemonic_lines(

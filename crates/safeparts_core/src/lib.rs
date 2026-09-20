@@ -33,6 +33,79 @@ pub use crate::error::{CoreError, CoreResult};
 use zeroize::Zeroizing;
 
 pub const INTEGRITY_TAG_LEN: usize = 32;
+const AEAD_TAG_LEN: usize = 16;
+
+/// Validated metadata needed to admit a recovery operation before interpolation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShareSetInspection {
+    pub threshold: u8,
+    pub share_count: u8,
+    pub supplied_count: usize,
+    pub expected_secret_len: usize,
+    pub passphrase_protected: bool,
+}
+
+/// Validate a complete supplied share collection without reconstructing it.
+///
+/// This checks packet metadata, duplicate coordinates, declared set size,
+/// payload lengths, and supported crypto parameters. It intentionally permits
+/// fewer than the threshold number of shares so front ends can report
+/// readiness before an explicit recovery action.
+pub fn inspect_share_set(packets: &[packet::SharePacket]) -> CoreResult<ShareSetInspection> {
+    let first = packets
+        .first()
+        .ok_or(CoreError::NotEnoughShares { k: 1, m: 0 })?;
+    sss::validate_share_metadata(first.k, first.n, first.x)?;
+    if packets.len() > usize::from(first.n) {
+        return Err(CoreError::TooManyShares {
+            n: first.n,
+            m: packets.len(),
+        });
+    }
+    if let Some(params) = first.crypto_params {
+        params.validate_policy()?;
+    }
+
+    let overhead = INTEGRITY_TAG_LEN
+        + if first.crypto_params.is_some() {
+            AEAD_TAG_LEN
+        } else {
+            0
+        };
+    let expected_secret_len =
+        first
+            .payload
+            .len()
+            .checked_sub(overhead)
+            .ok_or(CoreError::InvalidCombinedLength {
+                len: first.payload.len(),
+            })?;
+
+    let mut seen = [false; 256];
+    for packet in packets {
+        sss::validate_share_metadata(packet.k, packet.n, packet.x)?;
+        if packet.set_id != first.set_id
+            || packet.k != first.k
+            || packet.n != first.n
+            || packet.payload.len() != first.payload.len()
+            || packet.crypto_params != first.crypto_params
+        {
+            return Err(CoreError::InconsistentMetadata);
+        }
+        if seen[usize::from(packet.x)] {
+            return Err(CoreError::DuplicateX { x: packet.x });
+        }
+        seen[usize::from(packet.x)] = true;
+    }
+
+    Ok(ShareSetInspection {
+        threshold: first.k,
+        share_count: first.n,
+        supplied_count: packets.len(),
+        expected_secret_len,
+        passphrase_protected: first.crypto_params.is_some(),
+    })
+}
 
 /// Split plaintext bytes into `n` share packets with a threshold of `k`.
 ///

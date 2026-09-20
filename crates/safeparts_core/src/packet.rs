@@ -8,6 +8,18 @@ const MAGIC: [u8; 4] = *b"SMN1";
 const VERSION_V1: u8 = 1;
 const VERSION_V2: u8 = 2;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PacketVersion {
+    V1,
+    V2,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecodedSharePacket {
+    pub packet: SharePacket,
+    pub version: PacketVersion,
+}
+
 const FLAG_ENCRYPTED: u8 = 0b0000_0001;
 
 const BASE_HEADER_LEN: usize = 4 + 1 + 1 + 1 + 1 + 1 + 16;
@@ -108,6 +120,11 @@ impl SharePacket {
 
     /// Decode a packet from Safeparts binary packet format.
     pub fn decode_binary(bytes: &[u8]) -> CoreResult<Self> {
+        Ok(Self::decode_binary_with_version(bytes)?.packet)
+    }
+
+    /// Decode a packet and retain its on-wire version for admission policy.
+    pub fn decode_binary_with_version(bytes: &[u8]) -> CoreResult<DecodedSharePacket> {
         let total_len = binary_total_len(bytes)?;
         if bytes.len() != total_len {
             return Err(CoreError::InvalidPacket("length mismatch".to_string()));
@@ -122,8 +139,8 @@ impl SharePacket {
         let mut set_id = [0u8; 16];
         set_id.copy_from_slice(&bytes[9..25]);
 
-        let (crypto_params, payload_len_offset) = match version {
-            VERSION_V1 => (None, 25),
+        let (packet_version, crypto_params, payload_len_offset) = match version {
+            VERSION_V1 => (PacketVersion::V1, None, 25),
             VERSION_V2 => {
                 let mut offset = BASE_HEADER_LEN;
                 let params =
@@ -172,7 +189,7 @@ impl SharePacket {
                         None
                     };
 
-                (params, offset)
+                (PacketVersion::V2, params, offset)
             }
             _ => return Err(CoreError::InvalidPacket("unsupported version".to_string())),
         };
@@ -184,13 +201,16 @@ impl SharePacket {
         let payload_start = payload_len_offset + 4;
         let payload_end = payload_start + payload_len;
 
-        Ok(Self {
-            set_id: SetId(set_id),
-            k,
-            n,
-            x,
-            payload: bytes[payload_start..payload_end].to_vec(),
-            crypto_params,
+        Ok(DecodedSharePacket {
+            packet: Self {
+                set_id: SetId(set_id),
+                k,
+                n,
+                x,
+                payload: bytes[payload_start..payload_end].to_vec(),
+                crypto_params,
+            },
+            version: packet_version,
         })
     }
 }
