@@ -27,7 +27,7 @@ signals:
 
 private:
     void emitOperation(const OperationOutput &output);
-    static QByteArray copyBytes(const rust::Vec<std::uint8_t> &bytes);
+    static QByteArray copyAndWipeBytes(rust::Vec<std::uint8_t> &bytes);
 
     rust::Box<Operation> operation_;
 };

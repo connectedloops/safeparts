@@ -1,5 +1,6 @@
 #include "rust_worker.h"
 
+#include <algorithm>
 #include <limits>
 
 namespace {
@@ -24,8 +25,8 @@ void RustWorker::create(quint64 generation, QByteArray secret, quint8 threshold,
 }
 
 void RustWorker::encodeShare(quint64 generation, quint16 index) {
-    const BytesOutput output = operation_->encode_share(generation, index);
-    emit bytesFinished(output.generation, statusValue(output.status), copyBytes(output.bytes), 0, index);
+    BytesOutput output = operation_->encode_share(generation, index);
+    emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), 0, index);
 }
 
 void RustWorker::addRecovery(quint64 generation, QByteArray input) {
@@ -38,13 +39,13 @@ void RustWorker::removeRecovery(quint64 generation, quint16 batchIndex) {
 }
 
 void RustWorker::recover(quint64 generation) {
-    const BytesOutput output = operation_->recover_words(generation);
-    emit bytesFinished(output.generation, statusValue(output.status), copyBytes(output.bytes), 1, 0);
+    BytesOutput output = operation_->recover_words(generation);
+    emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), 1, 0);
 }
 
 void RustWorker::recoveredText(quint64 generation) {
-    const BytesOutput output = operation_->recovered_text(generation);
-    emit bytesFinished(output.generation, statusValue(output.status), copyBytes(output.bytes), 2, 0);
+    BytesOutput output = operation_->recovered_text(generation);
+    emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), 2, 0);
 }
 
 void RustWorker::emitOperation(const OperationOutput &output) {
@@ -53,8 +54,10 @@ void RustWorker::emitOperation(const OperationOutput &output) {
                            output.recovery_batch_count, output.ready);
 }
 
-QByteArray RustWorker::copyBytes(const rust::Vec<std::uint8_t> &bytes) {
-    if (bytes.size() > static_cast<std::size_t>(std::numeric_limits<qsizetype>::max()))
-        return {};
-    return {reinterpret_cast<const char *>(bytes.data()), static_cast<qsizetype>(bytes.size())};
+QByteArray RustWorker::copyAndWipeBytes(rust::Vec<std::uint8_t> &bytes) {
+    QByteArray copy;
+    if (bytes.size() <= static_cast<std::size_t>(std::numeric_limits<qsizetype>::max()))
+        copy = {reinterpret_cast<const char *>(bytes.data()), static_cast<qsizetype>(bytes.size())};
+    std::fill(bytes.begin(), bytes.end(), std::uint8_t{0});
+    return copy;
 }

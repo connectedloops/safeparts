@@ -418,8 +418,10 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
 
 void DesktopWindow::bytesFinished(quint64 generation, int status, QByteArray bytes, int purpose,
                                   quint16 index) {
-    if (generation != generation_)
+    if (generation != generation_) {
+        bytes.fill('\0');
         return;
+    }
     setBusy(false);
     if (status != statusCode(Status::Ok)) {
         if (purpose == 0) {

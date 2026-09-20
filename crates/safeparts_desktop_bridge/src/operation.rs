@@ -220,6 +220,7 @@ impl Operation {
             let text = match str::from_utf8(batch) {
                 Ok(text) => text,
                 Err(_) => {
+                    clear_packets(&mut packets);
                     self.inspection =
                         self.with_batch_count(output(generation, Status::InvalidUtf8));
                     return clone_output(&self.inspection);
@@ -228,6 +229,7 @@ impl Operation {
             let mut decoded = match parse_mnemo_words_packets_with_versions(text) {
                 Ok(decoded) => decoded,
                 Err(_) => {
+                    clear_packets(&mut packets);
                     self.inspection =
                         self.with_batch_count(output(generation, Status::MalformedInput));
                     return clone_output(&self.inspection);
@@ -239,6 +241,7 @@ impl Operation {
                 for item in &mut decoded {
                     item.packet.payload.zeroize();
                 }
+                clear_packets(&mut packets);
                 self.inspection =
                     self.with_batch_count(output(generation, Status::UnsupportedInput));
                 return clone_output(&self.inspection);
@@ -317,7 +320,7 @@ impl Operation {
             return bytes_output(generation, self.inspection.status);
         }
         let recovered = match combine_shares(&self.recovery_packets, None) {
-            Ok(recovered) => recovered,
+            Ok(recovered) => Zeroizing::new(recovered),
             Err(error) => return bytes_output(generation, status_from_core(&error)),
         };
         if recovered.len() > MAX_SECRET_BYTES {
@@ -335,7 +338,7 @@ impl Operation {
         }
 
         self.recovered.zeroize();
-        self.recovered = Zeroizing::new(recovered);
+        self.recovered = recovered;
         BytesOutput {
             generation,
             status: Status::Ok,

@@ -80,6 +80,12 @@ fn public_operation_rejects_trailing_mixed_and_unsupported_inputs() {
     let second = second_set.encode_share(3, 0);
     recovery.reset(4);
     assert!(recovery.add_recovery_words(4, &first.bytes).status == Status::NotEnoughShares);
+    let malformed_after_valid = recovery.add_recovery_words(4, b"abandon");
+    assert!(malformed_after_valid.status == Status::MalformedInput);
+    assert_eq!(malformed_after_valid.recovery_batch_count, 2);
+    let corrected = recovery.remove_recovery_batch(4, 1);
+    assert!(corrected.status == Status::NotEnoughShares);
+    assert_eq!(corrected.recovery_batch_count, 1);
     assert!(recovery.add_recovery_words(4, &second.bytes).status == Status::MixedShareSet);
 
     let packet = split_secret(b"synthetic unsupported encoding", 1, 1, None)
@@ -105,6 +111,24 @@ fn public_operation_rejects_trailing_mixed_and_unsupported_inputs() {
             .status
             == Status::UnsupportedInput
     );
+}
+
+#[test]
+fn public_operation_rejects_reconstructed_non_utf8_without_returning_bytes() {
+    let packets = split_secret(&[0xff, 0xfe, 0xfd], 2, 3, None)
+        .unwrap_or_else(|error| panic!("synthetic split failed: {error}"));
+    let first = encode_packet(&packets[0], Encoding::MnemoWords)
+        .unwrap_or_else(|error| panic!("synthetic encode failed: {error}"));
+    let second = encode_packet(&packets[1], Encoding::MnemoWords)
+        .unwrap_or_else(|error| panic!("synthetic encode failed: {error}"));
+
+    let mut operation = new_operation();
+    assert!(operation.add_recovery_words(1, first.as_bytes()).status == Status::NotEnoughShares);
+    assert!(operation.add_recovery_words(1, second.as_bytes()).status == Status::Ok);
+    let rejected = operation.recover_words(1);
+    assert!(rejected.status == Status::InvalidUtf8);
+    assert!(rejected.bytes.is_empty());
+    assert!(operation.recovered_text(1).status == Status::NotEnoughShares);
 }
 
 #[test]
