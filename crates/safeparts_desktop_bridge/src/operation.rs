@@ -209,7 +209,7 @@ impl Operation {
                     return clone_output(&self.inspection);
                 }
             };
-            let decoded = match parse_mnemo_words_packets_with_versions(text) {
+            let mut decoded = match parse_mnemo_words_packets_with_versions(text) {
                 Ok(decoded) => decoded,
                 Err(_) => {
                     self.inspection =
@@ -220,6 +220,9 @@ impl Operation {
             if decoded.iter().any(|item| {
                 item.version != PacketVersion::V2 || item.packet.crypto_params.is_some()
             }) {
+                for item in &mut decoded {
+                    item.packet.payload.zeroize();
+                }
                 self.inspection =
                     self.with_batch_count(output(generation, Status::UnsupportedInput));
                 return clone_output(&self.inspection);

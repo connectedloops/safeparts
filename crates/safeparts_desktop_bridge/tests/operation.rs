@@ -1,7 +1,6 @@
 use safeparts_desktop_bridge::{Status, new_operation};
 
-const FIDELITY_TEXT: &str =
-    "\0 leading\nline\u{00a0}space\u{2028}separator\u{2029}paragraph\ne\u{301}\ntrailing \n";
+const FIDELITY_TEXT: &str = "\0 leading\nline\u{00a0}space\u{2028}separator\u{2029}paragraph\ne\u{301} \u{1f600}\ntrailing \n";
 
 #[test]
 fn public_operation_round_trips_exact_utf8_and_encodes_on_demand() {

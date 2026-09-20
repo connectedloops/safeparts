@@ -26,7 +26,8 @@ actual_bridge_sha=$(shasum -a 256 "$bridge" | cut -d ' ' -f 1)
   exit 1
 }
 
-for source in "$package/src/lib.rs" "$package/src/operation.rs"; do
+for source in $tracked_sources; do
+  [ "$source" = "$bridge" ] && continue
   sed '/^#!\[forbid(unsafe_code)\]$/d' "$source" |
     grep -En '\bunsafe\b|allow[[:space:]]*\([[:space:]]*unsafe_code|\bexpect[[:space:]]*\(|\bunwrap[[:space:]]*\(' && {
       echo "forbidden handwritten Rust construct in $source" >&2

@@ -13,7 +13,7 @@
 
 namespace {
 QByteArray exactBytes() {
-    constexpr char kExact[] = "\0 leading\nline\xC2\xA0space\xE2\x80\xA8separator\xE2\x80\xA9paragraph\ne\xCC\x81\ntrailing \n";
+    constexpr char kExact[] = "\0 leading\nline\xC2\xA0space\xE2\x80\xA8separator\xE2\x80\xA9paragraph\ne\xCC\x81 \xF0\x9F\x98\x80\ntrailing \n";
     return {kExact, static_cast<qsizetype>(sizeof(kExact) - 1)};
 }
 
@@ -31,13 +31,13 @@ T *required(QObject *root, const char *name) {
 }
 
 void pasteIntoCreate(DesktopWindow &window, const QString &text) {
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
     QApplication::clipboard()->setText(text);
     const ClipboardRead observed = readClipboardUtf8(1'048'576);
     QCOMPARE(static_cast<int>(observed.status), static_cast<int>(ClipboardRead::Status::Ok));
     auto *editor = required<ExactTextEdit>(&window, "secretInput");
     editor->setFocus();
     QTest::keySequence(editor, QKeySequence::Paste);
-    QCOMPARE(editor->exactUtf8(), text.toUtf8());
 }
 
 QString createAndCopy(DesktopWindow &window, int index) {
@@ -62,6 +62,7 @@ void chooseRecover(DesktopWindow &window) {
 }
 
 void pasteRecovery(DesktopWindow &window, const QString &share) {
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
     QApplication::clipboard()->setText(share);
     QTest::mouseClick(required<QPushButton>(&window, "pasteRecoveryButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
@@ -73,6 +74,7 @@ class DesktopActions final : public QObject {
 
 private slots:
     void create_copy_recover_preserves_exact_utf8_through_user_actions();
+    void text_entry_applies_only_the_declared_lf_convention();
     void duplicate_blocks_and_correctable_input_is_preserved();
     void start_over_rejects_stale_success_and_error_results();
     void close_does_not_restore_sensitive_state();
@@ -82,6 +84,7 @@ void DesktopActions::create_copy_recover_preserves_exact_utf8_through_user_actio
     DesktopWindow window;
     window.show();
     pasteIntoCreate(window, exactText());
+    QCOMPARE(required<ExactTextEdit>(&window, "secretInput")->exactUtf8(), exactBytes());
 
     const QString first = createAndCopy(window, 1);
     const QString second = createAndCopy(window, 2);
@@ -100,6 +103,16 @@ void DesktopActions::create_copy_recover_preserves_exact_utf8_through_user_actio
     QApplication::clipboard()->clear();
     QTest::mouseClick(required<QPushButton>(&window, "copyRecoveredButton"), Qt::LeftButton);
     QTRY_COMPARE_WITH_TIMEOUT(QApplication::clipboard()->text(), exactText(), 10'000);
+}
+
+void DesktopActions::text_entry_applies_only_the_declared_lf_convention() {
+    DesktopWindow window;
+    window.show();
+    pasteIntoCreate(window, QStringLiteral("first\r\nsecond\rthird 😀"));
+    auto *editor = required<ExactTextEdit>(&window, "secretInput");
+    QCOMPARE(editor->exactUtf8(), QStringLiteral("first\nsecond\nthird 😀").toUtf8());
+    QTest::keyClick(editor, Qt::Key_Backspace);
+    QCOMPARE(editor->exactUtf8(), QStringLiteral("first\nsecond\nthird ").toUtf8());
 }
 
 void DesktopActions::duplicate_blocks_and_correctable_input_is_preserved() {

@@ -340,6 +340,7 @@ void DesktopWindow::startOver() {
     nextGeneration();
     clearVisibleState();
     pending_ = Pending::Reset;
+    setBusy(true);
     emit requestReset(generation_);
 }
 
@@ -394,6 +395,10 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
     if (generation != generation_)
         return;
     setBusy(false);
+    if (pending_ == Pending::Reset) {
+        pending_ = Pending::None;
+        return;
+    }
     if (pending_ == Pending::Create) {
         if (status == statusCode(Status::Ok))
             showCreated(threshold, shareCount);
@@ -470,7 +475,6 @@ void DesktopWindow::clearVisibleState() {
         recoveryResult_->hide();
     if (recoveredDisplay_ != nullptr)
         recoveredDisplay_->clear();
-    setBusy(false);
 }
 
 void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {

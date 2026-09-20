@@ -92,11 +92,14 @@ void ExactTextEdit::inputMethodEvent(QInputMethodEvent *event) {
 }
 
 void ExactTextEdit::insertExact(const QString &text) {
+    QString lfText = text;
+    lfText.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+    lfText.replace(QLatin1Char('\r'), QLatin1Char('\n'));
     const QTextCursor cursor = textCursor();
     const int start = cursor.selectionStart();
     const int end = cursor.selectionEnd();
-    exact_.replace(start, end - start, text);
-    renderAt(start + text.size());
+    exact_.replace(start, end - start, lfText);
+    renderAt(start + lfText.size());
     emit exactTextChanged();
 }
 
