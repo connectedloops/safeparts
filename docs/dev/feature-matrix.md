@@ -52,7 +52,7 @@ The issue 140 app is a reviewable native development slice, not a supported rele
 
 | Capability | Experimental Qt desktop | Evidence | Deferred or unverified |
 | --- | --- | --- | --- |
-| Text create/recover | V2 unprotected `mnemo-words`, exact UTF-8/LF, suggested 2-of-3 with valid threshold/share-count customization | Public Rust operation tests, generated-CXX executable, Qt clipboard/action round trip | Files, passphrases, other encodings, V1 input, binary output |
+| Text create/recover | V2 unprotected `mnemo-words`; CRLF and lone CR become LF without trimming or Unicode normalization; suggested 2-of-3 with valid threshold/share-count customization | Public Rust operation tests, generated-CXX executable, Qt clipboard/action round trip | Files, passphrases, other encodings, V1 input, binary output |
 | Processing lifecycle | One worker, explicit Recover, immediate inspection, generation-based stale-result rejection, Start over/mode/close discard | Qt action tests cover stale success, stale error, duplicate correction, reset, and close/reopen | Cancellation controls beyond lifecycle discard |
 | Admission | 1 MiB secret, 16 MiB logical volume/paste, token/share/retained-input/encoded-share bounds, plus checked next-phase memory accounting | Rust boundary tests and a maximum-valid Qt action trace with a 750,769,280-byte peak footprint | Allocation-failure injection |
 | Clipboard fidelity | Exact bytes survive the tested macOS action path; presentation never becomes authoritative | Qt action test includes NUL, NBSP, U+2028, U+2029, decomposed/supplementary Unicode, and leading/trailing newlines | Pre-materialization admission is blocked because AppKit returns complete `NSData`; Windows/Linux acquisition qualification |

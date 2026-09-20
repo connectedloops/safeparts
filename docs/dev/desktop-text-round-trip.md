@@ -17,7 +17,7 @@ Rust owns generated packets, retained recovery input, and authoritative recovere
 
 ## Implemented slice
 
-- Create exact UTF-8 text as V2 unprotected Words shares, with 2-of-3 defaults and valid threshold/share-count customization. Return inserts LF; pasted content is not trimmed or normalized.
+- Create UTF-8 text as V2 unprotected Words shares, with 2-of-3 defaults and valid threshold/share-count customization. Text admission converts CRLF and lone CR to LF. It does not trim or apply Unicode normalization.
 - Encode one selected share on demand and copy only that complete share.
 - Retain bounded recovery paste batches in Rust, inspect all supplied shares on one worker, and recover only after the explicit action.
 - Reject malformed, trailing, duplicate, mixed, unsupported, over-count, and over-limit input without filtering a subset.
@@ -34,14 +34,14 @@ The development-host adapter calls `-[NSPasteboard dataForType:]`, which returns
 
 Evidence was collected on Apple-silicon macOS 15.5 (24F74), Qt 6.9.1 from `/opt/homebrew`, CMake 4.0.1, Apple Clang 17, Rust/Cargo 1.93.0 through `mise exec --`, and the owner-approved CXX 1.0.195 security update. RustSec reports no findings for the locked Cargo graph; no advisory exception was added. Qt 6.9.1 is only the installed development runtime; it does not replace the approved Qt 6.11 evaluation and packaging target.
 
-Artifacts are generated under `target/desktop-evidence/`:
+Artifacts are generated under `target/desktop-evidence/`. The observation artifacts listed here were captured before the final input and buffer-clearing changes, at commit `39282692a313`. Recapture them against the final reviewed commit before accepting issue 140.
 
 - `versions.txt`: exact host and tool versions.
-- `network.csv`: five one-second, PID-filtered `nettop` samples during the synthetic Qt create/copy/recover/reset/close suite. The process had no TCP/UDP rows or bytes in those samples.
-- `actions.stdout`: the seven passing Qt test phases used during that observation.
+- `network.csv`: five one-second, PID-filtered `nettop` samples during the synthetic Qt create/copy/recover/reset/close suite. The observed process had no TCP/UDP rows or bytes in those samples.
+- `actions.stdout`: the Qt test phases used during that earlier observation.
 - `closure.stderr` and `otool.txt`: loader and direct-link closure. The observed Qt images were Core, Gui, Widgets, DBus, the Cocoa platform plugin, the macOS style plugin, and Test for the test executable, all from Qt 6.9.1.
 - `lsof-snapshots.txt`: supplemental open-file snapshots during the same flow.
-- `fs-usage.stdout` and `fs-usage.stderr`: an owner-approved, process-filtered `fs_usage` trace of seven synthetic Qt action/lifecycle checks. The trace contains no path-bearing file writes, renames, unlinks, directory creation, truncation, or sync calls. Test output went to stdout; one-byte writes used an unpathed runtime descriptor. Qt/macOS opened the OS internationalization cache read-write, but the trace shows no write to that path. This is development-host evidence, not a guarantee for other hosts or future runtime versions.
+- `fs-usage.stdout` and `fs-usage.stderr`: an owner-approved raw `fs_usage` trace containing several processes. Review of rows attributed to `desktop-actions` found no path-bearing file writes, renames, unlinks, directory creation, truncation, or sync calls. Test output went to stdout; one-byte writes used an unpathed runtime descriptor. Qt/macOS opened the OS internationalization cache read-write, but the trace shows no write to that path. This is development-host evidence, not a guarantee for other hosts or future runtime versions.
 
 The public operation boundary test admits a 1 MiB secret at 16 shares while exercising the 16 MiB paste, token, and 160 MiB retained-input bounds. `maximum-valid-qt.stdout` and `maximum-valid-qt.time` record the matching Qt action phase: it created the maximum secret/share volume, retained ten maximum paste batches, rejected the eleventh, reset, and passed. `/usr/bin/time -l` reported a 750,769,280-byte peak memory footprint (below 1 GiB) and a 1,135,460,352-byte maximum resident-set metric, which includes mapped/shared pages and is reported rather than concealed. Allocation-failure injection, disconnected repetition, Qt 6.11, and Windows/Linux platform rows remain unverified.
 
@@ -50,3 +50,4 @@ The public operation boundary test admits a 1 MiB secret at 16 shares while exer
 - Red: `mise exec -- cargo test -p safeparts_core --test desktop_admission` failed because `inspect_share_set` did not exist (`/tmp/desktop140-core-red.log`). Green: the same test passed after core-owned inspection and version-preserving parsing were added.
 - Red: `mise exec -- cargo test -p safeparts_desktop_bridge --test operation` failed because the operation module did not exist (`/tmp/desktop140-bridge-red.log`). Green: public-interface tests now pass for exact Unicode, admission/memory envelopes, trailing content, mixed sets, unsupported encoding, and unsupported V1 input.
 - Red: strict CMake compilation first exposed mixed Qt 6.8/6.9 headers, then the Qt suite exposed an incorrect second create action. Green: CMake now binds headers to the selected Qt package and `ctest --test-dir target/desktop-build --output-on-failure` passes both generated-CXX and Qt action suites.
+- Red: the Qt action suite preserved CR and did not cover modified-key text, replacement-only IME edits, or editor paste/cut model parity. Green: text admission uses LF and all covered mutation paths keep displayed text and authoritative bytes equal.

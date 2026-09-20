@@ -23,7 +23,7 @@ Owns the real Qt Widgets text round-trip slice for issue 140. This is developmen
 ## Work Guidance
 
 - Follow the accepted visual direction at issue 140 comment `5747267572`: compact joined mode selector, system typography, rounded groups, restrained colors, clear status, and balanced spacing.
-- Preserve exact valid UTF-8 input in the editor-owned model without normalization. Admit keyboard, IME, and paste replacements against the 1 MiB resulting UTF-8 size before changing the model. Render data as plain text and copy authoritative worker output rather than reading a widget back.
+- Preserve valid UTF-8 input in the editor-owned model without trimming or Unicode normalization. Convert CRLF and lone CR to LF on text admission, then admit keyboard, IME, and paste replacements against the 1 MiB resulting UTF-8 size before changing the model. Render data as plain text and copy authoritative worker output rather than reading a widget back.
 - The macOS clipboard adapter avoids Qt string materialization until after its byte check, but AppKit has already returned a complete `NSData`. Treat pre-materialization clipboard admission as blocked until a supported range/stream API exists. Other platform adapters remain unqualified.
 
 ## Verification
