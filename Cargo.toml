@@ -5,6 +5,7 @@ members = [
   "crates/safeparts",
   "crates/safeparts_wasm",
   "crates/safeparts_tui",
+  "crates/safeparts_desktop_bridge",
 ]
 # Retained reference source; restoring these manifests may require workspace repair.
 exclude = ["desktop/src-tauri", "crates/safeparts_uniffi"]

@@ -139,9 +139,25 @@ gh api --paginate --slurp 'repos/connectedloops/safeparts/releases?per_page=100'
 python3 scripts/dev/changelog.py --main-ref origin/main --releases-json target/changelog/releases.json
 '''
 
-[tasks."desktop:prototype"]
-description = "Build and run the throwaway native desktop UI prototype."
-run = "apps/desktop/prototype/run.sh"
+[tasks."desktop:build"]
+description = "Build the experimental Qt desktop text round-trip app."
+run = [
+  "cmake -S apps/desktop -B target/desktop-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON",
+  "cmake --build target/desktop-build -j2",
+]
+
+[tasks."desktop:test"]
+description = "Run the generated-CXX and Qt desktop action checks."
+run = [
+  "crates/safeparts_desktop_bridge/scripts/policy_guard.sh",
+  "cmake -S apps/desktop -B target/desktop-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON",
+  "cmake --build target/desktop-build -j2",
+  "ctest --test-dir target/desktop-build --output-on-failure",
+]
+
+[tasks."desktop:run"]
+description = "Build and launch the experimental Qt desktop app on the development host."
+run = "apps/desktop/run.sh"
 
 [tasks."docs:dev"]
 description = "Start the help docs."

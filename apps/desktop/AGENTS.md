@@ -1,32 +1,37 @@
-# AGENTS.md — Desktop UI prototype
+# AGENTS.md — Experimental native desktop app
 
 ## Purpose
 
-Owns the throwaway native desktop UI prototype used for the issue 140 visual checkpoint.
+Owns the real Qt Widgets text round-trip slice for issue 140. This is development-host evidence, not a packaged or platform-qualified release.
 
 ## Ownership
 
-- `prototype/`: fixture-only Qt Widgets UI and its local build/run files.
+- `src/`: single-window Qt UI, one serialized Rust worker, exact text editor, and bounded clipboard adapters.
+- `tests/`: generated-CXX contract and Qt user-action/lifecycle checks.
+- `scripts/`: deterministic generated-bridge command.
+- `CMakeLists.txt`, `run.sh`: local build, test, and launch entry points.
 
 ## Local Contracts
 
-- Keep the prototype visibly labeled as simulated and unsafe for real secrets.
-- Use only fixed synthetic fixtures. Do not connect it to Rust, cryptography, persistence, networking, printing, or production packaging.
-- Treat this code as a design artifact. Production desktop work must replace it and follow the separately approved runtime and core-adapter contracts.
+- Use Qt Widgets and `crates/safeparts_desktop_bridge`; never copy core algorithms or use retired application sources.
+- Keep one worker. Parsing, encoding, splitting, and recovery never run on Qt's event thread.
+- Reject stale worker results by generation. Mode changes, Start over, and close clear visible state immediately.
+- Keep authoritative packets, recovery input, and recovered bytes in Rust. Qt owns bounded presentation and intentional clipboard handoffs.
+- Support only V2 unprotected Words text in this slice. Do not misrepresent later encodings, passphrases, files, saving, or printing as implemented.
+- Do not add autonomous networking, persistence, content logs, session restoration, or undo history.
 
 ## Work Guidance
 
-- Keep the implementation direct and limited to the single-window Create/Recover flow.
-- For macOS checkpoints, use Cocoa window chrome, the system font, semantic palette colors, and the system accent. Use native text editing and keyboard behavior. Targeted Qt styling or painting is appropriate for modern grouped surfaces, compact selectors, editors, and actions; avoid universal widget stylesheets and forced cross-platform styles.
-- Use the [Apple Passwords detail pane](https://support.apple.com/guide/passwords/the-passwords-app-mchl901b1b95/mac) as the visual reference for quiet rounded grouping, subtle separators, hierarchy, and inset spacing. The [accepted visual direction](https://github.com/connectedloops/safeparts/issues/140#issuecomment-5747267572) guides production UI work; fixture code must be replaced, not promoted. Visual approval does not waive runtime acceptance gates.
-- Model duplicate/unknown-token blocking and immediate mode/reset clearing, including hidden input. These are fixture interactions, not real share validation.
-- Keep generated builds and captures under `prototype/build/`.
+- Follow the accepted visual direction at issue 140 comment `5747267572`: compact joined mode selector, system typography, rounded groups, restrained colors, clear status, and balanced spacing.
+- Preserve exact UTF-8/LF input in the editor-owned model. Render data as plain text and copy authoritative worker output rather than reading a widget back.
+- The macOS clipboard adapter bounds native pasteboard bytes before Qt string materialization. Other platform adapters remain unqualified.
 
 ## Verification
 
-- Build and run capture mode with `mise run desktop:prototype -- --capture apps/desktop/prototype/build/captures`.
-- Use `--appearance light` or `--appearance dark` for process-local scheme captures, and `--small` for the 620 by 480 minimum-size fixture.
-- Confirm all four PNG fixtures exist and inspect the normal and minimum-size light and dark sets. Then run `mise run dx:verify` and `git diff --check`.
+- Build: `mise run desktop:build`
+- Public and Qt actions: `mise run desktop:test`
+- Launch: `mise run desktop:run`
+- Run `mise run verify` before review.
 
 ## Child DOX Index
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Owns active Rust workspace members for core, CLI, TUI, and WASM, plus the dormant UniFFI reference source.
+Owns active Rust workspace members for core, CLI, TUI, WASM, and the experimental desktop CXX adapter, plus the dormant UniFFI reference source.
 
 ## Ownership
 
@@ -10,13 +10,14 @@ Owns active Rust workspace members for core, CLI, TUI, and WASM, plus the dorman
 - `safeparts/`: script-friendly CLI binary and CLI integration tests.
 - `safeparts_tui/`: terminal UI binary and interaction/domain state.
 - `safeparts_wasm/`: wasm-bindgen facade consumed by `web/`.
+- `safeparts_desktop_bridge/`: generated CXX seam consumed by the experimental Qt app.
 - `safeparts_uniffi/`: retired native-app bridge retained as dormant reference, excluded from the active Cargo workspace.
 
 ## Local Contracts
 
 - Keep shared secret-handling logic in `safeparts_core`; front-ends should adapt IO and presentation only.
 - Treat share packets, passphrases, and reconstructed secrets as sensitive. Do not log or fixture real values.
-- Workspace lints forbid `unsafe`; do not weaken lint policy.
+- Workspace lints forbid `unsafe`. The owner-approved desktop package exception exists only for generated `cxx::bridge` expansion; its declaration hash and safe handwritten operation module are enforced by `safeparts_desktop_bridge/scripts/policy_guard.sh`.
 - Supported builds, coverage, dependency policy, and releases use only core, CLI, TUI, and WASM crates. The UniFFI and Tauri manifests are explicitly excluded; restoring them may require manifest/workspace repair. No standalone buildability or parity is promised.
 
 ## Work Guidance
@@ -38,4 +39,5 @@ Owns active Rust workspace members for core, CLI, TUI, and WASM, plus the dorman
 - `safeparts/`: CLI binary and e2e tests.
 - `safeparts_tui/`: terminal UI binary.
 - `safeparts_wasm/`: browser/WASM binding layer.
+- `safeparts_desktop_bridge/`: generated desktop CXX adapter and its exception guard.
 - `safeparts_uniffi/`: dormant UniFFI reference source and its local retirement contract.
