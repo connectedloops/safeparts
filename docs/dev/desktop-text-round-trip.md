@@ -28,13 +28,13 @@ Files, passphrases, other encodings, V1 input, save, print, packaging, and relea
 
 ## Development-host evidence
 
-Evidence was collected at commits based on `8183db0` on Apple-silicon macOS 15.5 (24F74), Qt 6.9.1 from `/opt/homebrew`, CMake 4.0.1, Apple Clang 17, Rust/Cargo 1.93.0 through `mise exec --`, and CXX 1.0.194. Qt 6.9.1 is only the installed development runtime; it does not replace the approved Qt 6.11 evaluation and packaging target.
+Evidence was collected on Apple-silicon macOS 15.5 (24F74), Qt 6.9.1 from `/opt/homebrew`, CMake 4.0.1, Apple Clang 17, Rust/Cargo 1.93.0 through `mise exec --`, and the owner-approved CXX 1.0.195 security update. RustSec reports no findings for the locked Cargo graph; no advisory exception was added. Qt 6.9.1 is only the installed development runtime; it does not replace the approved Qt 6.11 evaluation and packaging target.
 
 Artifacts are generated under `target/desktop-evidence/`:
 
 - `versions.txt`: exact host and tool versions.
 - `network.csv`: five one-second, PID-filtered `nettop` samples during the synthetic Qt create/copy/recover/reset/close suite. The process had no TCP/UDP rows or bytes in those samples.
-- `actions.stdout`: the six passing Qt test phases used during that observation.
+- `actions.stdout`: the seven passing Qt test phases used during that observation.
 - `closure.stderr` and `otool.txt`: loader and direct-link closure. The observed Qt images were Core, Gui, Widgets, DBus, the Cocoa platform plugin, the macOS style plugin, and Test for the test executable, all from Qt 6.9.1.
 - `lsof-snapshots.txt`: supplemental open-file snapshots during the same flow. These snapshots are not write traces and cannot prove that deleted staging files were absent.
 - `fs-usage.stderr`: the mandatory write-trace attempt. macOS rejected `fs_usage` because it requires root. No privilege elevation or host-security change was authorized, so process-attributed storage tracing remains blocked.

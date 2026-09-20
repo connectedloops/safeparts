@@ -44,6 +44,13 @@ grep -Fq '#![forbid(unsafe_code)]' "$package/src/operation.rs" || {
   exit 1
 }
 grep -Fq 'unsafe_code = "forbid"' Cargo.toml || { echo 'workspace unsafe default must remain forbid' >&2; exit 1; }
-grep -Fq 'cxx = "=1.0.194"' "$package/Cargo.toml" || { echo 'cxx pin missing' >&2; exit 1; }
-grep -Fq 'cxx-build = "=1.0.194"' "$package/Cargo.toml" || { echo 'cxx-build pin missing' >&2; exit 1; }
+grep -Fq 'cxx = "=1.0.195"' "$package/Cargo.toml" || { echo 'cxx pin missing' >&2; exit 1; }
+grep -Fq 'cxx-build = "=1.0.195"' "$package/Cargo.toml" || { echo 'cxx-build pin missing' >&2; exit 1; }
+for package_name in cxx cxx-build cxxbridge-cmd cxxbridge-flags cxxbridge-macro; do
+  awk -v package_name="$package_name" '
+    $0 == "name = \"" package_name "\"" { found = 1; next }
+    found && /^version = / { if ($0 != "version = \"1.0.195\"") exit 1; matched = 1; found = 0 }
+    END { if (!matched) exit 1 }
+  ' Cargo.lock || { echo "$package_name lock pin missing" >&2; exit 1; }
+done
 echo DESKTOP_CXX_POLICY_GUARD_OK

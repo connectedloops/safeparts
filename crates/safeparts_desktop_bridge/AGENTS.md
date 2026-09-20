@@ -13,7 +13,7 @@ Owns the generated CXX seam between the experimental Qt desktop app and `safepar
 
 ## Local Contracts
 
-- Pin `cxx` and `cxx-build` to `1.0.194`; do not add `build.rs` or handwritten unsafe code.
+- Pin the CXX family to `1.0.195`; do not add `build.rs` or handwritten unsafe code.
 - Keep `src/bridge.rs` declarations-only and pinned by the policy guard. Keep operation logic under `#![forbid(unsafe_code)]`.
 - Rust owns share packets, retained recovery input, and authoritative recovered bytes. CXX values are bounded copies with explicit owners.
 - Catch unwinds at every CXX operation entry and return content-free typed statuses. Never log secret or Recovery share content.

@@ -9,12 +9,12 @@ repository.workspace = true
 crate-type = ["staticlib", "rlib"]
 
 [dependencies]
-cxx = "=1.0.194"
+cxx = "=1.0.195"
 safeparts_core = { path = "../safeparts_core" }
 zeroize = "1.8.2"
 
 [build-dependencies]
-cxx-build = "=1.0.194"
+cxx-build = "=1.0.195"
 
 [lints.rust]
 # Sole exception: cxx::bridge emits generated unsafe glue in this package.
