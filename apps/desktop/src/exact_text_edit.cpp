@@ -17,6 +17,7 @@
 
 namespace {
 constexpr qsizetype kMaximumSecretBytes = 1'048'576;
+constexpr qsizetype kMaximumPasteBytes = 16 * 1'048'576;
 
 QString withLfLineEndings(QString text) {
     text.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
@@ -182,7 +183,7 @@ void ExactTextEdit::contextMenuEvent(QContextMenuEvent *event) {
 }
 
 void ExactTextEdit::pasteFromClipboard() {
-    const ClipboardRead paste = readClipboardUtf8(kMaximumSecretBytes);
+    const ClipboardRead paste = readClipboardUtf8(kMaximumPasteBytes);
     if (paste.status != ClipboardRead::Status::Ok) {
         emit inputRejected(static_cast<int>(paste.status));
         return;

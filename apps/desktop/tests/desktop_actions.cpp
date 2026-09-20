@@ -58,7 +58,7 @@ void triggerContextAction(ExactTextEdit *editor, const QString &objectName) {
 void pasteIntoCreate(DesktopWindow &window, const QString &text) {
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
     QApplication::clipboard()->setText(text);
-    const ClipboardRead observed = readClipboardUtf8(1'048'576);
+    const ClipboardRead observed = readClipboardUtf8(16 * 1'048'576);
     QCOMPARE(static_cast<int>(observed.status), static_cast<int>(ClipboardRead::Status::Ok));
     auto *editor = required<ExactTextEdit>(&window, "secretInput");
     editor->setFocus();
@@ -178,6 +178,12 @@ void DesktopActions::text_entry_preserves_content_and_bounds_typing_and_input_me
     QCOMPARE(editor->exactUtf8(), QStringLiteral("\npaste\nsecond\nthird ").toUtf8());
     QCOMPARE(editor->toPlainText(), QStringLiteral("\npaste\nsecond\nthird "));
     QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("menu"));
+
+    required<QToolButton>(&window, "startOverButton")->click();
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
+    pasteIntoCreate(window, QStringLiteral("\r\n").repeated(1'048'576));
+    QCOMPARE(editor->exactUtf8(), QByteArray(1'048'576, '\n'));
+    QCOMPARE(editor->toPlainText(), QString(1'048'576, u'\n'));
 
     required<QToolButton>(&window, "startOverButton")->click();
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
