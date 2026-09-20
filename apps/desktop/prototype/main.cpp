@@ -303,7 +303,7 @@ private:
         viewportLayout->addStretch();
         page->setMaximumWidth(590);
         page->setMinimumWidth(0);
-        viewportLayout->addWidget(page, 1, Qt::AlignTop);
+        viewportLayout->addWidget(page, 1, Qt::AlignVCenter);
         viewportLayout->addStretch();
 
         auto *scroll = new QScrollArea;
