@@ -11,7 +11,10 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CRATES = ["safeparts_core", "safeparts", "safeparts_tui", "safeparts_wasm"]
+CRATES = [
+    "safeparts_core", "safeparts", "safeparts_tui", "safeparts_wasm",
+    "safeparts_desktop_bridge",
+]
 
 # External scanner fixture: discovers every lockfile it is actually given, including
 # poison examples. Production orchestration, staging, validation and reporting run unchanged.
@@ -31,7 +34,8 @@ if name == "cargo":
     if mode == "cargo-stale":
         print("Cargo.lock needs to be updated but --locked was passed", file=sys.stderr)
         sys.exit(101)
-    crates = ["safeparts_core", "safeparts", "safeparts_tui", "safeparts_wasm"]
+    crates = ["safeparts_core", "safeparts", "safeparts_tui", "safeparts_wasm",
+              "safeparts_desktop_bridge"]
     print(json.dumps({"workspace_members": crates, "packages": [
         {"id": c, "name": c, "manifest_path": str(pathlib.Path.cwd() / "crates" / c / "Cargo.toml")}
         for c in crates]}))

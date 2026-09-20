@@ -12,7 +12,7 @@ You need Python 3.11 or newer, Trivy 0.74.0, Bun 1.3.11 and the repository's Rus
 
 | Graph | Products covered |
 | --- | --- |
-| `Cargo.lock` | Core, CLI, TUI and WASM, including platform and development dependencies |
+| `Cargo.lock` | Core, CLI, TUI, WASM, and the experimental desktop CXX adapter, including platform and development dependencies |
 | `web/bun.lock` | Web app, build tools, deployment tools and test dependencies |
 | `web/help/bun.lock` | English and Arabic help, including build and development dependencies |
 
@@ -22,7 +22,7 @@ Trivy's filesystem scan receives only the named Cargo lockfile. For each Bun loc
 
 Trivy 0.74.0's native Bun parser treats hierarchical resolution keys as package names, so it can report patched root versions while failing to query advisories for vulnerable nested versions. A nonempty native inventory is not proof of coverage. Keep the normalized path and reconciliation until a replacement passes the live nested-version regression.
 
-The command cannot discover `node_modules` examples, dependencies bundled inside package tarballs but absent from the lock, generated WASM packages, build outputs, or another application's dependencies. Tauri, native macOS, native Windows, the UniFFI bridge and the mobile prototype are outside this supported result. Agent tooling such as `.opencode`, explainer media and container base images are also outside this product dependency report. This is not a whole-repository, image, secret or source-code scan.
+The command cannot discover `node_modules` examples, dependencies bundled inside package tarballs but absent from the lock, generated WASM packages, build outputs, or another application's dependencies. The retired Tauri app, native macOS, native Windows, the UniFFI bridge and the mobile prototype are outside this result. The active experimental desktop CXX adapter is included through the workspace lock even though it is not a released surface. Agent tooling such as `.opencode`, explainer media and container base images are also outside this product dependency report. This is not a whole-repository, image, secret or source-code scan.
 
 All severities, including unknown severity and findings without fixes, count. Development dependencies are included rather than suppressed: build and deployment tools can affect what we ship. The summary labels findings as `dev` only when Trivy marks the corresponding package that way. The Bun inventory does not infer reachability or dev/prod classification, so its findings appear as `other/unknown` even when all root dependencies are development tools. This is not a runtime-exposure assessment. Bun counts are unique name/version/advisory occurrences within each graph, with all duplicate lock keys listed alongside each finding; counts are not globally deduplicated advisory totals.
 

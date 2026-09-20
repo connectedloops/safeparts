@@ -20,7 +20,13 @@ from urllib.parse import quote
 
 TRIVY_VERSION = "0.74.0"
 BUN_VERSION = "1.3.11"
-ACTIVE_CRATES = {"crates/safeparts_core", "crates/safeparts", "crates/safeparts_tui", "crates/safeparts_wasm"}
+ACTIVE_CRATES = {
+    "crates/safeparts_core",
+    "crates/safeparts",
+    "crates/safeparts_tui",
+    "crates/safeparts_wasm",
+    "crates/safeparts_desktop_bridge",
+}
 SUPPORTED = {"Cargo.lock": "cargo", "web/bun.lock": "bun", "web/help/bun.lock": "bun"}
 RETIRED = {"desktop/bun.lock": "bun", "mobile/src-native/Cargo.lock": "cargo"}
 RETIRED_GAPS = {
