@@ -1,16 +1,17 @@
 #include <QApplication>
-#include <QButtonGroup>
 #include <QClipboard>
-#include <QDebug>
 #include <QDir>
 #include <QFileInfo>
 #include <QFontDatabase>
-#include <QFrame>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMainWindow>
 #include <QMessageBox>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -18,9 +19,11 @@
 #include <QScrollArea>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QStyleHints>
+#include <QTabBar>
 #include <QThread>
 #include <QTimer>
-#include <QToolBar>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace {
@@ -31,35 +34,181 @@ const QStringList kDemoTokens = {
 };
 const QString kDemoSecret = QStringLiteral("orchard-window-cobalt");
 
-QFont adjustedFont(const QWidget *widget, int pointDelta, QFont::Weight weight = QFont::Normal) {
+QColor blend(const QColor &first, const QColor &second, qreal amount) {
+    return QColor::fromRgbF(
+        first.redF() * (1.0 - amount) + second.redF() * amount,
+        first.greenF() * (1.0 - amount) + second.greenF() * amount,
+        first.blueF() * (1.0 - amount) + second.blueF() * amount,
+        1.0);
+}
+
+QString cssColor(const QColor &color) {
+    return QStringLiteral("rgba(%1, %2, %3, %4)")
+        .arg(color.red()).arg(color.green()).arg(color.blue()).arg(color.alpha());
+}
+
+QFont pointFont(const QWidget *widget, qreal points, QFont::Weight weight = QFont::Normal) {
     QFont font = widget->font();
-    font.setPointSize(qMax(9, font.pointSize() + pointDelta));
+    font.setPointSizeF(points);
     font.setWeight(weight);
     return font;
 }
 
-QLabel *heading(const QString &text) {
+QLabel *textLabel(const QString &text, qreal points = 13.0, QFont::Weight weight = QFont::Normal) {
     auto *label = new QLabel(text);
-    label->setFont(adjustedFont(label, 8, QFont::DemiBold));
+    label->setFont(pointFont(label, points, weight));
+    label->setWordWrap(true);
     return label;
 }
 
-QLabel *secondaryLabel(const QString &text) {
-    auto *label = new QLabel(text);
-    label->setWordWrap(true);
+QLabel *secondaryLabel(const QString &text, qreal points = 11.5) {
+    auto *label = textLabel(text, points);
     QPalette palette = label->palette();
-    QColor secondary = palette.color(QPalette::WindowText);
-    secondary.setAlphaF(0.72);
-    palette.setColor(QPalette::WindowText, secondary);
+    QColor color = palette.color(QPalette::WindowText);
+    color.setAlphaF(0.62);
+    palette.setColor(QPalette::WindowText, color);
     label->setPalette(palette);
     return label;
 }
 
-QFrame *separator() {
-    auto *line = new QFrame;
-    line->setFrameShape(QFrame::HLine);
-    line->setFrameShadow(QFrame::Sunken);
-    return line;
+QLabel *pageTitle(const QString &text) {
+    return textLabel(text, 22.0, QFont::DemiBold);
+}
+
+class Surface final : public QWidget {
+public:
+    explicit Surface(QWidget *parent = nullptr) : QWidget(parent) {
+        setAttribute(Qt::WA_TranslucentBackground);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QPalette current = palette();
+        const QColor window = current.color(QPalette::Window);
+        const QColor text = current.color(QPalette::WindowText);
+        const bool dark = current.color(QPalette::Window).lightnessF() < 0.5;
+        const QColor fill = blend(window, text, dark ? 0.075 : 0.035);
+        QColor border = text;
+        border.setAlphaF(dark ? 0.10 : 0.075);
+        painter.setPen(QPen(border, 1.0));
+        painter.setBrush(fill);
+        painter.drawRoundedRect(rect().adjusted(0, 0, -1, -1), 14, 14);
+    }
+};
+
+class Hairline final : public QWidget {
+public:
+    explicit Hairline(QWidget *parent = nullptr) : QWidget(parent) {
+        setFixedHeight(1);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        QColor line = palette().color(QPalette::WindowText);
+        line.setAlphaF(0.10);
+        painter.fillRect(rect(), line);
+    }
+};
+
+class ModeSelector final : public QTabBar {
+public:
+    explicit ModeSelector(QWidget *parent = nullptr) : QTabBar(parent) {
+        addTab(QStringLiteral("Create"));
+        addTab(QStringLiteral("Recover"));
+        setObjectName(QStringLiteral("modeSelector"));
+        setAccessibleName(QStringLiteral("Choose Create or Recover"));
+        setFocusPolicy(Qt::StrongFocus);
+        setUsesScrollButtons(false);
+        setExpanding(true);
+        setDrawBase(false);
+        setFixedSize(244, 30);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QColor window = palette().color(QPalette::Window);
+        const QColor text = palette().color(QPalette::WindowText);
+        const bool dark = window.lightnessF() < 0.5;
+        const QRectF bounds = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+        QColor track = blend(window, text, dark ? 0.10 : 0.07);
+        QColor edge = text;
+        edge.setAlphaF(dark ? 0.12 : 0.08);
+        painter.setPen(QPen(edge, 1));
+        painter.setBrush(track);
+        painter.drawRoundedRect(bounds, 8, 8);
+
+        const qreal half = width() / 2.0;
+        const QRectF selected(currentIndex() == 0 ? 2.5 : half + 0.5, 2.5, half - 3.0, height() - 5.0);
+        QColor selection = blend(window, text, dark ? 0.19 : 0.015);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(selection);
+        painter.drawRoundedRect(selected, 6, 6);
+
+        if (hasFocus()) {
+            QColor focus = palette().color(QPalette::Highlight);
+            focus.setAlphaF(0.78);
+            painter.setPen(QPen(focus, 2));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawRoundedRect(bounds.adjusted(1, 1, -1, -1), 7, 7);
+        }
+
+        painter.setPen(text);
+        painter.setFont(pointFont(this, 11.5, QFont::Medium));
+        painter.drawText(QRectF(0, 0, half, height()), Qt::AlignCenter, tabText(0));
+        painter.drawText(QRectF(half, 0, half, height()), Qt::AlignCenter, tabText(1));
+    }
+
+    void mousePressEvent(QMouseEvent *event) override {
+        setCurrentIndex(event->position().x() < width() / 2.0 ? 0 : 1);
+        setFocus(Qt::MouseFocusReason);
+        event->accept();
+    }
+
+    void keyPressEvent(QKeyEvent *event) override {
+        if (event->key() == Qt::Key_Left || event->key() == Qt::Key_Up) {
+            setCurrentIndex(0);
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_Right || event->key() == Qt::Key_Down) {
+            setCurrentIndex(1);
+            event->accept();
+            return;
+        }
+        QTabBar::keyPressEvent(event);
+    }
+};
+
+void styleInset(QWidget *widget) {
+    const QPalette current = widget->palette();
+    const QColor window = current.color(QPalette::Window);
+    const QColor text = current.color(QPalette::WindowText);
+    const bool dark = window.lightnessF() < 0.5;
+    const QColor background = blend(window, text, dark ? 0.045 : 0.018);
+    QColor border = text;
+    border.setAlphaF(dark ? 0.16 : 0.11);
+    QColor selection = current.color(QPalette::Highlight);
+    widget->setStyleSheet(QStringLiteral(
+        "QLineEdit, QPlainTextEdit { background: %1; color: %2; border: 1px solid %3; "
+        "border-radius: 8px; padding: 8px 10px; selection-background-color: %4; } "
+        "QLineEdit:focus, QPlainTextEdit:focus { border: 2px solid %4; padding: 7px 9px; }")
+        .arg(cssColor(background), cssColor(text), cssColor(border), cssColor(selection)));
+}
+
+void styleQuietButton(QPushButton *button) {
+    const QColor text = button->palette().color(QPalette::ButtonText);
+    QColor hover = text;
+    hover.setAlphaF(0.08);
+    button->setStyleSheet(QStringLiteral(
+        "QPushButton { border: 0; border-radius: 7px; padding: 5px 10px; background: transparent; } "
+        "QPushButton:hover { background: %1; } QPushButton:pressed { background: %2; }")
+        .arg(cssColor(hover), cssColor(hover.darker(115))));
 }
 } // namespace
 
@@ -67,51 +216,15 @@ class PrototypeWindow final : public QMainWindow {
 public:
     PrototypeWindow() {
         setWindowTitle(QStringLiteral("Safeparts Preview"));
-        resize(820, 650);
-        setMinimumSize(680, 560);
-        setUnifiedTitleAndToolBarOnMac(true);
-        buildToolbar();
-
-        auto *central = new QWidget;
-        auto *root = new QVBoxLayout(central);
-        root->setContentsMargins(38, 28, 38, 24);
-        root->setSpacing(20);
-
-        auto *previewHost = new QWidget;
-        previewHost->setFixedHeight(34);
-        auto *previewRow = new QHBoxLayout(previewHost);
-        previewRow->setContentsMargins(0, 0, 0, 0);
-        previewRow->setSpacing(9);
-        auto *badge = new QLabel(QStringLiteral("Preview"));
-        badge->setFrameShape(QFrame::StyledPanel);
-        badge->setMargin(5);
-        badge->setFont(adjustedFont(badge, -1, QFont::DemiBold));
-        previewRow->addWidget(badge, 0, Qt::AlignVCenter);
-        previewRow->addWidget(secondaryLabel(QStringLiteral("Demo data only. Do not use real secrets.")), 0, Qt::AlignVCenter);
-        previewRow->addStretch();
-        root->addWidget(previewHost);
-
-        pages_ = new QStackedWidget;
-        pages_->setMinimumSize(0, 0);
-        pages_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Ignored);
-        buildCreatePage();
-        buildRecoverPage();
-        root->addWidget(pages_, 1);
-        setCentralWidget(central);
-
-        connect(createModeButton_, &QPushButton::clicked, this, [this] { setMode(0); });
-        connect(recoverModeButton_, &QPushButton::clicked, this, [this] { setMode(1); });
-        connect(resetButton_, &QPushButton::clicked, this, [this] { resetOperation(); });
-        connect(helpButton_, &QPushButton::clicked, this, [this] {
-            QMessageBox::information(this, QStringLiteral("About this preview"),
-                QStringLiteral("This is a visual demo with three fixed fake tokens. It does not perform cryptography, split a secret, parse recovery shares, or recover data. Never enter a real secret here."));
-        });
+        resize(720, 560);
+        setMinimumSize(620, 480);
+        buildWindow();
         setMode(0);
     }
 
     void showCreatedShares() {
-        createdShares_->setVisible(true);
         createButton_->setEnabled(false);
+        createStates_->setCurrentIndex(1);
     }
 
     void showRecoverReady() {
@@ -125,129 +238,188 @@ public:
     }
 
 private:
-    void buildToolbar() {
-        auto *toolbar = addToolBar(QStringLiteral("Main"));
-        toolbar->setMovable(false);
-        toolbar->setFloatable(false);
-        toolbar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    void buildWindow() {
+        auto *central = new QWidget;
+        auto *root = new QVBoxLayout(central);
+        root->setContentsMargins(28, 18, 28, 15);
+        root->setSpacing(14);
 
-        auto *modeHost = new QWidget;
-        auto *modeLayout = new QHBoxLayout(modeHost);
-        modeLayout->setContentsMargins(8, 4, 4, 4);
-        modeLayout->setSpacing(6);
-        createModeButton_ = new QPushButton(QStringLiteral("Create shares"));
-        recoverModeButton_ = new QPushButton(QStringLiteral("Recover secret"));
-        auto *modeGroup = new QButtonGroup(this);
-        modeGroup->setExclusive(true);
-        for (auto *button : {createModeButton_, recoverModeButton_}) {
-            button->setCheckable(true);
-            button->setAutoDefault(false);
-            modeGroup->addButton(button);
-            modeLayout->addWidget(button);
-        }
-        toolbar->addWidget(modeHost);
+        auto *header = new QHBoxLayout;
+        header->setSpacing(8);
+        modeSelector_ = new ModeSelector;
+        header->addWidget(modeSelector_);
+        header->addStretch();
+        helpButton_ = new QToolButton;
+        helpButton_->setObjectName(QStringLiteral("helpButton"));
+        helpButton_->setText(QStringLiteral("Help"));
+        helpButton_->setAutoRaise(true);
+        helpButton_->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        helpButton_->setStyleSheet(QStringLiteral("QToolButton { border: 0; padding: 5px 7px; background: transparent; }"));
+        resetButton_ = new QToolButton;
+        resetButton_->setObjectName(QStringLiteral("resetButton"));
+        resetButton_->setText(QStringLiteral("Start over"));
+        resetButton_->setAutoRaise(true);
+        resetButton_->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        resetButton_->setStyleSheet(QStringLiteral("QToolButton { border: 0; padding: 5px 7px; background: transparent; }"));
+        header->addWidget(helpButton_);
+        header->addWidget(resetButton_);
+        root->addLayout(header);
 
-        auto *spacer = new QWidget;
-        spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-        toolbar->addWidget(spacer);
+        pages_ = new QStackedWidget;
+        buildCreatePage();
+        buildRecoverPage();
+        root->addWidget(pages_, 1);
 
-        auto *actionsHost = new QWidget;
-        auto *actionsLayout = new QHBoxLayout(actionsHost);
-        actionsLayout->setContentsMargins(4, 4, 8, 4);
-        actionsLayout->setSpacing(6);
-        helpButton_ = new QPushButton(QStringLiteral("Help"));
-        resetButton_ = new QPushButton(QStringLiteral("Start over"));
-        for (auto *button : {helpButton_, resetButton_}) {
-            button->setFlat(true);
-            button->setAutoDefault(false);
-            actionsLayout->addWidget(button);
-        }
-        toolbar->addWidget(actionsHost);
+        auto *footer = new QHBoxLayout;
+        footer->setSpacing(8);
+        auto *preview = textLabel(QStringLiteral("PREVIEW"), 10.0, QFont::DemiBold);
+        QPalette previewPalette = preview->palette();
+        previewPalette.setColor(QPalette::WindowText, previewPalette.color(QPalette::Highlight));
+        preview->setPalette(previewPalette);
+        footer->addStretch();
+        footer->addWidget(preview);
+        auto *notice = secondaryLabel(QStringLiteral("Demo data only. Not for real secrets."), 10.5);
+        notice->setWordWrap(false);
+        footer->addWidget(notice);
+        footer->addStretch();
+        root->addLayout(footer);
+        central->setFocusPolicy(Qt::StrongFocus);
+        setCentralWidget(central);
+        central->setFocus(Qt::OtherFocusReason);
+
+        connect(modeSelector_, &QTabBar::currentChanged, this, [this](int index) { setMode(index); });
+        connect(resetButton_, &QToolButton::clicked, this, [this] { resetOperation(); });
+        connect(helpButton_, &QToolButton::clicked, this, [this] {
+            QMessageBox::information(this, QStringLiteral("About this preview"),
+                QStringLiteral("This preview uses three fixed fake tokens and a fixed result. "
+                               "It does not use cryptography, split a secret, parse recovery shares, or recover data."));
+        });
     }
 
     void addPage(QWidget *page) {
+        auto *viewport = new QWidget;
+        auto *viewportLayout = new QHBoxLayout(viewport);
+        viewportLayout->setContentsMargins(0, 4, 0, 4);
+        viewportLayout->addStretch();
+        page->setMaximumWidth(590);
+        page->setMinimumWidth(0);
+        viewportLayout->addWidget(page, 1, Qt::AlignTop);
+        viewportLayout->addStretch();
+
         auto *scroll = new QScrollArea;
         scroll->setFrameShape(QFrame::NoFrame);
         scroll->setWidgetResizable(true);
         scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        scroll->setWidget(page);
+        scroll->setWidget(viewport);
         pages_->addWidget(scroll);
     }
 
-    void buildCreatePage() {
-        auto *page = new QWidget;
-        auto *layout = new QVBoxLayout(page);
+    QWidget *createEntry() {
+        auto *entry = new QWidget;
+        auto *layout = new QVBoxLayout(entry);
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(18);
+        layout->addWidget(pageTitle(QStringLiteral("Create recovery shares")));
+        layout->addWidget(secondaryLabel(QStringLiteral("Use the fixed example to see how a 2-of-3 set is presented."), 12.5));
 
-        layout->addWidget(heading(QStringLiteral("Create recovery shares")));
-        layout->addWidget(secondaryLabel(QStringLiteral("Try the flow with a read-only example. The preview always creates three fake shares.")));
+        auto *surface = new Surface;
+        auto *surfaceLayout = new QVBoxLayout(surface);
+        surfaceLayout->setContentsMargins(20, 16, 20, 16);
+        surfaceLayout->setSpacing(12);
+        surfaceLayout->addWidget(textLabel(QStringLiteral("Example secret"), 11.0, QFont::DemiBold));
+        secretField_ = new QLineEdit(kDemoSecret);
+        secretField_->setObjectName(QStringLiteral("syntheticSecret"));
+        secretField_->setReadOnly(true);
+        secretField_->setAccessibleDescription(QStringLiteral("Fixed synthetic example"));
+        secretField_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+        secretField_->setFixedHeight(38);
+        styleInset(secretField_);
+        surfaceLayout->addWidget(secretField_);
+        surfaceLayout->addWidget(new Hairline);
 
-        auto *facts = new QHBoxLayout;
-        facts->setSpacing(26);
-        for (const auto &fact : {QStringLiteral("2 needed"), QStringLiteral("3 shares"), QStringLiteral("Words")}) {
-            auto *label = new QLabel(fact);
-            label->setFont(adjustedFont(label, 0, QFont::DemiBold));
-            facts->addWidget(label);
-        }
-        facts->addStretch();
-        layout->addLayout(facts);
-        layout->addWidget(separator());
+        auto *summary = new QHBoxLayout;
+        summary->addWidget(textLabel(QStringLiteral("Recovery setup"), 12.0));
+        summary->addStretch();
+        summary->addWidget(textLabel(QStringLiteral("2 of 3  ·  Words"), 12.0, QFont::DemiBold));
+        surfaceLayout->addLayout(summary);
+        surfaceLayout->addWidget(new Hairline);
 
-        auto *secretLabel = new QLabel(QStringLiteral("Example secret"));
-        secretLabel->setFont(adjustedFont(secretLabel, 0, QFont::DemiBold));
-        layout->addWidget(secretLabel);
-        auto *secret = new QLineEdit(kDemoSecret);
-        secret->setReadOnly(true);
-        secret->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-        layout->addWidget(secret);
-        layout->addWidget(secondaryLabel(QStringLiteral("Synthetic and read-only for this preview.")));
-
+        auto *action = new QHBoxLayout;
+        action->setSpacing(12);
+        action->addWidget(secondaryLabel(QStringLiteral("Creates three fixed demo shares."), 11.0), 1);
         createButton_ = new QPushButton(QStringLiteral("Create demo shares"));
+        createButton_->setObjectName(QStringLiteral("createButton"));
         createButton_->setDefault(true);
-        createButton_->setMinimumWidth(154);
-        layout->addWidget(createButton_, 0, Qt::AlignLeft);
+        createButton_->setFixedHeight(32);
+        action->addWidget(createButton_);
+        surfaceLayout->addLayout(action);
+        layout->addWidget(surface);
+        layout->addStretch();
+        connect(createButton_, &QPushButton::clicked, this, [this] { showCreatedShares(); });
+        return entry;
+    }
 
-        createdShares_ = new QFrame;
-        auto *sharesLayout = new QVBoxLayout(createdShares_);
-        sharesLayout->setContentsMargins(0, 8, 0, 0);
-        sharesLayout->setSpacing(10);
-        auto *resultHeader = new QHBoxLayout;
-        auto *resultTitle = new QLabel(QStringLiteral("Three demo shares"));
-        resultTitle->setFont(adjustedFont(resultTitle, 2, QFont::DemiBold));
-        resultHeader->addWidget(resultTitle);
-        resultHeader->addStretch();
-        resultHeader->addWidget(secondaryLabel(QStringLiteral("Synthetic output")));
-        sharesLayout->addLayout(resultHeader);
+    QWidget *createdResult() {
+        auto *resultPage = new QWidget;
+        auto *layout = new QVBoxLayout(resultPage);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(18);
+        layout->addWidget(pageTitle(QStringLiteral("Three demo shares")));
+        layout->addWidget(secondaryLabel(QStringLiteral("Any two would be enough in the real workflow. These tokens are only fixtures."), 12.5));
 
+        auto *surface = new Surface;
+        surface->setObjectName(QStringLiteral("createdShares"));
+        auto *surfaceLayout = new QVBoxLayout(surface);
+        surfaceLayout->setContentsMargins(20, 8, 14, 8);
+        surfaceLayout->setSpacing(0);
         for (int i = 0; i < kDemoTokens.size(); ++i) {
             if (i > 0)
-                sharesLayout->addWidget(separator());
-            auto *row = new QHBoxLayout;
-            row->setSpacing(14);
-            auto *number = new QLabel(QString::number(i + 1));
-            number->setMinimumWidth(18);
+                surfaceLayout->addWidget(new Hairline);
+            auto *row = new QWidget;
+            row->setFixedHeight(52);
+            auto *rowLayout = new QHBoxLayout(row);
+            rowLayout->setContentsMargins(0, 0, 0, 0);
+            rowLayout->setSpacing(12);
+            auto *number = textLabel(QString::number(i + 1), 11.0, QFont::DemiBold);
             number->setAlignment(Qt::AlignCenter);
-            number->setFont(adjustedFont(number, 0, QFont::DemiBold));
-            auto *token = new QLabel(kDemoTokens.at(i));
-            token->setTextInteractionFlags(Qt::TextSelectableByMouse);
+            number->setFixedSize(24, 24);
+            rowLayout->addWidget(number);
+            auto *token = textLabel(kDemoTokens.at(i), 11.5, QFont::Medium);
             token->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-            auto *copy = new QPushButton(QStringLiteral("Copy share %1").arg(i + 1));
+            token->setTextInteractionFlags(Qt::TextSelectableByMouse);
+            rowLayout->addWidget(token, 1);
+            auto *copy = new QPushButton(QStringLiteral("Copy"));
+            copy->setObjectName(QStringLiteral("copyShare%1").arg(i + 1));
+            copy->setAccessibleName(QStringLiteral("Copy demo share %1").arg(i + 1));
             copy->setAutoDefault(false);
-            row->addWidget(number);
-            row->addWidget(token, 1);
-            row->addWidget(copy);
+            copy->setFixedHeight(30);
+            styleQuietButton(copy);
+            rowLayout->addWidget(copy);
             const QString fakeToken = kDemoTokens.at(i);
             connect(copy, &QPushButton::clicked, this, [fakeToken] {
                 QApplication::clipboard()->setText(fakeToken);
             });
-            sharesLayout->addLayout(row);
+            surfaceLayout->addWidget(row);
         }
-        createdShares_->setVisible(false);
-        layout->addWidget(createdShares_);
+        layout->addWidget(surface);
+
+        auto *summary = new QHBoxLayout;
+        summary->addWidget(secondaryLabel(QStringLiteral("Threshold")));
+        summary->addWidget(textLabel(QStringLiteral("2 of 3"), 11.5, QFont::DemiBold));
+        summary->addSpacing(14);
+        summary->addWidget(secondaryLabel(QStringLiteral("Encoding")));
+        summary->addWidget(textLabel(QStringLiteral("Words"), 11.5, QFont::DemiBold));
+        summary->addStretch();
+        layout->addLayout(summary);
         layout->addStretch();
-        connect(createButton_, &QPushButton::clicked, this, [this] { showCreatedShares(); });
-        addPage(page);
+        return resultPage;
+    }
+
+    void buildCreatePage() {
+        createStates_ = new QStackedWidget;
+        createStates_->addWidget(createEntry());
+        createStates_->addWidget(createdResult());
+        addPage(createStates_);
     }
 
     void buildRecoverPage() {
@@ -255,47 +427,54 @@ private:
         auto *layout = new QVBoxLayout(page);
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(18);
+        layout->addWidget(pageTitle(QStringLiteral("Recover a secret")));
+        layout->addWidget(secondaryLabel(QStringLiteral("Paste two different demo tokens to reveal the fixed example result."), 12.5));
 
-        layout->addWidget(heading(QStringLiteral("Recover a secret")));
-        layout->addWidget(secondaryLabel(QStringLiteral("Paste at least two different demo shares. This preview recognizes only its three fixed tokens.")));
-
-        auto *inputLabel = new QLabel(QStringLiteral("Demo shares"));
-        inputLabel->setFont(adjustedFont(inputLabel, 0, QFont::DemiBold));
-        layout->addWidget(inputLabel);
+        auto *surface = new Surface;
+        auto *surfaceLayout = new QVBoxLayout(surface);
+        surfaceLayout->setContentsMargins(20, 16, 20, 16);
+        surfaceLayout->setSpacing(11);
+        surfaceLayout->addWidget(textLabel(QStringLiteral("Demo shares"), 11.0, QFont::DemiBold));
         recoverInput_ = new QPlainTextEdit;
+        recoverInput_->setObjectName(QStringLiteral("recoveryInput"));
         recoverInput_->setPlaceholderText(QStringLiteral("Paste one demo token per line"));
-        recoverInput_->setMinimumHeight(132);
-        recoverInput_->setMaximumHeight(180);
         recoverInput_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-        layout->addWidget(recoverInput_);
+        recoverInput_->setFixedHeight(122);
+        styleInset(recoverInput_);
+        surfaceLayout->addWidget(recoverInput_);
 
-        auto *actionRow = new QHBoxLayout;
-        actionRow->setSpacing(14);
+        auto *action = new QHBoxLayout;
+        action->setSpacing(12);
+        status_ = secondaryLabel(QString(), 11.0);
+        status_->setObjectName(QStringLiteral("recoveryStatus"));
+        action->addWidget(status_, 1);
         recoverButton_ = new QPushButton(QStringLiteral("Recover demo secret"));
+        recoverButton_->setObjectName(QStringLiteral("recoverButton"));
         recoverButton_->setDefault(true);
-        recoverButton_->setMinimumWidth(164);
-        status_ = secondaryLabel(QString());
-        status_->setObjectName(QStringLiteral("status"));
-        actionRow->addWidget(recoverButton_);
-        actionRow->addWidget(status_, 1);
-        layout->addLayout(actionRow);
+        recoverButton_->setFixedHeight(32);
+        action->addWidget(recoverButton_);
+        surfaceLayout->addLayout(action);
 
-        result_ = new QFrame;
-        result_->setFrameShape(QFrame::StyledPanel);
+        result_ = new QWidget;
+        result_->setObjectName(QStringLiteral("recoveryResult"));
         auto *resultLayout = new QVBoxLayout(result_);
-        resultLayout->setContentsMargins(18, 14, 18, 14);
-        resultLayout->setSpacing(6);
-        auto *resultTitle = new QLabel(QStringLiteral("Demo result"));
-        resultTitle->setFont(adjustedFont(resultTitle, 0, QFont::DemiBold));
-        resultLayout->addWidget(resultTitle);
-        auto *resultText = new QLabel(kDemoSecret);
+        resultLayout->setContentsMargins(0, 5, 0, 0);
+        resultLayout->setSpacing(7);
+        resultLayout->addWidget(new Hairline);
+        auto *resultHeader = new QHBoxLayout;
+        resultHeader->setContentsMargins(0, 4, 0, 0);
+        resultHeader->addWidget(textLabel(QStringLiteral("Demo result"), 11.0, QFont::DemiBold));
+        resultHeader->addStretch();
+        resultHeader->addWidget(secondaryLabel(QStringLiteral("Fixed synthetic output"), 10.5));
+        resultLayout->addLayout(resultHeader);
+        auto *resultText = textLabel(kDemoSecret, 12.0, QFont::Medium);
         resultText->setObjectName(QStringLiteral("result"));
         resultText->setTextInteractionFlags(Qt::TextSelectableByMouse);
         resultText->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
         resultLayout->addWidget(resultText);
-        resultLayout->addWidget(secondaryLabel(QStringLiteral("Fixed synthetic result. No recovery occurred.")));
         result_->setVisible(false);
-        layout->addWidget(result_);
+        surfaceLayout->addWidget(result_);
+        layout->addWidget(surface);
         layout->addStretch();
 
         connect(recoverInput_, &QPlainTextEdit::textChanged, this, [this] { refreshRecoveryState(); });
@@ -336,9 +515,9 @@ private:
         if (tokens.isEmpty())
             status_->setText(QStringLiteral("Add 2 different demo shares."));
         else if (unknownCount > 0)
-            status_->setText(QStringLiteral("Unknown token. Use a token from Create shares."));
+            status_->setText(QStringLiteral("Unknown token. Use a token from Create."));
         else if (duplicateCount > 0)
-            status_->setText(QStringLiteral("Remove duplicate tokens to continue."));
+            status_->setText(QStringLiteral("Remove the duplicate token."));
         else if (!ready)
             status_->setText(QStringLiteral("1 of 2 shares added."));
         else
@@ -351,45 +530,67 @@ private:
     }
 
     void setMode(int index) {
+        if (!pages_ || index < 0 || index > 1)
+            return;
+        modeSelector_->blockSignals(true);
+        modeSelector_->setCurrentIndex(index);
+        modeSelector_->blockSignals(false);
         pages_->setCurrentIndex(index);
-        createModeButton_->setChecked(index == 0);
-        recoverModeButton_->setChecked(index == 1);
         resetOperation();
     }
 
     void resetOperation() {
-        createdShares_->setVisible(false);
+        createStates_->setCurrentIndex(0);
         createButton_->setEnabled(true);
         recoverInput_->clear();
         result_->setVisible(false);
     }
 
+    ModeSelector *modeSelector_ = nullptr;
+    QToolButton *helpButton_ = nullptr;
+    QToolButton *resetButton_ = nullptr;
     QStackedWidget *pages_ = nullptr;
-    QPushButton *createModeButton_ = nullptr;
-    QPushButton *recoverModeButton_ = nullptr;
-    QPushButton *helpButton_ = nullptr;
-    QPushButton *resetButton_ = nullptr;
+    QStackedWidget *createStates_ = nullptr;
+    QLineEdit *secretField_ = nullptr;
     QPushButton *createButton_ = nullptr;
-    QFrame *createdShares_ = nullptr;
     QPlainTextEdit *recoverInput_ = nullptr;
     QLabel *status_ = nullptr;
     QPushButton *recoverButton_ = nullptr;
-    QFrame *result_ = nullptr;
+    QWidget *result_ = nullptr;
 };
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
+    app.setApplicationName(QStringLiteral("Safeparts Preview"));
     app.setFont(QFontDatabase::systemFont(QFontDatabase::GeneralFont));
+
+    const QStringList arguments = app.arguments();
+    const int appearanceIndex = arguments.indexOf(QStringLiteral("--appearance"));
+    QString requestedAppearance = QStringLiteral("system");
+    if (appearanceIndex >= 0 && appearanceIndex + 1 < arguments.size()) {
+        requestedAppearance = arguments.at(appearanceIndex + 1).toLower();
+        if (requestedAppearance == QStringLiteral("light"))
+            QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
+        else if (requestedAppearance == QStringLiteral("dark"))
+            QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+        else
+            return 5;
+        QApplication::processEvents();
+    }
+
     PrototypeWindow window;
-    if (app.arguments().contains(QStringLiteral("--small")))
+    if (arguments.contains(QStringLiteral("--small")))
         window.resize(window.minimumSize());
 
     const QFont resolvedFont = app.font();
-    qInfo().noquote() << QStringLiteral("Qt %1 | platform %2 | style %3 | font %4 %5pt")
-                             .arg(qVersion(), QGuiApplication::platformName(), app.style()->name(),
-                                  resolvedFont.family(), QString::number(resolvedFont.pointSizeF()));
+    const Qt::ColorScheme activeScheme = QGuiApplication::styleHints()->colorScheme();
+    const QString schemeName = activeScheme == Qt::ColorScheme::Dark ? QStringLiteral("dark")
+        : activeScheme == Qt::ColorScheme::Light ? QStringLiteral("light") : QStringLiteral("unknown");
+    qInfo().noquote() << QStringLiteral("Qt %1 | platform %2 | style %3 | system font %4 %5pt | appearance requested %6 active %7 | window %8x%9")
+        .arg(qVersion(), QGuiApplication::platformName(), app.style()->name(), resolvedFont.family(),
+             QString::number(resolvedFont.pointSizeF()), requestedAppearance, schemeName,
+             QString::number(window.width()), QString::number(window.height()));
 
-    const QStringList arguments = app.arguments();
     const int captureIndex = arguments.indexOf(QStringLiteral("--capture"));
     if (captureIndex < 0) {
         window.show();
@@ -419,7 +620,7 @@ int main(int argc, char *argv[]) {
             if (capture.prepare)
                 (window.*capture.prepare)();
             QApplication::processEvents();
-            QThread::msleep(120);
+            QThread::msleep(100);
             QApplication::processEvents();
             const QPixmap shot = window.screen()->grabWindow(window.winId());
             saved = shot.save(QDir(outputDirectory).filePath(capture.name), "PNG") && saved;
