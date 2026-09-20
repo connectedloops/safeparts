@@ -22,7 +22,7 @@ Owns local developer-experience diagnostics and verification helpers.
 - `merge_gate.py`: stable PR gate evaluator for applicable check-run results and path-filtered workloads.
 - `test_merge_gate.py`: fixture tests for relevant, irrelevant, failed, cancelled, missing, pending, and expected-skip gate outcomes.
 - `test_ci_triggers.py`: Rust/Web/RustSec workflow trigger policy tests for PR-based feature-branch verification, main push verification, Windows/native macOS CLI/TUI behavior jobs, and recovery schedules/manual dispatch.
-- `test_retirement.py`: active Cargo/task/CI boundaries, CLI/TUI release hosts and checksum safety, supported version manifests, and staged Docker Cargo inputs.
+- `test_retirement.py`: supported and experimental active Cargo/task/CI boundaries, CLI/TUI release hosts and checksum safety, supported version manifests, and staged Docker Cargo inputs.
 - `changelog.py`: main-history/release collector and renderer for the three committed changelog snapshots.
 - `test_changelog.py`, `test_changelog_workflow.py`: isolated Git/release fixtures and main-only writer/artifact handoff guards; require supported WASM/web/help gates without retired desktop builds.
 - `README.md`: local script usage notes, including changelog regeneration and CI permissions.

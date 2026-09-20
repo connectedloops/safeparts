@@ -12,17 +12,18 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ACTIVE_CRATES = {
+RELEASE_CRATES = {
     "crates/safeparts_core", "crates/safeparts", "crates/safeparts_tui",
     "crates/safeparts_wasm",
 }
-RETIRED = ("desktop", "macos/", "windows/", "safeparts_uniffi", "tauri", "uniffi")
+WORKSPACE_CRATES = RELEASE_CRATES | {"crates/safeparts_desktop_bridge"}
+RETIRED = ("desktop/src-tauri", "macos/", "windows/", "safeparts_uniffi", "tauri", "uniffi")
 
 
 class RetirementTests(unittest.TestCase):
     def test_workspace_and_default_tasks_require_only_supported_surfaces(self) -> None:
         workspace = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]
-        self.assertEqual(set(workspace["members"]), ACTIVE_CRATES)
+        self.assertEqual(set(workspace["members"]), WORKSPACE_CRATES)
         self.assertTrue({"desktop/src-tauri", "crates/safeparts_uniffi"} <= set(workspace["exclude"]))
         tasks = tomllib.loads((ROOT / "mise.toml").read_text())["tasks"]
         for name, task in tasks.items():
@@ -85,7 +86,7 @@ class RetirementTests(unittest.TestCase):
             checker = root / "scripts/release/check-version.py"
             checker.parent.mkdir(parents=True)
             shutil.copyfile(ROOT / "scripts/release/check-version.py", checker)
-            for crate in ACTIVE_CRATES:
+            for crate in RELEASE_CRATES:
                 manifest = root / crate / "Cargo.toml"
                 manifest.parent.mkdir(parents=True)
                 manifest.write_text('[package]\nversion = "9.8.7"\n')
