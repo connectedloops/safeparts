@@ -105,6 +105,19 @@ cargo test -p safeparts_core --test share_compatibility
 
 Then run the core security properties and the full Rust gate.
 
+## Experimental Qt desktop slice
+
+On a development host with Qt 6.9 or newer and CMake 3.21 or newer:
+
+```bash
+mise run desktop:test
+mise run desktop:run
+```
+
+`desktop:test` runs the generated-glue policy guard, a locked Rust release build, strict C++ compilation, the executable CXX ownership/error contract, and Qt user-action/lifecycle checks. Generated CXX files and CMake output stay under `target/`. The build dynamically links the selected Qt installation and restricts Qt plugin lookup to that installation at launch.
+
+The current evidence is Apple-silicon macOS 15.5 with Qt 6.9.1, CMake 4.0.1, Apple Clang 17, Rust 1.93.0, and CXX 1.0.194. This does not qualify the approved Qt 6.11 packaging target or any release platform. See [the feature matrix](feature-matrix.md#experimental-desktop-coverage) for the implemented and deferred slices.
+
 ## Web app
 
 Build the complete static site from the repository root:

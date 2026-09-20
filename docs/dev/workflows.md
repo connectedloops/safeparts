@@ -58,6 +58,14 @@ Use these checklists to keep future changes predictable.
 5. Update help guidance when user-visible behavior changes. Retired applications have no parity requirement.
 6. Run web build, typecheck, and the relevant browser checks.
 
+## Work on the experimental Qt desktop slice
+
+1. Keep formats and reusable admission rules in `safeparts_core`; keep desktop operation ownership in `safeparts_desktop_bridge`.
+2. Run `mise run desktop:test` after changing the CXX seam, worker, clipboard adapter, or UI actions.
+3. Launch the development build with `mise run desktop:run`. Use synthetic text only.
+4. Run `mise run verify` separately. The desktop gate is host-specific and does not certify a release platform.
+5. Keep the accepted visual pointer and historical prototype branch listed in [the feature matrix](feature-matrix.md); do not restore the throwaway fixture as production code.
+
 ## Change CI verification triggers
 
 1. Rust and Web verification run on pull requests for feature-branch updates, including draft pull requests.

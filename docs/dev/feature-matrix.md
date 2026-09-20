@@ -46,6 +46,18 @@ Supported surfaces are core, CLI, TUI, WASM, web, and help. Retired applications
 | Web `base58check` and `mnemo-bip39` exposure | Core | Yes | Yes | Yes | Planned | Planned | Add web boundary tests | Web, help docs |
 | Compatibility import/export | Planned | Planned | Planned | Planned | Planned | Planned | None yet | Add spec and migration notes |
 
+## Experimental desktop coverage
+
+The issue 140 app is a reviewable native development slice, not a supported release surface. Its accepted visual source is [issue 140 comment 5747267572](https://github.com/connectedloops/safeparts/issues/140#issuecomment-5747267572); the historical throwaway fixture remains on `prototype/desktop-reference-ui` at `874c5e7` and is not production source.
+
+| Capability | Experimental Qt desktop | Evidence | Deferred or unverified |
+| --- | --- | --- | --- |
+| Text create/recover | V2 unprotected `mnemo-words`, exact UTF-8/LF, suggested 2-of-3 with valid threshold/share-count customization | Public Rust operation tests, generated-CXX executable, Qt clipboard/action round trip | Files, passphrases, other encodings, V1 input, binary output |
+| Processing lifecycle | One worker, explicit Recover, immediate inspection, generation-based stale-result rejection, Start over/mode/close discard | Qt action tests cover stale success, stale error, duplicate correction, reset, and close/reopen | Cancellation controls beyond lifecycle discard |
+| Admission | 1 MiB secret, 16 MiB logical volume/paste, token/share/retained-input/encoded-share bounds in the Rust adapter | Rust boundary tests and typed statuses | Full 1 GiB capacity trace and allocation-failure injection |
+| Clipboard fidelity | macOS native bytes are bounded before Qt materialization; presentation never becomes authoritative | Qt action test includes NUL, NBSP, U+2028, U+2029, decomposed Unicode, and leading/trailing newlines | Windows/Linux acquisition qualification |
+| Distribution | None | Qt 6.9.1 development-host build only | Qt 6.11 evaluation, packaging, licensing bundle, signing, and every release-platform row |
+
 ## Required update checklist
 
 When a feature changes, answer these before closing the task:

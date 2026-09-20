@@ -87,8 +87,8 @@ Default section order:
 ## Child DOX Index
 
 - `.agents/`: repository-local agent skills and skill support files.
-- `apps/desktop/`: throwaway native desktop UI prototype for the issue 140 visual checkpoint.
-- `crates/`: Rust workspace crates for core algorithms, CLI, TUI, and WASM bindings.
+- `apps/desktop/`: experimental Qt Widgets desktop text round-trip app for issue 140.
+- `crates/`: Rust workspace crates for core algorithms, CLI, TUI, WASM, and the generated desktop CXX adapter.
 - `web/`: Vite + React web app, WASM build integration, browser tests, and docs child site.
   - `web/help/`: Astro + Starlight help docs served under `/help/`.
 - `desktop/`: retired Tauri app, retained as dormant source reference.
@@ -124,12 +124,13 @@ Use the single-context domain model in `CONTEXT.md` and relevant records under `
   - `crates/safeparts/` (CLI wrapper; binary: `safeparts`)
   - `crates/safeparts_tui/` (interactive terminal UI; binary: `safeparts-tui`)
   - `crates/safeparts_wasm/` (wasm-bindgen exports for the web UI)
+  - `crates/safeparts_desktop_bridge/` (generated CXX adapter for the experimental Qt desktop slice)
 - Web app: `web/` (Vite + React) which expects a WASM build step.
 - Help/docs: `web/help/` (Astro + Starlight), deployed under `/help/`.
 
 ## Supported product scope
 
-- Support core, CLI, TUI, WASM, web, and help. CLI/TUI remain supported on Linux, macOS, and Windows.
+- Support core, CLI, TUI, WASM, web, and help. CLI/TUI remain supported on Linux, macOS, and Windows. The issue 140 Qt desktop slice is experimental development-host evidence, not a packaged or platform-qualified release.
 - Tauri, native macOS, native Windows, and their dedicated `crates/safeparts_uniffi/` bridge are retired. Retain their source as dormant reference; exclude them from supported setup, workspace builds, tests, coverage, releases, and UI parity requirements.
 - Do not port active web changes into retired apps or restore their automation. A replacement or reinstatement requires a separate explicit decision.
 - Before new desktop work, read the [approved implementation brief](https://github.com/connectedloops/safeparts/issues/126#issuecomment-5740930939) and its linked decisions/checklist. The [completed Wayfinder map](https://github.com/connectedloops/safeparts/issues/126) indexes the rationale. Design the app afresh without current/retired app implementations as inputs, but reuse `safeparts_core` through thin adapters rather than duplicating or forking the Rust core. Planning completion does not authorize implementation, certify runtime/platform behavior, or reinstate retired products.

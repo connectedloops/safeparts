@@ -9,12 +9,14 @@ crates/safeparts_core/   Core split/combine, packets, encodings, optional encryp
 crates/safeparts/        CLI binary: safeparts
 crates/safeparts_tui/    Terminal UI binary: safeparts-tui
 crates/safeparts_wasm/   wasm-bindgen facade for the browser app
+crates/safeparts_desktop_bridge/  generated CXX adapter for the experimental desktop slice
+apps/desktop/            experimental Qt Widgets text round-trip app
 web/                    Vite + React browser UI
 web/help/               Astro + Starlight help site under /help/
 scripts/                Repository automation
 ```
 
-`desktop/` (Tauri), `macos/` (SwiftUI), `windows/` (WinUI), and `crates/safeparts_uniffi/` are dormant reference for retired applications. `mobile/` retains dormant prototype artifacts. These are outside supported builds, tests, coverage, packaging, and parity requirements; the retired Rust crates are excluded from the active workspace. Existing native commands are not supported. A replacement needs a new decision; there is no plan or timeline.
+The new `apps/desktop/` slice is development-host evidence and is not a packaged or platform-qualified release. `desktop/` (Tauri), `macos/` (SwiftUI), `windows/` (WinUI), and `crates/safeparts_uniffi/` are dormant reference for retired applications. `mobile/` retains dormant prototype artifacts. These are outside supported builds, tests, coverage, packaging, and parity requirements; the retired Rust crates are excluded from the active workspace. Existing native commands are not supported. A replacement needs a new decision; there is no plan or timeline.
 
 ## Data flow
 
@@ -25,7 +27,7 @@ secret bytes
   -> Shamir-style split over GF(256)
   -> SharePacket values
   -> selected share encoding
-  -> CLI, TUI, WASM, or web presentation
+  -> CLI, TUI, WASM, web, or experimental Qt presentation
 ```
 
 Combine reverses that path:
@@ -43,7 +45,8 @@ share text
 ## Source of truth
 
 - Cryptography, packet parsing, validation, and encodings live in `crates/safeparts_core/`.
-- CLI, TUI, WASM, and web adapt IO and presentation rather than forking secret-sharing rules.
+- CLI, TUI, WASM, web, and the experimental CXX/Qt slice adapt IO and presentation rather than forking secret-sharing rules.
+- The desktop adapter retains operation state in Rust; Qt sends bounded inputs to one worker and receives typed statuses or bounded presentation copies.
 - Release CI packages CLI/TUI archives for Linux, macOS, and Windows. Host names do not imply GUI application support.
 - The help site is user-facing documentation. Developer workflow docs live under `docs/dev/`.
 
@@ -63,4 +66,5 @@ share text
 | New share encoding | `safeparts_core::encoding` | CLI/TUI choices, WASM API, UI choices if exposed, docs, tests |
 | CLI flag | `crates/safeparts` | CLI tests, help docs if user-visible, feature matrix |
 | Web workflow | `web/src` | Web tests, WASM boundary if changed, help guidance |
+| Experimental desktop text workflow | `apps/desktop`, `crates/safeparts_desktop_bridge` | Core admission tests, CXX/Qt action tests, feature matrix |
 | Build or release behavior | `scripts/`, `.github/`, `mise.toml` | `docs/dev/verification.md`, release guide |

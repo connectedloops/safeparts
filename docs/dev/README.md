@@ -17,6 +17,7 @@ Start here when you work on Safeparts as a contributor or maintainer.
 - [Developer manuals](manuals/README.md): longer guides for Rust library integration and CLI automation.
 - [Change checklist](change-checklist.md): template for multi-surface feature work.
 - [Verification](verification.md): local and CI check matrix.
+- [Experimental desktop text round trip](desktop-text-round-trip.md): issue 140 build, ownership, evidence, and qualification gaps.
 - [Generated artifacts](generated-artifacts.md): what is generated, what is tracked, and how to refresh it.
 - [Branch protection rollout](branch-protection.md): prepared merge-gate rule, rollout, rollback, and changelog-writer options.
 - [Troubleshooting](troubleshooting.md): local setup and build fixes.

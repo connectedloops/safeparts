@@ -13,6 +13,7 @@ Owns contributor onboarding, local workflow docs, feature coverage maps, and sur
 - `workflows.md`: repeatable development workflows.
 - `change-checklist.md`: multi-surface feature checklist template.
 - `verification.md`: exact local aggregate gate, additional CI checks, and development-server versus built-site browser recipes.
+- `desktop-text-round-trip.md`: issue 140 native slice commands, ownership, evidence, and explicit qualification gaps.
 - `dependency-scans.md`: local supported dependency scope, scanner/database contract, fail-closed exits, artifacts and explicit retired-source coverage gaps.
 - `generated-artifacts.md`: generated/tracked artifact policy.
 - `branch-protection.md`: prepared PR merge-gate, required-check, rollout, rollback, and changelog-writer compatibility guidance.
