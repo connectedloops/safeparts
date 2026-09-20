@@ -2,16 +2,27 @@
 
 #include "clipboard.h"
 
+#include <QAction>
+#include <QContextMenuEvent>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
+#include <QMenu>
+#include <QMimeData>
 #include <QSignalBlocker>
-#include <QTextCursor>
 #include <QStringView>
+#include <QTextCursor>
 
+#include <algorithm>
 #include <optional>
 
 namespace {
 constexpr qsizetype kMaximumSecretBytes = 1'048'576;
+
+QString withLfLineEndings(QString text) {
+    text.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+    text.replace(u'\r', u'\n');
+    return text;
+}
 
 std::optional<qsizetype> utf8Length(QStringView text) {
     qsizetype bytes = 0;
@@ -63,13 +74,7 @@ void ExactTextEdit::clearExact() {
 
 void ExactTextEdit::keyPressEvent(QKeyEvent *event) {
     if (event->matches(QKeySequence::Paste)) {
-        const ClipboardRead paste = readClipboardUtf8(kMaximumSecretBytes);
-        if (paste.status != ClipboardRead::Status::Ok) {
-            emit inputRejected(static_cast<int>(paste.status));
-            event->accept();
-            return;
-        }
-        insertExact(QString::fromUtf8(paste.bytes.constData(), paste.bytes.size()));
+        pasteFromClipboard();
         event->accept();
         return;
     }
@@ -90,6 +95,11 @@ void ExactTextEdit::keyPressEvent(QKeyEvent *event) {
         event->accept();
         return;
     }
+    if (event->matches(QKeySequence::SelectAll)) {
+        selectAll();
+        event->accept();
+        return;
+    }
     if (event->key() == Qt::Key_Backspace) {
         removeSelectionOrCharacter(true);
         event->accept();
@@ -105,10 +115,16 @@ void ExactTextEdit::keyPressEvent(QKeyEvent *event) {
         event->accept();
         return;
     }
-    const Qt::KeyboardModifiers textBlockingModifiers =
-        Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier;
-    if (!event->text().isEmpty() && !(event->modifiers() & textBlockingModifiers)) {
-        insertExact(event->text());
+    const QString eventText = event->text();
+    if (!eventText.isEmpty()) {
+        const bool containsPrintable =
+            std::any_of(eventText.cbegin(), eventText.cend(), [](QChar character) {
+                return character.isPrint();
+            });
+        const Qt::KeyboardModifiers commandModifiers =
+            Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier;
+        if (containsPrintable || !(event->modifiers() & commandModifiers))
+            insertExact(eventText);
         event->accept();
         return;
     }
@@ -116,7 +132,7 @@ void ExactTextEdit::keyPressEvent(QKeyEvent *event) {
 }
 
 void ExactTextEdit::inputMethodEvent(QInputMethodEvent *event) {
-    if (!event->commitString().isEmpty()) {
+    if (!event->commitString().isEmpty() || event->replacementLength() != 0) {
         QTextCursor cursor = textCursor();
         if (event->replacementStart() != 0 || event->replacementLength() != 0) {
             const int start = cursor.position() + event->replacementStart();
@@ -135,11 +151,51 @@ void ExactTextEdit::inputMethodEvent(QInputMethodEvent *event) {
     event->accept();
 }
 
+void ExactTextEdit::insertFromMimeData(const QMimeData *source) {
+    if (source == nullptr || !source->hasText()) {
+        emit inputRejected(static_cast<int>(ClipboardRead::Status::InvalidUtf8));
+        return;
+    }
+    insertExact(source->text());
+}
+
+void ExactTextEdit::contextMenuEvent(QContextMenuEvent *event) {
+    QMenu menu(this);
+    QAction *cut = menu.addAction(tr("Cut"), this, [this] {
+        copySelection();
+        removeSelectionOrCharacter(false);
+    });
+    cut->setObjectName(QStringLiteral("exactCutAction"));
+    cut->setEnabled(textCursor().hasSelection());
+    QAction *copy = menu.addAction(tr("Copy"), this, [this] { copySelection(); });
+    copy->setEnabled(textCursor().hasSelection());
+    QAction *paste = menu.addAction(tr("Paste"), this, [this] { pasteFromClipboard(); });
+    paste->setObjectName(QStringLiteral("exactPasteAction"));
+    QAction *remove = menu.addAction(tr("Delete"), this, [this] {
+        removeSelectionOrCharacter(false);
+    });
+    remove->setEnabled(textCursor().hasSelection());
+    menu.addSeparator();
+    menu.addAction(tr("Select All"), this, [this] { selectAll(); });
+    menu.exec(event->globalPos());
+    event->accept();
+}
+
+void ExactTextEdit::pasteFromClipboard() {
+    const ClipboardRead paste = readClipboardUtf8(kMaximumSecretBytes);
+    if (paste.status != ClipboardRead::Status::Ok) {
+        emit inputRejected(static_cast<int>(paste.status));
+        return;
+    }
+    insertExact(QString::fromUtf8(paste.bytes.constData(), paste.bytes.size()));
+}
+
 bool ExactTextEdit::insertExact(const QString &text) {
+    const QString admitted = withLfLineEndings(text);
     const QTextCursor cursor = textCursor();
     const int start = cursor.selectionStart();
     const int end = cursor.selectionEnd();
-    const auto insertedBytes = utf8Length(QStringView(text));
+    const auto insertedBytes = utf8Length(QStringView(admitted));
     const auto removedBytes = utf8Length(QStringView(exact_).mid(start, end - start));
     if (!insertedBytes || !removedBytes) {
         emit inputRejected(static_cast<int>(ClipboardRead::Status::InvalidUtf8));
@@ -156,9 +212,9 @@ bool ExactTextEdit::insertExact(const QString &text) {
         return false;
     }
 
-    exact_.replace(start, end - start, text);
+    exact_.replace(start, end - start, admitted);
     exactUtf8Size_ = retainedBytes + *insertedBytes;
-    renderAt(start + text.size());
+    renderAt(start + admitted.size());
     emit exactTextChanged();
     return true;
 }
@@ -189,11 +245,7 @@ void ExactTextEdit::removeSelectionOrCharacter(bool backwards) {
 
 void ExactTextEdit::renderAt(int position) {
     const QSignalBlocker blocker(this);
-    QString presentation = exact_;
-    // QTextDocument normalizes carriage returns. A one-code-unit display
-    // substitute keeps its cursor positions aligned with the exact model.
-    presentation.replace(u'\r', QChar::LineSeparator);
-    QPlainTextEdit::setPlainText(presentation);
+    QPlainTextEdit::setPlainText(exact_);
     QTextCursor cursor = textCursor();
     cursor.setPosition(qBound(0, position, document()->characterCount() - 1));
     setTextCursor(cursor);

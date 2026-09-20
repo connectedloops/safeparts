@@ -2,6 +2,9 @@
 
 #include <QPlainTextEdit>
 
+class QContextMenuEvent;
+class QMimeData;
+
 class ExactTextEdit final : public QPlainTextEdit {
     Q_OBJECT
 
@@ -17,9 +20,12 @@ signals:
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void inputMethodEvent(QInputMethodEvent *event) override;
+    void insertFromMimeData(const QMimeData *source) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
 
 private:
     bool insertExact(const QString &text);
+    void pasteFromClipboard();
     void removeSelectionOrCharacter(bool backwards);
     void renderAt(int position);
     void copySelection() const;

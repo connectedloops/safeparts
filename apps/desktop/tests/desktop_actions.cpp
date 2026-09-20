@@ -4,14 +4,17 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QContextMenuEvent>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QTabBar>
 #include <QTest>
+#include <QTimer>
 #include <QToolButton>
 
 namespace {
@@ -31,6 +34,25 @@ T *required(QObject *root, const char *name) {
     if (value == nullptr)
         qFatal("required test control is missing");
     return value;
+}
+
+void triggerContextAction(ExactTextEdit *editor, const QString &objectName) {
+    bool triggered = false;
+    QTimer::singleShot(0, [&] {
+        auto *menu = qobject_cast<QMenu *>(QApplication::activePopupWidget());
+        if (menu == nullptr)
+            return;
+        QAction *action = menu->findChild<QAction *>(objectName);
+        if (action != nullptr) {
+            triggered = true;
+            action->trigger();
+        } else {
+            menu->close();
+        }
+    });
+    QContextMenuEvent event(QContextMenuEvent::Keyboard, QPoint(0, 0), editor->mapToGlobal(QPoint(0, 0)));
+    QApplication::sendEvent(editor, &event);
+    QVERIFY2(triggered, qPrintable(QStringLiteral("missing context action %1").arg(objectName)));
 }
 
 void pasteIntoCreate(DesktopWindow &window, const QString &text) {
@@ -114,12 +136,48 @@ void DesktopActions::create_copy_recover_preserves_exact_utf8_through_user_actio
 void DesktopActions::text_entry_preserves_content_and_bounds_typing_and_input_methods() {
     DesktopWindow window;
     window.show();
-    const QString exact = QStringLiteral("first\r\nsecond\rthird 😀");
-    pasteIntoCreate(window, exact);
+    const QString admitted = QStringLiteral("first\r\nsecond\rthird 😀");
+    const QString normalized = QStringLiteral("first\nsecond\nthird 😀");
+    pasteIntoCreate(window, admitted);
     auto *editor = required<ExactTextEdit>(&window, "secretInput");
-    QCOMPARE(editor->exactUtf8(), exact.toUtf8());
+    QCOMPARE(editor->exactUtf8(), normalized.toUtf8());
+    QCOMPARE(editor->toPlainText(), normalized);
+
     QTest::keyClick(editor, Qt::Key_Backspace);
-    QCOMPARE(editor->exactUtf8(), QStringLiteral("first\r\nsecond\rthird ").toUtf8());
+    QCOMPARE(editor->exactUtf8(), QStringLiteral("first\nsecond\nthird ").toUtf8());
+    QCOMPARE(editor->toPlainText(), QStringLiteral("first\nsecond\nthird "));
+
+    QKeyEvent modifiedText(QEvent::KeyPress, Qt::Key_2, Qt::AltModifier, QStringLiteral("@"));
+    QApplication::sendEvent(editor, &modifiedText);
+    QCOMPARE(editor->exactUtf8(), QStringLiteral("first\nsecond\nthird @").toUtf8());
+    QCOMPARE(editor->toPlainText(), QStringLiteral("first\nsecond\nthird @"));
+
+    QTextCursor replacementCursor = editor->textCursor();
+    replacementCursor.setPosition(editor->toPlainText().size());
+    editor->setTextCursor(replacementCursor);
+    QInputMethodEvent replacementOnly;
+    replacementOnly.setCommitString(QString(), -1, 1);
+    QApplication::sendEvent(editor, &replacementOnly);
+    QCOMPARE(editor->exactUtf8(), QStringLiteral("first\nsecond\nthird ").toUtf8());
+    QCOMPARE(editor->toPlainText(), QStringLiteral("first\nsecond\nthird "));
+
+    replacementCursor = editor->textCursor();
+    replacementCursor.setPosition(0);
+    replacementCursor.setPosition(5, QTextCursor::KeepAnchor);
+    editor->setTextCursor(replacementCursor);
+    QApplication::clipboard()->setText(QStringLiteral("menu\r\npaste"));
+    editor->paste();
+    QCOMPARE(editor->exactUtf8(), QStringLiteral("menu\npaste\nsecond\nthird ").toUtf8());
+    QCOMPARE(editor->toPlainText(), QStringLiteral("menu\npaste\nsecond\nthird "));
+
+    replacementCursor = editor->textCursor();
+    replacementCursor.setPosition(0);
+    replacementCursor.setPosition(4, QTextCursor::KeepAnchor);
+    editor->setTextCursor(replacementCursor);
+    triggerContextAction(editor, QStringLiteral("exactCutAction"));
+    QCOMPARE(editor->exactUtf8(), QStringLiteral("\npaste\nsecond\nthird ").toUtf8());
+    QCOMPARE(editor->toPlainText(), QStringLiteral("\npaste\nsecond\nthird "));
+    QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("menu"));
 
     required<QToolButton>(&window, "startOverButton")->click();
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
