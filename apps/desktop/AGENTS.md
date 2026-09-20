@@ -18,7 +18,7 @@ Owns the throwaway native desktop UI prototype used for the issue 140 visual che
 
 - Keep the implementation direct and limited to the single-window Create/Recover flow.
 - For macOS checkpoints, use Cocoa window chrome, the system font, semantic palette colors, and the system accent. Use native text editing and keyboard behavior. Targeted Qt styling or painting is appropriate for modern grouped surfaces, compact selectors, editors, and actions; avoid universal widget stylesheets and forced cross-platform styles.
-- Use the [Apple Passwords detail pane](https://support.apple.com/guide/passwords/the-passwords-app-mchl901b1b95/mac) as the visual reference for quiet rounded grouping, subtle separators, hierarchy, and inset spacing. The prototype still requires explicit visual acceptance.
+- Use the [Apple Passwords detail pane](https://support.apple.com/guide/passwords/the-passwords-app-mchl901b1b95/mac) as the visual reference for quiet rounded grouping, subtle separators, hierarchy, and inset spacing. The [accepted visual direction](https://github.com/connectedloops/safeparts/issues/140#issuecomment-5747267572) guides production UI work; fixture code must be replaced, not promoted. Visual approval does not waive runtime acceptance gates.
 - Model duplicate/unknown-token blocking and immediate mode/reset clearing, including hidden input. These are fixture interactions, not real share validation.
 - Keep generated builds and captures under `prototype/build/`.
 

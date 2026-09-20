@@ -4,7 +4,7 @@ This throwaway Qt Widgets mock tests one reference-led direction for the [deskto
 
 The layout takes its grouping, separators, spacing, and quiet hierarchy from the detail pane in Apple's [Passwords app screenshot](https://support.apple.com/guide/passwords/the-passwords-app-mchl901b1b95/mac). It does not copy the screenshot's sidebar, account content, icons, or window controls. The prototype uses Cocoa window chrome and the system font, plus small Qt-painted or widget-specific treatments for the grouped surfaces, selector, and text fields.
 
-This pass is still waiting for visual acceptance. A successful build or screenshot review does not establish that Qt is suitable for the production app.
+The maintainer [accepted this visual direction and chose to keep Qt](https://github.com/connectedloops/safeparts/issues/140#issuecomment-5747267572). The accepted source is preserved on the local `prototype/desktop-reference-ui` branch at `874c5e7`. Production code must be implemented and tested separately. Visual approval does not establish runtime safety or platform suitability.
 
 Run the window from the repository root:
 
