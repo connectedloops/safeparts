@@ -239,17 +239,14 @@ QWidget *DesktopWindow::buildCreatePage() {
     createStates_->addWidget(created);
 
     connect(createButton_, &QPushButton::clicked, this, &DesktopWindow::createShares);
-    connect(secretInput_, &ExactTextEdit::exactTextChanged, this, [this] {
-        ++generation_;
-        createStatus_->setText(QStringLiteral("%1 of %2 · Words").arg(threshold_->value()).arg(shareCount_->value()));
-    });
-    connect(secretInput_, &ExactTextEdit::pasteRejected, this, [this](int reason) {
+    connect(secretInput_, &ExactTextEdit::exactTextChanged, this, &DesktopWindow::createInputChanged);
+    connect(secretInput_, &ExactTextEdit::inputRejected, this, [this](int reason) {
         createStatus_->setText(reason == static_cast<int>(ClipboardRead::Status::TooLarge)
-                                   ? QStringLiteral("Clipboard text exceeds the 1 MiB secret limit.")
-                                   : QStringLiteral("Clipboard does not contain valid UTF-8 text."));
+                                   ? QStringLiteral("Secret text cannot exceed the 1 MiB UTF-8 limit.")
+                                   : QStringLiteral("Secret text must be valid UTF-8."));
     });
-    connect(threshold_, &QSpinBox::valueChanged, this, [this] { ++generation_; });
-    connect(shareCount_, &QSpinBox::valueChanged, this, [this] { ++generation_; });
+    connect(threshold_, &QSpinBox::valueChanged, this, &DesktopWindow::createInputChanged);
+    connect(shareCount_, &QSpinBox::valueChanged, this, &DesktopWindow::createInputChanged);
     return createStates_;
 }
 
@@ -338,10 +335,10 @@ void DesktopWindow::switchMode(int index) {
 
 void DesktopWindow::startOver() {
     nextGeneration();
-    clearVisibleState();
     pending_ = Pending::Reset;
+    clearVisibleState();
     setBusy(true);
-    emit requestReset(generation_);
+    queueCurrentReset();
 }
 
 void DesktopWindow::createShares() {
@@ -392,14 +389,18 @@ void DesktopWindow::recover() {
 void DesktopWindow::operationFinished(quint64 generation, int status, quint8 threshold,
                                       quint16 shareCount, quint16 suppliedCount,
                                       quint16 batchCount, bool ready) {
-    if (generation != generation_)
+    if (generation != generation_) {
+        if (pending_ == Pending::Reset)
+            queueCurrentReset();
         return;
+    }
     setBusy(false);
     if (pending_ == Pending::Reset) {
         pending_ = Pending::None;
         return;
     }
     if (pending_ == Pending::Create) {
+        pending_ = Pending::None;
         if (status == statusCode(Status::Ok))
             showCreated(threshold, shareCount);
         else
@@ -475,6 +476,25 @@ void DesktopWindow::clearVisibleState() {
         recoveryResult_->hide();
     if (recoveredDisplay_ != nullptr)
         recoveredDisplay_->clear();
+}
+
+void DesktopWindow::createInputChanged() {
+    nextGeneration();
+    createStatus_->setText(
+        QStringLiteral("%1 of %2 · Words").arg(threshold_->value()).arg(shareCount_->value()));
+    if (pending_ == Pending::Create) {
+        pending_ = Pending::Reset;
+        setBusy(true);
+        queueCurrentReset();
+    }
+}
+
+void DesktopWindow::queueCurrentReset() {
+    if (resetRequested_ && requestedResetGeneration_ == generation_)
+        return;
+    resetRequested_ = true;
+    requestedResetGeneration_ = generation_;
+    emit requestReset(generation_);
 }
 
 void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {

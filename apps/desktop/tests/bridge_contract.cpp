@@ -40,24 +40,48 @@ int main() {
         return 3;
     }
     operation->remove_recovery_batch(2, 0);
+    const std::string trailing = stringFrom(first.bytes) + " abandon";
+    const auto trailingResult = operation->add_recovery_words(2, bytes(trailing));
+    if (trailingResult.status != Status::MalformedInput || trailingResult.ready) {
+        std::cerr << "trailing content contract failed\n";
+        return 4;
+    }
+    operation->remove_recovery_batch(2, 0);
     operation->add_recovery_words(2, {first.bytes.data(), first.bytes.size()});
     const auto duplicate = operation->add_recovery_words(2, {first.bytes.data(), first.bytes.size()});
     if (duplicate.status != Status::DuplicateShare || duplicate.ready) {
         std::cerr << "duplicate contract failed\n";
-        return 4;
+        return 5;
     }
     operation->remove_recovery_batch(2, 1);
     const auto ready = operation->add_recovery_words(2, {second.bytes.data(), second.bytes.size()});
     if (ready.status != Status::Ok || !ready.ready) {
         std::cerr << "readiness contract failed\n";
-        return 5;
+        return 6;
     }
     const auto recovered = operation->recover_words(2);
     if (recovered.status != Status::Ok || stringFrom(recovered.bytes) != exact) {
         std::cerr << "exact recovery contract failed\n";
-        return 6;
+        return 7;
     }
 
+    auto other = new_operation();
+    const std::string otherText = "synthetic other CXX set";
+    if (other->create_words(3, bytes(otherText), 2, 3).status != Status::Ok) {
+        std::cerr << "other set create failed\n";
+        return 8;
+    }
+    const auto otherFirst = other->encode_share(3, 0);
+    operation->reset(4);
+    operation->add_recovery_words(4, {first.bytes.data(), first.bytes.size()});
+    const auto mixed = operation->add_recovery_words(
+        4, {otherFirst.bytes.data(), otherFirst.bytes.size()});
+    if (mixed.status != Status::MixedShareSet || mixed.ready) {
+        std::cerr << "mixed set contract failed\n";
+        return 9;
+    }
+
+    destroy_operation(std::move(other));
     destroy_operation(std::move(operation));
     std::cout << "CXX_DESKTOP_BOUNDARY_OK shares=3 threshold=2 encoding=Words handled_errors=yes explicit_release=yes\n";
     return 0;

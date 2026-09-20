@@ -15,7 +15,7 @@ Owns the real Qt Widgets text round-trip slice for issue 140. This is developmen
 
 - Use Qt Widgets and `crates/safeparts_desktop_bridge`; never copy core algorithms or use retired application sources.
 - Keep one worker. Parsing, encoding, splitting, and recovery never run on Qt's event thread.
-- Reject stale worker results by generation. Mode changes, Start over, and close clear visible state immediately.
+- Reject stale worker results by generation. Ordinary create-field edits, mode changes, Start over, and close invalidate pending create work; reset the worker and always resolve the busy state.
 - Keep authoritative packets, recovery input, and recovered bytes in Rust. Qt owns bounded presentation and intentional clipboard handoffs.
 - Support only V2 unprotected Words text in this slice. Do not misrepresent later encodings, passphrases, files, saving, or printing as implemented.
 - Do not add autonomous networking, persistence, content logs, session restoration, or undo history.
@@ -23,8 +23,8 @@ Owns the real Qt Widgets text round-trip slice for issue 140. This is developmen
 ## Work Guidance
 
 - Follow the accepted visual direction at issue 140 comment `5747267572`: compact joined mode selector, system typography, rounded groups, restrained colors, clear status, and balanced spacing.
-- Preserve exact UTF-8/LF input in the editor-owned model. Render data as plain text and copy authoritative worker output rather than reading a widget back.
-- The macOS clipboard adapter bounds native pasteboard bytes before Qt string materialization. Other platform adapters remain unqualified.
+- Preserve exact valid UTF-8 input in the editor-owned model without normalization. Admit keyboard, IME, and paste replacements against the 1 MiB resulting UTF-8 size before changing the model. Render data as plain text and copy authoritative worker output rather than reading a widget back.
+- The macOS clipboard adapter avoids Qt string materialization until after its byte check, but AppKit has already returned a complete `NSData`. Treat pre-materialization clipboard admission as blocked until a supported range/stream API exists. Other platform adapters remain unqualified.
 
 ## Verification
 

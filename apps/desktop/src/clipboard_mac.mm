@@ -6,6 +6,8 @@
 
 ClipboardRead readClipboardUtf8(qsizetype maximumBytes) {
     NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+    // AppKit exposes string payloads only as complete NSData/NSString values;
+    // it has no supported length-only or ranged read before this acquisition.
     NSData *data = [pasteboard dataForType:NSPasteboardTypeString];
     if (data == nil)
         return {ClipboardRead::Status::Empty, {}};

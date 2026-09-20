@@ -52,6 +52,8 @@ private:
     QWidget *buildCreatePage();
     QWidget *buildRecoverPage();
     void clearVisibleState();
+    void createInputChanged();
+    void queueCurrentReset();
     void showCreated(quint8 threshold, quint16 shareCount);
     void setBusy(bool busy);
     void setRecoveryStatus(int status, quint8 threshold, quint16 suppliedCount, bool ready);
@@ -59,6 +61,8 @@ private:
     quint64 nextGeneration();
 
     quint64 generation_ = 0;
+    quint64 requestedResetGeneration_ = 0;
+    bool resetRequested_ = false;
     Pending pending_ = Pending::None;
     quint16 recoveryBatchCount_ = 0;
     QThread *thread_ = nullptr;

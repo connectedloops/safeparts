@@ -9,6 +9,7 @@ ClipboardRead readClipboardUtf8(qsizetype maximumBytes) {
     const QMimeData *mime = QApplication::clipboard()->mimeData();
     if (mime == nullptr || !mime->hasText())
         return {ClipboardRead::Status::Empty, {}};
+    // QMimeData likewise returns a complete QByteArray, not a bounded stream.
     const QByteArray bytes = mime->data(QStringLiteral("text/plain"));
     if (bytes.size() > maximumBytes)
         return {ClipboardRead::Status::TooLarge, {}};

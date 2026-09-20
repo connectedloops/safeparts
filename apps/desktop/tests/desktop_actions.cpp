@@ -4,9 +4,12 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QInputMethodEvent>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QTabBar>
 #include <QTest>
 #include <QToolButton>
@@ -74,8 +77,11 @@ class DesktopActions final : public QObject {
 
 private slots:
     void create_copy_recover_preserves_exact_utf8_through_user_actions();
-    void text_entry_applies_only_the_declared_lf_convention();
+    void text_entry_preserves_content_and_bounds_typing_and_input_methods();
     void duplicate_blocks_and_correctable_input_is_preserved();
+    void malformed_and_mixed_inputs_block_without_filtering();
+    void maximum_valid_workload_remains_bounded_and_resettable();
+    void ordinary_create_edits_reject_stale_success_and_error_results();
     void start_over_rejects_stale_success_and_error_results();
     void close_does_not_restore_sensitive_state();
 };
@@ -105,14 +111,29 @@ void DesktopActions::create_copy_recover_preserves_exact_utf8_through_user_actio
     QTRY_COMPARE_WITH_TIMEOUT(QApplication::clipboard()->text(), exactText(), 10'000);
 }
 
-void DesktopActions::text_entry_applies_only_the_declared_lf_convention() {
+void DesktopActions::text_entry_preserves_content_and_bounds_typing_and_input_methods() {
     DesktopWindow window;
     window.show();
-    pasteIntoCreate(window, QStringLiteral("first\r\nsecond\rthird 😀"));
+    const QString exact = QStringLiteral("first\r\nsecond\rthird 😀");
+    pasteIntoCreate(window, exact);
     auto *editor = required<ExactTextEdit>(&window, "secretInput");
-    QCOMPARE(editor->exactUtf8(), QStringLiteral("first\nsecond\nthird 😀").toUtf8());
+    QCOMPARE(editor->exactUtf8(), exact.toUtf8());
     QTest::keyClick(editor, Qt::Key_Backspace);
-    QCOMPARE(editor->exactUtf8(), QStringLiteral("first\nsecond\nthird ").toUtf8());
+    QCOMPARE(editor->exactUtf8(), QStringLiteral("first\r\nsecond\rthird ").toUtf8());
+
+    required<QToolButton>(&window, "startOverButton")->click();
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
+    const QString maximum(1'048'576, QLatin1Char('x'));
+    pasteIntoCreate(window, maximum);
+    QCOMPARE(editor->exactUtf8().size(), 1'048'576);
+    QTest::keyClicks(editor, QStringLiteral("y"));
+    QCOMPARE(editor->exactUtf8(), maximum.toUtf8());
+    QVERIFY(required<QLabel>(&window, "createStatus")->text().contains(QStringLiteral("1 MiB")));
+
+    QInputMethodEvent inputMethod;
+    inputMethod.setCommitString(QStringLiteral("😀"));
+    QApplication::sendEvent(editor, &inputMethod);
+    QCOMPARE(editor->exactUtf8(), maximum.toUtf8());
 }
 
 void DesktopActions::duplicate_blocks_and_correctable_input_is_preserved() {
@@ -131,6 +152,78 @@ void DesktopActions::duplicate_blocks_and_correctable_input_is_preserved() {
     QTest::mouseClick(required<QPushButton>(&window, "removeRecoveryButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
     QCOMPARE(required<QLabel>(&window, "recoveryCount")->text().left(10), QStringLiteral("1 paste(s)"));
+}
+
+void DesktopActions::malformed_and_mixed_inputs_block_without_filtering() {
+    DesktopWindow window;
+    window.show();
+    pasteIntoCreate(window, QStringLiteral("synthetic first UI set"));
+    const QString first = createAndCopy(window, 1);
+
+    QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+    pasteIntoCreate(window, QStringLiteral("synthetic second UI set"));
+    const QString second = createAndCopy(window, 1);
+    QVERIFY(first != second);
+
+    chooseRecover(window);
+    pasteRecovery(window, first + QStringLiteral(" abandon"));
+    QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("could not be decoded")));
+    QTest::mouseClick(required<QPushButton>(&window, "removeRecoveryButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
+
+    pasteRecovery(window, first);
+    pasteRecovery(window, second);
+    QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("compatible set")));
+    QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
+}
+
+void DesktopActions::maximum_valid_workload_remains_bounded_and_resettable() {
+    DesktopWindow window;
+    window.show();
+    required<QSpinBox>(&window, "shareCountInput")->setValue(16);
+    pasteIntoCreate(window, QString(1'048'576, QLatin1Char('m')));
+    QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 30'000);
+
+    chooseRecover(window);
+    const QString maximumBatch(16 * 1'048'576, QLatin1Char('x'));
+    for (int batch = 1; batch <= 10; ++batch) {
+        pasteRecovery(window, maximumBatch);
+        QVERIFY(required<QLabel>(&window, "recoveryCount")
+                    ->text()
+                    .startsWith(QStringLiteral("%1 paste(s)").arg(batch)));
+    }
+    pasteRecovery(window, maximumBatch);
+    QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("Retained recovery input")));
+    QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
+
+    QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
+    QCOMPARE(required<QLabel>(&window, "recoveryCount")->text(), QStringLiteral("No recovery shares pasted"));
+}
+
+void DesktopActions::ordinary_create_edits_reject_stale_success_and_error_results() {
+    DesktopWindow window;
+    window.show();
+    auto *editor = required<ExactTextEdit>(&window, "secretInput");
+    pasteIntoCreate(window, QString(500'000, QLatin1Char('s')));
+    QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QKeyEvent staleSuccessEdit(QEvent::KeyPress, Qt::Key_Y, Qt::NoModifier, QStringLiteral("y"));
+    QApplication::sendEvent(editor, &staleSuccessEdit);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
+    QVERIFY(!required<QWidget>(&window, "createdShares")->isVisible());
+    QVERIFY(editor->exactUtf8().endsWith('y'));
+
+    QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+    pasteIntoCreate(window, QStringLiteral("synthetic stale error"));
+    required<QSpinBox>(&window, "thresholdInput")->setValue(4);
+    QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QKeyEvent staleErrorEdit(QEvent::KeyPress, Qt::Key_Z, Qt::NoModifier, QStringLiteral("z"));
+    QApplication::sendEvent(editor, &staleErrorEdit);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
+    QVERIFY(!required<QWidget>(&window, "createdShares")->isVisible());
+    QVERIFY(editor->exactUtf8().endsWith('z'));
+    QCOMPARE(required<QLabel>(&window, "createStatus")->text(), QStringLiteral("4 of 3 · Words"));
 }
 
 void DesktopActions::start_over_rejects_stale_success_and_error_results() {

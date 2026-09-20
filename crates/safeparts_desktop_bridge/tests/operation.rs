@@ -1,3 +1,5 @@
+use safeparts_core::encoding::{Encoding, encode_packet};
+use safeparts_core::split_secret;
 use safeparts_desktop_bridge::{Status, new_operation};
 
 const FIDELITY_TEXT: &str = "\0 leading\nline\u{00a0}space\u{2028}separator\u{2029}paragraph\ne\u{301} \u{1f600}\ntrailing \n";
@@ -50,6 +52,62 @@ fn public_operation_rejects_duplicate_and_preserves_correctable_input() {
 }
 
 #[test]
+fn public_operation_rejects_trailing_mixed_and_unsupported_inputs() {
+    let mut first_set = new_operation();
+    assert!(
+        first_set
+            .create_words(1, b"synthetic first set", 2, 3)
+            .status
+            == Status::Ok
+    );
+    let first = first_set.encode_share(1, 0);
+
+    let mut trailing = first.bytes.clone();
+    trailing.extend_from_slice(b" abandon");
+    let mut recovery = new_operation();
+    assert!(recovery.add_recovery_words(2, &trailing).status == Status::MalformedInput);
+    let failed = recovery.recover_words(2);
+    assert!(failed.status == Status::MalformedInput);
+    assert!(failed.bytes.is_empty());
+
+    let mut second_set = new_operation();
+    assert!(
+        second_set
+            .create_words(3, b"synthetic second set", 2, 3)
+            .status
+            == Status::Ok
+    );
+    let second = second_set.encode_share(3, 0);
+    recovery.reset(4);
+    assert!(recovery.add_recovery_words(4, &first.bytes).status == Status::NotEnoughShares);
+    assert!(recovery.add_recovery_words(4, &second.bytes).status == Status::MixedShareSet);
+
+    let packet = split_secret(b"synthetic unsupported encoding", 1, 1, None)
+        .unwrap_or_else(|error| panic!("synthetic split failed: {error}"));
+    let base64 = encode_packet(&packet[0], Encoding::Base64url)
+        .unwrap_or_else(|error| panic!("synthetic encode failed: {error}"));
+    let mut unsupported_encoding = new_operation();
+    assert!(
+        unsupported_encoding
+            .add_recovery_words(5, base64.as_bytes())
+            .status
+            == Status::MalformedInput
+    );
+
+    let v1_words = include_str!(
+        "../../safeparts_core/tests/fixtures/share_compatibility/v1-unprotected/mnemo-words.txt"
+    );
+    let first_v1 = v1_words.lines().next().unwrap_or("");
+    let mut unsupported_version = new_operation();
+    assert!(
+        unsupported_version
+            .add_recovery_words(6, first_v1.as_bytes())
+            .status
+            == Status::UnsupportedInput
+    );
+}
+
+#[test]
 fn public_operation_enforces_create_admission_before_core_work() {
     let mut operation = new_operation();
     assert!(operation.create_words(1, b"", 2, 3).status == Status::EmptySecret);
@@ -72,6 +130,7 @@ fn public_operation_enforces_create_admission_before_core_work() {
 #[test]
 fn public_operation_bounds_paste_tokens_and_retained_recovery_input() {
     let mut operation = new_operation();
+    assert!(operation.create_words(0, &[b'm'; 1_048_576], 2, 16).status == Status::Ok);
     let too_large = vec![b'x'; 16 * 1_048_576 + 1];
     let rejected = operation.add_recovery_words(1, &too_large);
     assert!(rejected.status == Status::PasteTooLarge);

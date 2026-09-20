@@ -12,17 +12,18 @@ public:
 
 signals:
     void exactTextChanged();
-    void pasteRejected(int reason);
+    void inputRejected(int reason);
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void inputMethodEvent(QInputMethodEvent *event) override;
 
 private:
-    void insertExact(const QString &text);
+    bool insertExact(const QString &text);
     void removeSelectionOrCharacter(bool backwards);
     void renderAt(int position);
     void copySelection() const;
 
     QString exact_;
+    qsizetype exactUtf8Size_ = 0;
 };

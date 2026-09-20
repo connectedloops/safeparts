@@ -23,6 +23,7 @@ Owns the generated CXX seam between the experimental Qt desktop app and `safepar
 
 - Add behavior through the existing operation interface. Do not expose packet layouts or create a second decoder.
 - Run admission checks before allocation-heavy parsing and preserve accepted recovery batches after handled errors.
+- Account with checked arithmetic for current operation-owned state and the next recovery phase: raw batches, decoded packets, incoming bridge/Qt copies, parser workspace, and fixed UI/runtime headroom. Preserve the published logical limits.
 
 ## Verification
 
