@@ -52,6 +52,8 @@ add_library(desktop-ui STATIC
   src/exact_text_edit.h
   src/rust_worker.cpp
   src/rust_worker.h
+  src/secure_byte_buffer.cpp
+  src/secure_byte_buffer.h
   "${GENERATED_DIR}/bridge.rs.cc"
 )
 if(APPLE)

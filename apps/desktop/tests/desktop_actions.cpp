@@ -1,6 +1,7 @@
 #include "clipboard.h"
 #include "desktop_window.h"
 #include "exact_text_edit.h"
+#include "secure_byte_buffer.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -16,6 +17,10 @@
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
+
+#include <algorithm>
+#include <atomic>
+#include <memory>
 
 namespace {
 QByteArray exactBytes() {
@@ -92,6 +97,16 @@ void pasteRecovery(DesktopWindow &window, const QString &share) {
     QTest::mouseClick(required<QPushButton>(&window, "pasteRecoveryButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
 }
+
+struct WipeObservation final {
+    std::atomic<int> count{0};
+    std::atomic<int> nonzero{0};
+};
+
+class WipeObserverReset final {
+public:
+    ~WipeObserverReset() { SecureByteBuffer::setWipeObserverForTests({}); }
+};
 } // namespace
 
 class DesktopActions final : public QObject {
@@ -103,6 +118,7 @@ private slots:
     void duplicate_blocks_and_correctable_input_is_preserved();
     void malformed_and_mixed_inputs_block_without_filtering();
     void maximum_valid_workload_remains_bounded_and_resettable();
+    void secure_queued_buffers_wipe_on_final_release();
     void ordinary_create_edits_reject_stale_success_and_error_results();
     void start_over_rejects_stale_success_and_error_results();
     void close_does_not_restore_sensitive_state();
@@ -264,6 +280,56 @@ void DesktopActions::maximum_valid_workload_remains_bounded_and_resettable() {
     QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
     QCOMPARE(required<QLabel>(&window, "recoveryCount")->text(), QStringLiteral("No recovery shares pasted"));
+}
+
+void DesktopActions::secure_queued_buffers_wipe_on_final_release() {
+    const auto observation = std::make_shared<WipeObservation>();
+    WipeObserverReset resetObserver;
+    SecureByteBuffer::setWipeObserverForTests([observation](QByteArrayView bytes) {
+        if (std::any_of(bytes.begin(), bytes.end(), [](char byte) { return byte != '\0'; }))
+            observation->nonzero.fetch_add(1, std::memory_order_relaxed);
+        observation->count.fetch_add(1, std::memory_order_release);
+    });
+
+    SecureByteBuffer first = SecureByteBuffer::take(QByteArray("final-owner-marker"));
+    SecureByteBuffer finalOwner = first;
+    first = {};
+    QCOMPARE(observation->count.load(std::memory_order_acquire), 0);
+    finalOwner = {};
+    QCOMPARE(observation->count.load(std::memory_order_acquire), 1);
+
+    {
+        DesktopWindow window;
+        window.show();
+        pasteIntoCreate(window, QStringLiteral("queued create input"));
+        QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
+        QTRY_VERIFY_WITH_TIMEOUT(observation->count.load(std::memory_order_acquire) >= 2, 10'000);
+
+        QTest::mouseClick(required<QPushButton>(&window, "copyShare1"), Qt::LeftButton);
+        QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
+        QTRY_VERIFY_WITH_TIMEOUT(observation->count.load(std::memory_order_acquire) >= 3, 10'000);
+
+        chooseRecover(window);
+        pasteRecovery(window, QStringLiteral("malformed handled recovery input"));
+        QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("could not be decoded")));
+        QTRY_VERIFY_WITH_TIMEOUT(observation->count.load(std::memory_order_acquire) >= 4, 10'000);
+    }
+
+    const int beforeClose = observation->count.load(std::memory_order_acquire);
+    {
+        DesktopWindow closing;
+        closing.show();
+        pasteIntoCreate(closing, QString(500'000, QLatin1Char('c')));
+        QTest::mouseClick(required<QPushButton>(&closing, "createButton"), Qt::LeftButton);
+        closing.close();
+    }
+
+    QCoreApplication::sendPostedEvents();
+    QTRY_VERIFY_WITH_TIMEOUT(observation->count.load(std::memory_order_acquire) > beforeClose, 10'000);
+    QCOMPARE(observation->nonzero.load(std::memory_order_acquire), 0);
+    QVERIFY(observation->count.load(std::memory_order_acquire) >= 5);
 }
 
 void DesktopActions::ordinary_create_edits_reject_stale_success_and_error_results() {

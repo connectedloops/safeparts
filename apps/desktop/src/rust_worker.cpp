@@ -2,10 +2,11 @@
 
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 namespace {
-rust::Slice<const std::uint8_t> slice(const QByteArray &bytes) {
-    return {reinterpret_cast<const std::uint8_t *>(bytes.constData()), static_cast<std::size_t>(bytes.size())};
+rust::Slice<const std::uint8_t> slice(const SecureByteBuffer &bytes) {
+    return {reinterpret_cast<const std::uint8_t *>(bytes.data()), static_cast<std::size_t>(bytes.size())};
 }
 
 int statusValue(Status status) {
@@ -19,9 +20,8 @@ void RustWorker::reset(quint64 generation) {
     emitOperation(operation_->reset(generation));
 }
 
-void RustWorker::create(quint64 generation, QByteArray secret, quint8 threshold, quint8 shareCount) {
+void RustWorker::create(quint64 generation, SecureByteBuffer secret, quint8 threshold, quint8 shareCount) {
     emitOperation(operation_->create_words(generation, slice(secret), threshold, shareCount));
-    secret.fill('\0');
 }
 
 void RustWorker::encodeShare(quint64 generation, quint16 index) {
@@ -29,9 +29,8 @@ void RustWorker::encodeShare(quint64 generation, quint16 index) {
     emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), 0, index);
 }
 
-void RustWorker::addRecovery(quint64 generation, QByteArray input) {
+void RustWorker::addRecovery(quint64 generation, SecureByteBuffer input) {
     emitOperation(operation_->add_recovery_words(generation, slice(input)));
-    input.fill('\0');
 }
 
 void RustWorker::removeRecovery(quint64 generation, quint16 batchIndex) {
@@ -54,10 +53,10 @@ void RustWorker::emitOperation(const OperationOutput &output) {
                            output.recovery_batch_count, output.ready);
 }
 
-QByteArray RustWorker::copyAndWipeBytes(rust::Vec<std::uint8_t> &bytes) {
+SecureByteBuffer RustWorker::copyAndWipeBytes(rust::Vec<std::uint8_t> &bytes) {
     QByteArray copy;
     if (bytes.size() <= static_cast<std::size_t>(std::numeric_limits<qsizetype>::max()))
         copy = {reinterpret_cast<const char *>(bytes.data()), static_cast<qsizetype>(bytes.size())};
     std::fill(bytes.begin(), bytes.end(), std::uint8_t{0});
-    return copy;
+    return SecureByteBuffer::take(std::move(copy));
 }

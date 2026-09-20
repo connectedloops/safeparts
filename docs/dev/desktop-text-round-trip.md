@@ -13,7 +13,7 @@ mise run desktop:run
 
 The first command builds the Rust adapter and generated CXX source, compiles the Qt app with warnings denied, and runs the public CXX and Qt action suites. The second command builds and opens the same app.
 
-Rust owns generated packets, retained recovery input, and authoritative recovered bytes. Qt receives bounded presentation copies. Recovery admission uses checked arithmetic for current Rust-owned state and the next parser phase, including decoded packets, incoming bridge/Qt copies, parser workspace, and fixed UI/runtime headroom. The generated interface uses consuming `destroy_operation`; CXX vectors own returned copies. Every fallible operation entry catches Rust unwinds and returns a content-free status. The only `unsafe_code = "allow"` exception belongs to generated `cxx::bridge` expansion and is pinned by `crates/safeparts_desktop_bridge/scripts/policy_guard.sh`; handwritten operation code remains `forbid(unsafe_code)`.
+Rust owns generated packets, retained recovery input, and authoritative recovered bytes. Qt receives bounded presentation copies. Sensitive bytes crossing queued Qt signals use one shared owning buffer; its final owner overwrites the sole `QByteArray` allocation before release. Recovery admission uses checked arithmetic for current Rust-owned state and the next parser phase, including decoded packets, incoming bridge/Qt copies, parser workspace, and fixed UI/runtime headroom. The generated interface uses consuming `destroy_operation`; CXX vectors own returned copies. Every fallible operation entry catches Rust unwinds and returns a content-free status. The only `unsafe_code = "allow"` exception belongs to generated `cxx::bridge` expansion and is pinned by `crates/safeparts_desktop_bridge/scripts/policy_guard.sh`; handwritten operation code remains `forbid(unsafe_code)`.
 
 ## Implemented slice
 
@@ -34,7 +34,7 @@ The development-host adapter calls `-[NSPasteboard dataForType:]`, which returns
 
 Evidence was collected on Apple-silicon macOS 15.5 (24F74), Qt 6.9.1 from `/opt/homebrew`, CMake 4.0.1, Apple Clang 17, Rust/Cargo 1.93.0 through `mise exec --`, and the owner-approved CXX 1.0.195 security update. RustSec reports no findings for the locked Cargo graph; no advisory exception was added. Qt 6.9.1 is only the installed development runtime; it does not replace the approved Qt 6.11 evaluation and packaging target.
 
-Artifacts under `target/desktop-evidence/` were recaptured at commit `cf4dc6956e03f827bddcf016500b7393701d370d` after the final input and buffer-clearing changes.
+Artifacts under `target/desktop-evidence/` were captured at commit `cf4dc6956e03f827bddcf016500b7393701d370d`. The later secure queued-buffer change affects the observed binary, so recapture these artifacts at final HEAD before accepting issue 140.
 
 - `versions.txt`: exact host and tool versions.
 - `network.csv`: five one-second, PID-filtered `nettop` samples during the synthetic Qt create/copy/recover/reset/close suite. The observed process had no TCP/UDP rows or bytes in those samples.

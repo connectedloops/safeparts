@@ -4,7 +4,7 @@
 #include <QClipboard>
 #include <QStringDecoder>
 
-bool writeClipboardUtf8(const QByteArray &bytes) {
+bool writeClipboardUtf8(QByteArrayView bytes) {
     QStringDecoder decoder(QStringDecoder::Utf8);
     const QString text = decoder.decode(bytes);
     if (decoder.hasError())

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <QByteArray>
+#include "secure_byte_buffer.h"
+
 #include <QMainWindow>
 #include <QString>
 
@@ -24,9 +25,9 @@ public:
 
 signals:
     void requestReset(quint64 generation);
-    void requestCreate(quint64 generation, QByteArray secret, quint8 threshold, quint8 shareCount);
+    void requestCreate(quint64 generation, SecureByteBuffer secret, quint8 threshold, quint8 shareCount);
     void requestEncodeShare(quint64 generation, quint16 index);
-    void requestAddRecovery(quint64 generation, QByteArray input);
+    void requestAddRecovery(quint64 generation, SecureByteBuffer input);
     void requestRemoveRecovery(quint64 generation, quint16 batchIndex);
     void requestRecover(quint64 generation);
     void requestRecoveredText(quint64 generation);
@@ -43,7 +44,7 @@ private slots:
     void recover();
     void operationFinished(quint64 generation, int status, quint8 threshold, quint16 shareCount,
                            quint16 suppliedCount, quint16 batchCount, bool ready);
-    void bytesFinished(quint64 generation, int status, QByteArray bytes, int purpose, quint16 index);
+    void bytesFinished(quint64 generation, int status, SecureByteBuffer bytes, int purpose, quint16 index);
 
 private:
     enum class Pending { None, Reset, Create, Inspect, CopyShare, Recover, CopyRecovered };

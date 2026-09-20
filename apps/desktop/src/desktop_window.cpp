@@ -21,6 +21,8 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <utility>
+
 namespace {
 constexpr qsizetype kMaximumPasteBytes = 16 * 1'048'576;
 
@@ -342,17 +344,17 @@ void DesktopWindow::startOver() {
 }
 
 void DesktopWindow::createShares() {
-    const QByteArray secret = secretInput_->exactUtf8();
+    SecureByteBuffer secret = SecureByteBuffer::take(secretInput_->exactUtf8());
     const quint64 requestGeneration = nextGeneration();
     pending_ = Pending::Create;
     setBusy(true);
     createStatus_->setText(QStringLiteral("Creating shares…"));
-    emit requestCreate(requestGeneration, secret, static_cast<quint8>(threshold_->value()),
+    emit requestCreate(requestGeneration, std::move(secret), static_cast<quint8>(threshold_->value()),
                        static_cast<quint8>(shareCount_->value()));
 }
 
 void DesktopWindow::pasteRecovery() {
-    const ClipboardRead paste = readClipboardUtf8(kMaximumPasteBytes);
+    ClipboardRead paste = readClipboardUtf8(kMaximumPasteBytes);
     if (paste.status != ClipboardRead::Status::Ok) {
         recoveryStatus_->setText(paste.status == ClipboardRead::Status::TooLarge
                                      ? QStringLiteral("This paste exceeds the 16 MiB limit.")
@@ -364,7 +366,7 @@ void DesktopWindow::pasteRecovery() {
     pending_ = Pending::Inspect;
     setBusy(true);
     recoveryStatus_->setText(QStringLiteral("Checking all pasted shares…"));
-    emit requestAddRecovery(nextGeneration(), paste.bytes);
+    emit requestAddRecovery(nextGeneration(), SecureByteBuffer::take(std::move(paste.bytes)));
 }
 
 void DesktopWindow::removeLastRecovery() {
@@ -416,12 +418,10 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
     pending_ = Pending::None;
 }
 
-void DesktopWindow::bytesFinished(quint64 generation, int status, QByteArray bytes, int purpose,
+void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuffer bytes, int purpose,
                                   quint16 index) {
-    if (generation != generation_) {
-        bytes.fill('\0');
+    if (generation != generation_)
         return;
-    }
     setBusy(false);
     if (status != statusCode(Status::Ok)) {
         if (purpose == 0) {
@@ -430,21 +430,19 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, QByteArray byt
             recoveryStatus_->setText(statusText(status));
             recoverButton_->setEnabled(purpose == 1);
         }
-        bytes.fill('\0');
         return;
     }
     if (purpose == 0) {
-        if (writeClipboardUtf8(bytes))
+        if (writeClipboardUtf8(bytes.view()))
             createStatus_->setText(QStringLiteral("Share %1 copied.").arg(index + 1));
     } else if (purpose == 1) {
-        recoveredDisplay_->setPlainText(QString::fromUtf8(bytes.constData(), bytes.size()));
+        recoveredDisplay_->setPlainText(QString::fromUtf8(bytes.data(), bytes.size()));
         recoveryResult_->show();
         recoverButton_->setEnabled(true);
         recoveryStatus_->setText(QStringLiteral("Recovered exact UTF-8 text."));
-    } else if (writeClipboardUtf8(bytes)) {
+    } else if (writeClipboardUtf8(bytes.view())) {
         recoveryStatus_->setText(QStringLiteral("Recovered text copied."));
     }
-    bytes.fill('\0');
     pending_ = Pending::None;
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QByteArrayView>
 
 struct ClipboardRead final {
     enum class Status { Ok, Empty, TooLarge, InvalidUtf8, Unavailable };
@@ -10,4 +11,4 @@ struct ClipboardRead final {
 };
 
 ClipboardRead readClipboardUtf8(qsizetype maximumBytes);
-bool writeClipboardUtf8(const QByteArray &bytes);
+bool writeClipboardUtf8(QByteArrayView bytes);
