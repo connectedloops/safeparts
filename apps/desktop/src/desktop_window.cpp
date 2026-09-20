@@ -8,9 +8,12 @@
 #include <QFontDatabase>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QMouseEvent>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
@@ -30,6 +33,89 @@ int statusCode(Status status) {
     return static_cast<int>(static_cast<std::uint8_t>(status));
 }
 
+QColor blend(const QColor &first, const QColor &second, qreal amount) {
+    return QColor::fromRgbF(first.redF() * (1.0 - amount) + second.redF() * amount,
+                            first.greenF() * (1.0 - amount) + second.greenF() * amount,
+                            first.blueF() * (1.0 - amount) + second.blueF() * amount, 1.0);
+}
+
+QFont pointFont(const QWidget *widget, qreal points, QFont::Weight weight = QFont::Normal) {
+    QFont font = widget->font();
+    font.setPointSizeF(points);
+    font.setWeight(weight);
+    return font;
+}
+
+class ModeSelector final : public QTabBar {
+public:
+    explicit ModeSelector(QWidget *parent = nullptr) : QTabBar(parent) {
+        addTab(QStringLiteral("Create"));
+        addTab(QStringLiteral("Recover"));
+        setObjectName(QStringLiteral("modeSelector"));
+        setAccessibleName(QStringLiteral("Choose Create or Recover"));
+        setFocusPolicy(Qt::StrongFocus);
+        setUsesScrollButtons(false);
+        setExpanding(true);
+        setDrawBase(false);
+        setFixedSize(244, 30);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QColor window = palette().color(QPalette::Window);
+        const QColor text = palette().color(QPalette::WindowText);
+        const bool dark = window.lightnessF() < 0.5;
+        const QRectF bounds = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+        QColor edge = text;
+        edge.setAlphaF(dark ? 0.12 : 0.08);
+        painter.setPen(QPen(edge, 1));
+        painter.setBrush(blend(window, text, dark ? 0.10 : 0.07));
+        painter.drawRoundedRect(bounds, 8, 8);
+
+        const qreal half = width() / 2.0;
+        const QRectF selected(currentIndex() == 0 ? 2.5 : half + 0.5, 2.5, half - 3.0,
+                              height() - 5.0);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(blend(window, text, dark ? 0.19 : 0.015));
+        painter.drawRoundedRect(selected, 6, 6);
+
+        if (hasFocus()) {
+            QColor focus = palette().color(QPalette::Highlight);
+            focus.setAlphaF(0.78);
+            painter.setPen(QPen(focus, 2));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawRoundedRect(bounds.adjusted(1, 1, -1, -1), 7, 7);
+        }
+
+        painter.setPen(text);
+        painter.setFont(pointFont(this, 11.5, QFont::Medium));
+        painter.drawText(QRectF(0, 0, half, height()), Qt::AlignCenter, tabText(0));
+        painter.drawText(QRectF(half, 0, half, height()), Qt::AlignCenter, tabText(1));
+    }
+
+    void mousePressEvent(QMouseEvent *event) override {
+        setCurrentIndex(event->position().x() < width() / 2.0 ? 0 : 1);
+        setFocus(Qt::MouseFocusReason);
+        event->accept();
+    }
+
+    void keyPressEvent(QKeyEvent *event) override {
+        if (event->key() == Qt::Key_Left || event->key() == Qt::Key_Up) {
+            setCurrentIndex(0);
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_Right || event->key() == Qt::Key_Down) {
+            setCurrentIndex(1);
+            event->accept();
+            return;
+        }
+        QTabBar::keyPressEvent(event);
+    }
+};
+
 QLabel *label(const QString &text, bool secondary = false) {
     auto *widget = new QLabel(text);
     widget->setTextFormat(Qt::PlainText);
@@ -47,6 +133,7 @@ QLabel *label(const QString &text, bool secondary = false) {
 QWidget *surface() {
     auto *widget = new QFrame;
     widget->setProperty("surface", true);
+    widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     return widget;
 }
 
@@ -58,10 +145,10 @@ void configureEditor(QPlainTextEdit *editor) {
 QWidget *centeredPage(QWidget *content) {
     auto *viewport = new QWidget;
     auto *layout = new QHBoxLayout(viewport);
-    layout->setContentsMargins(0, 6, 0, 6);
+    layout->setContentsMargins(0, 16, 0, 6);
     layout->addStretch();
     content->setMaximumWidth(620);
-    layout->addWidget(content, 1, Qt::AlignVCenter);
+    layout->addWidget(content, 1, Qt::AlignTop);
     layout->addStretch();
 
     auto *scroll = new QScrollArea;
@@ -117,24 +204,23 @@ void DesktopWindow::buildUi() {
     root->setSpacing(14);
 
     auto *header = new QHBoxLayout;
-    modeSelector_ = new QTabBar;
-    modeSelector_->setObjectName(QStringLiteral("modeSelector"));
-    modeSelector_->setAccessibleName(QStringLiteral("Choose Create or Recover"));
-    modeSelector_->addTab(QStringLiteral("Create"));
-    modeSelector_->addTab(QStringLiteral("Recover"));
-    modeSelector_->setExpanding(true);
-    modeSelector_->setUsesScrollButtons(false);
-    modeSelector_->setFixedSize(244, 31);
+    header->setSpacing(8);
+    modeSelector_ = new ModeSelector;
     header->addWidget(modeSelector_);
     header->addStretch();
     auto *help = new QToolButton;
     help->setObjectName(QStringLiteral("helpButton"));
     help->setText(QStringLiteral("Help"));
     help->setAutoRaise(true);
+    help->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    help->setStyleSheet(QStringLiteral("QToolButton { border: 0; padding: 5px 7px; background: transparent; }"));
     auto *startOverButton = new QToolButton;
     startOverButton->setObjectName(QStringLiteral("startOverButton"));
     startOverButton->setText(QStringLiteral("Start over"));
     startOverButton->setAutoRaise(true);
+    startOverButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    startOverButton->setStyleSheet(
+        QStringLiteral("QToolButton { border: 0; padding: 5px 7px; background: transparent; }"));
     header->addWidget(help);
     header->addWidget(startOverButton);
     root->addLayout(header);
@@ -148,10 +234,7 @@ void DesktopWindow::buildUi() {
     setStyleSheet(QStringLiteral(
         "QFrame[surface=\"true\"] { border: 1px solid palette(midlight); border-radius: 14px; background: palette(base); }"
         "QPlainTextEdit { border: 1px solid palette(midlight); border-radius: 9px; padding: 8px; background: palette(base); }"
-        "QPlainTextEdit:focus { border: 2px solid palette(highlight); padding: 7px; }"
-        "QPushButton { border-radius: 8px; padding: 6px 12px; min-height: 20px; }"
-        "QTabBar::tab { min-width: 110px; padding: 5px; border-radius: 7px; }"
-        "QTabBar::tab:selected { background: palette(button); }"));
+        "QPlainTextEdit:focus { border: 2px solid palette(highlight); padding: 7px; }"));
 
     connect(modeSelector_, &QTabBar::currentChanged, this, &DesktopWindow::switchMode);
     connect(startOverButton, &QToolButton::clicked, this, &DesktopWindow::startOver);
@@ -163,13 +246,13 @@ void DesktopWindow::buildUi() {
 }
 
 QWidget *DesktopWindow::buildCreatePage() {
-    createStates_ = new QStackedWidget;
-
     auto *entry = new QWidget;
     auto *entryLayout = new QVBoxLayout(entry);
     entryLayout->setContentsMargins(0, 0, 0, 0);
-    entryLayout->setSpacing(16);
+    entryLayout->setSpacing(12);
+    entryLayout->setSizeConstraint(QLayout::SetMinimumSize);
     auto *title = label(QStringLiteral("Create recovery shares"));
+    title->setObjectName(QStringLiteral("createPageTitle"));
     QFont titleFont = title->font();
     titleFont.setPointSizeF(22);
     titleFont.setWeight(QFont::DemiBold);
@@ -178,6 +261,7 @@ QWidget *DesktopWindow::buildCreatePage() {
     entryLayout->addWidget(label(QStringLiteral("Enter text exactly as you want to recover it."), true));
 
     auto *group = surface();
+    group->setObjectName(QStringLiteral("createSurface"));
     auto *groupLayout = new QVBoxLayout(group);
     groupLayout->setContentsMargins(20, 16, 20, 16);
     groupLayout->setSpacing(10);
@@ -187,7 +271,7 @@ QWidget *DesktopWindow::buildCreatePage() {
     secretInput_->setObjectName(QStringLiteral("secretInput"));
     secretInput_->setAccessibleName(QStringLiteral("Secret text"));
     secretInput_->setPlaceholderText(QStringLiteral("Type or paste text"));
-    secretInput_->setFixedHeight(150);
+    secretInput_->setFixedHeight(130);
     configureEditor(secretInput_);
     secretLabel->setBuddy(secretInput_);
     groupLayout->addWidget(secretInput_);
@@ -213,32 +297,38 @@ QWidget *DesktopWindow::buildCreatePage() {
     groupLayout->addLayout(settings);
 
     auto *action = new QHBoxLayout;
+    action->setSpacing(12);
     createStatus_ = label(QStringLiteral("2 of 3 · Words"), true);
     createStatus_->setObjectName(QStringLiteral("createStatus"));
     action->addWidget(createStatus_, 1);
     createButton_ = new QPushButton(QStringLiteral("Create shares"));
     createButton_->setObjectName(QStringLiteral("createButton"));
     createButton_->setDefault(true);
+    createButton_->setFixedHeight(32);
     action->addWidget(createButton_);
     groupLayout->addLayout(action);
+    group->setMinimumHeight(groupLayout->sizeHint().height());
     entryLayout->addWidget(group);
-    entryLayout->addStretch();
-    createStates_->addWidget(entry);
 
-    auto *created = new QWidget;
-    auto *createdLayout = new QVBoxLayout(created);
-    createdLayout->setContentsMargins(0, 0, 0, 0);
-    createdLayout->setSpacing(16);
+    createdResult_ = new QWidget;
+    createdResult_->setObjectName(QStringLiteral("createdResult"));
+    auto *createdLayout = new QVBoxLayout(createdResult_);
+    createdLayout->setContentsMargins(0, 6, 0, 0);
+    createdLayout->setSpacing(10);
+    createdLayout->setSizeConstraint(QLayout::SetMinimumSize);
     createdTitle_ = label(QStringLiteral("Recovery shares"));
     createdTitle_->setObjectName(QStringLiteral("createdTitle"));
-    createdTitle_->setFont(titleFont);
+    QFont createdTitleFont = createdTitle_->font();
+    createdTitleFont.setPointSizeF(16);
+    createdTitleFont.setWeight(QFont::DemiBold);
+    createdTitle_->setFont(createdTitleFont);
     createdLayout->addWidget(createdTitle_);
     createdLayout->addWidget(label(QStringLiteral("Copy each complete share and store them separately."), true));
     createdRows_ = surface();
     createdRows_->setObjectName(QStringLiteral("createdShares"));
     createdLayout->addWidget(createdRows_);
-    createdLayout->addStretch();
-    createStates_->addWidget(created);
+    createdResult_->hide();
+    entryLayout->addWidget(createdResult_);
 
     connect(createButton_, &QPushButton::clicked, this, &DesktopWindow::createShares);
     connect(secretInput_, &ExactTextEdit::exactTextChanged, this, &DesktopWindow::createInputChanged);
@@ -249,7 +339,7 @@ QWidget *DesktopWindow::buildCreatePage() {
     });
     connect(threshold_, &QSpinBox::valueChanged, this, &DesktopWindow::createInputChanged);
     connect(shareCount_, &QSpinBox::valueChanged, this, &DesktopWindow::createInputChanged);
-    return createStates_;
+    return entry;
 }
 
 QWidget *DesktopWindow::buildRecoverPage() {
@@ -258,6 +348,7 @@ QWidget *DesktopWindow::buildRecoverPage() {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(16);
     auto *title = label(QStringLiteral("Recover a secret"));
+    title->setObjectName(QStringLiteral("recoverPageTitle"));
     QFont titleFont = title->font();
     titleFont.setPointSizeF(22);
     titleFont.setWeight(QFont::DemiBold);
@@ -276,9 +367,11 @@ QWidget *DesktopWindow::buildRecoverPage() {
     pasteButton_ = new QPushButton(QStringLiteral("Paste share(s)"));
     pasteButton_->setObjectName(QStringLiteral("pasteRecoveryButton"));
     pasteButton_->setAccessibleName(QStringLiteral("Paste recovery shares from clipboard"));
+    pasteButton_->setFixedHeight(32);
     removeButton_ = new QPushButton(QStringLiteral("Remove last"));
     removeButton_->setObjectName(QStringLiteral("removeRecoveryButton"));
     removeButton_->setEnabled(false);
+    removeButton_->setFixedHeight(32);
     pasteActions->addWidget(pasteButton_);
     pasteActions->addWidget(removeButton_);
     pasteActions->addStretch();
@@ -291,6 +384,8 @@ QWidget *DesktopWindow::buildRecoverPage() {
     recoverButton_ = new QPushButton(QStringLiteral("Recover"));
     recoverButton_->setObjectName(QStringLiteral("recoverButton"));
     recoverButton_->setEnabled(false);
+    recoverButton_->setDefault(true);
+    recoverButton_->setFixedHeight(32);
     action->addWidget(recoverButton_);
     groupLayout->addLayout(action);
 
@@ -309,11 +404,11 @@ QWidget *DesktopWindow::buildRecoverPage() {
     resultLayout->addWidget(recoveredDisplay_);
     copyRecovered_ = new QPushButton(QStringLiteral("Copy recovered text"));
     copyRecovered_->setObjectName(QStringLiteral("copyRecoveredButton"));
+    copyRecovered_->setFixedHeight(32);
     resultLayout->addWidget(copyRecovered_, 0, Qt::AlignRight);
     recoveryResult_->hide();
     groupLayout->addWidget(recoveryResult_);
     layout->addWidget(group);
-    layout->addStretch();
 
     connect(pasteButton_, &QPushButton::clicked, this, &DesktopWindow::pasteRecovery);
     connect(removeButton_, &QPushButton::clicked, this, &DesktopWindow::removeLastRecovery);
@@ -459,8 +554,8 @@ void DesktopWindow::clearVisibleState() {
         threshold_->setValue(2);
     if (shareCount_ != nullptr)
         shareCount_->setValue(3);
-    if (createStates_ != nullptr)
-        createStates_->setCurrentIndex(0);
+    if (createdResult_ != nullptr)
+        createdResult_->hide();
     if (createStatus_ != nullptr)
         createStatus_->setText(QStringLiteral("2 of 3 · Words"));
     recoveryBatchCount_ = 0;
@@ -479,10 +574,13 @@ void DesktopWindow::clearVisibleState() {
 }
 
 void DesktopWindow::createInputChanged() {
+    const bool invalidatesCreatedShares = createdResult_ != nullptr && !createdResult_->isHidden();
     nextGeneration();
+    if (createdResult_ != nullptr)
+        createdResult_->hide();
     createStatus_->setText(
         QStringLiteral("%1 of %2 · Words").arg(threshold_->value()).arg(shareCount_->value()));
-    if (pending_ == Pending::Create) {
+    if (pending_ == Pending::Create || invalidatesCreatedShares) {
         pending_ = Pending::Reset;
         setBusy(true);
         queueCurrentReset();
@@ -498,21 +596,50 @@ void DesktopWindow::queueCurrentReset() {
 }
 
 void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
-    secretInput_->clearExact();
     createdTitle_->setText(QStringLiteral("%1 recovery shares").arg(shareCount));
-    delete createdRows_->layout();
+    if (QLayout *oldRows = createdRows_->layout(); oldRows != nullptr) {
+        while (QLayoutItem *item = oldRows->takeAt(0)) {
+            delete item->widget();
+            delete item;
+        }
+        delete oldRows;
+    }
     auto *rows = new QVBoxLayout(createdRows_);
     rows->setContentsMargins(16, 8, 12, 8);
-    rows->setSpacing(2);
+    rows->setSpacing(0);
+    rows->setSizeConstraint(QLayout::SetMinimumSize);
     for (quint16 index = 0; index < shareCount; ++index) {
+        if (index > 0) {
+            auto *separator = new QFrame;
+            separator->setObjectName(QStringLiteral("shareSeparator"));
+            separator->setFrameShape(QFrame::HLine);
+            separator->setFrameShadow(QFrame::Plain);
+            QColor line = separator->palette().color(QPalette::WindowText);
+            line.setAlphaF(0.10);
+            QPalette separatorPalette = separator->palette();
+            separatorPalette.setColor(QPalette::WindowText, line);
+            separator->setPalette(separatorPalette);
+            rows->addWidget(separator);
+        }
         auto *row = new QWidget;
+        row->setMinimumHeight(44);
         auto *rowLayout = new QHBoxLayout(row);
         rowLayout->setContentsMargins(0, 0, 0, 0);
-        rowLayout->addWidget(label(QStringLiteral("Recovery share %1").arg(index + 1)));
-        rowLayout->addStretch();
+        rowLayout->setSpacing(12);
+        auto *number = label(QString::number(index + 1));
+        number->setAlignment(Qt::AlignCenter);
+        number->setFixedSize(24, 24);
+        QFont numberFont = number->font();
+        numberFont.setWeight(QFont::DemiBold);
+        number->setFont(numberFont);
+        rowLayout->addWidget(number);
+        rowLayout->addWidget(label(QStringLiteral("Recovery share %1").arg(index + 1)), 1);
         auto *copy = new QPushButton(QStringLiteral("Copy"));
         copy->setObjectName(QStringLiteral("copyShare%1").arg(index + 1));
         copy->setAccessibleName(QStringLiteral("Copy recovery share %1").arg(index + 1));
+        copy->setAutoDefault(false);
+        copy->setFlat(true);
+        copy->setFixedHeight(30);
         connect(copy, &QPushButton::clicked, this, [this, index] {
             pending_ = Pending::CopyShare;
             setBusy(true);
@@ -522,7 +649,9 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
         rows->addWidget(row);
     }
     rows->addWidget(label(QStringLiteral("%1 of %2 · Words").arg(threshold).arg(shareCount), true));
-    createStates_->setCurrentIndex(1);
+    createdRows_->setMinimumHeight(rows->sizeHint().height());
+    createdResult_->show();
+    createdResult_->updateGeometry();
     createStatus_->setText(QStringLiteral("Shares created in memory."));
 }
 

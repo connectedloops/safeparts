@@ -18,6 +18,7 @@ Rust owns generated packets, retained recovery input, and authoritative recovere
 ## Implemented slice
 
 - Create UTF-8 text as V2 unprotected Words shares, with 2-of-3 defaults and valid threshold/share-count customization. Text admission converts CRLF and lone CR to LF. It does not trim or apply Unicode normalization.
+- Keep the admitted source text visible above the generated-share controls. Editing it hides those controls and resets the Rust operation before another create.
 - Encode one selected share on demand and copy only that complete share.
 - Retain bounded recovery paste batches in Rust, inspect all supplied shares on one worker, and recover only after the explicit action.
 - Reject malformed, trailing, duplicate, mixed, unsupported, over-count, and over-limit input without filtering a subset.
@@ -34,7 +35,7 @@ The development-host adapter calls `-[NSPasteboard dataForType:]`, which returns
 
 Evidence was collected on Apple-silicon macOS 15.5 (24F74), Qt 6.9.1 from `/opt/homebrew`, CMake 4.0.1, Apple Clang 17, Rust/Cargo 1.93.0 through `mise exec --`, and the owner-approved CXX 1.0.195 security update. RustSec reports no findings for the locked Cargo graph; no advisory exception was added. Qt 6.9.1 is only the installed development runtime; it does not replace the approved Qt 6.11 evaluation and packaging target.
 
-Artifacts under `target/desktop-evidence/` were captured at commit `153859cbefa98d1167ae7229396c532b567ce6f3` after the secure queued-buffer change.
+Artifacts under `target/desktop-evidence/` were captured at commit `153859cbefa98d1167ae7229396c532b567ce6f3` after the secure queued-buffer change. The later visual layout change affects the observed binary, so recapture these artifacts before final acceptance.
 
 - `versions.txt`: exact host and tool versions.
 - `network.csv`: five one-second, PID-filtered `nettop` samples during the synthetic Qt create/copy/recover/reset/close suite. The observed process had no TCP/UDP rows or bytes in those samples.
@@ -51,3 +52,4 @@ The public operation boundary test admits a 1 MiB secret at 16 shares while exer
 - Red: `mise exec -- cargo test -p safeparts_desktop_bridge --test operation` failed because the operation module did not exist (`/tmp/desktop140-bridge-red.log`). Green: public-interface tests now pass for exact Unicode, admission/memory envelopes, trailing content, mixed sets, unsupported encoding, and unsupported V1 input.
 - Red: strict CMake compilation first exposed mixed Qt 6.8/6.9 headers, then the Qt suite exposed an incorrect second create action. Green: CMake now binds headers to the selected Qt package and `ctest --test-dir target/desktop-build --output-on-failure` passes both generated-CXX and Qt action suites.
 - Red: the Qt action suite preserved CR and did not cover modified-key text, replacement-only IME edits, or editor paste/cut model parity. Green: text admission uses LF and all covered mutation paths keep displayed text and authoritative bytes equal.
+- Red: the created-share state replaced and cleared the source form, lacked row separators, and inherited malformed global button styling. Green: the compact native layout retains source text, separates on-demand share rows, and invalidates the generated state after edits.

@@ -71,12 +71,12 @@ private:
 
     QTabBar *modeSelector_ = nullptr;
     QStackedWidget *pages_ = nullptr;
-    QStackedWidget *createStates_ = nullptr;
     ExactTextEdit *secretInput_ = nullptr;
     QSpinBox *threshold_ = nullptr;
     QSpinBox *shareCount_ = nullptr;
     QPushButton *createButton_ = nullptr;
     QLabel *createStatus_ = nullptr;
+    QWidget *createdResult_ = nullptr;
     QWidget *createdRows_ = nullptr;
     QLabel *createdTitle_ = nullptr;
 

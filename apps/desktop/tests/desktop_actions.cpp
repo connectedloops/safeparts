@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QContextMenuEvent>
+#include <QFrame>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QLabel>
@@ -43,7 +44,9 @@ T *required(QObject *root, const char *name) {
 
 void triggerContextAction(ExactTextEdit *editor, const QString &objectName) {
     bool triggered = false;
-    QTimer::singleShot(0, [&] {
+    QTimer menuTimer;
+    menuTimer.setInterval(5);
+    QObject::connect(&menuTimer, &QTimer::timeout, [&] {
         auto *menu = qobject_cast<QMenu *>(QApplication::activePopupWidget());
         if (menu == nullptr)
             return;
@@ -51,12 +54,15 @@ void triggerContextAction(ExactTextEdit *editor, const QString &objectName) {
         if (action != nullptr) {
             triggered = true;
             action->trigger();
+            menu->close();
         } else {
             menu->close();
         }
     });
+    menuTimer.start();
     QContextMenuEvent event(QContextMenuEvent::Keyboard, QPoint(0, 0), editor->mapToGlobal(QPoint(0, 0)));
     QApplication::sendEvent(editor, &event);
+    menuTimer.stop();
     QVERIFY2(triggered, qPrintable(QStringLiteral("missing context action %1").arg(objectName)));
 }
 
@@ -118,6 +124,7 @@ private slots:
     void duplicate_blocks_and_correctable_input_is_preserved();
     void malformed_and_mixed_inputs_block_without_filtering();
     void maximum_valid_workload_remains_bounded_and_resettable();
+    void created_shares_keep_source_and_use_compact_native_layout();
     void secure_queued_buffers_wipe_on_final_release();
     void ordinary_create_edits_reject_stale_success_and_error_results();
     void start_over_rejects_stale_success_and_error_results();
@@ -280,6 +287,56 @@ void DesktopActions::maximum_valid_workload_remains_bounded_and_resettable() {
     QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
     QCOMPARE(required<QLabel>(&window, "recoveryCount")->text(), QStringLiteral("No recovery shares pasted"));
+}
+
+void DesktopActions::created_shares_keep_source_and_use_compact_native_layout() {
+    DesktopWindow window;
+    window.resize(620, 480);
+    window.show();
+    QApplication::processEvents();
+
+    auto *modeSelector = required<QTabBar>(&window, "modeSelector");
+    auto *title = required<QLabel>(&window, "createPageTitle");
+    auto *createButton = required<QPushButton>(&window, "createButton");
+    auto *recoverButton = required<QPushButton>(&window, "recoverButton");
+    const int selectorBottom = modeSelector->mapTo(&window, modeSelector->rect().bottomLeft()).y();
+    const int titleTop = title->mapTo(&window, title->rect().topLeft()).y();
+    QVERIFY2(titleTop - selectorBottom <= 72, "create content is not compactly top-aligned");
+    QCOMPARE(createButton->height(), 32);
+    QCOMPARE(recoverButton->height(), 32);
+    QVERIFY2(!window.styleSheet().contains(QStringLiteral("QPushButton {")),
+             "global QPushButton styling overrides the native platform button");
+
+    const QByteArray source("keep this visible");
+    pasteIntoCreate(window, QString::fromUtf8(source));
+    QTest::mouseClick(createButton, Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
+
+    auto *editor = required<ExactTextEdit>(&window, "secretInput");
+    QCOMPARE(editor->exactUtf8(), source);
+    QVERIFY(editor->isVisible());
+    const auto separators = required<QWidget>(&window, "createdShares")
+                                ->findChildren<QFrame *>(QStringLiteral("shareSeparator"));
+    QCOMPARE(separators.size(), 2);
+    for (const auto *separator : separators) {
+        QCOMPARE(separator->frameShape(), QFrame::HLine);
+        QVERIFY(separator->isVisible());
+    }
+
+    QTest::mouseClick(createButton, Qt::LeftButton);
+    QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "createStatus")->text(),
+                              QStringLiteral("Shares created in memory."), 10'000);
+    QCOMPARE(required<QWidget>(&window, "createdShares")
+                 ->findChildren<QFrame *>(QStringLiteral("shareSeparator"))
+                 .size(),
+             2);
+
+    editor->moveCursor(QTextCursor::End);
+    editor->setFocus();
+    QTest::keyClicks(editor, QStringLiteral("!"));
+    QCOMPARE(editor->exactUtf8(), source + '!');
+    QTRY_VERIFY_WITH_TIMEOUT(!required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
+    QTRY_VERIFY_WITH_TIMEOUT(createButton->isEnabled(), 10'000);
 }
 
 void DesktopActions::secure_queued_buffers_wipe_on_final_release() {

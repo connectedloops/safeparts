@@ -15,7 +15,7 @@ Owns the real Qt Widgets text round-trip slice for issue 140. This is developmen
 
 - Use Qt Widgets and `crates/safeparts_desktop_bridge`; never copy core algorithms or use retired application sources.
 - Keep one worker. Parsing, encoding, splitting, and recovery never run on Qt's event thread.
-- Reject stale worker results by generation. Ordinary create-field edits, mode changes, Start over, and close invalidate pending create work; reset the worker and always resolve the busy state.
+- Reject stale worker results by generation. Keep admitted source text visible after creation; a later create-field edit hides the generated-share controls, resets Rust state, and invalidates pending work. Mode changes, Start over, and close clear the source and generated state and always resolve the busy state.
 - Keep authoritative packets, recovery input, and recovered bytes in Rust. Qt owns bounded presentation and intentional clipboard handoffs. Carry sensitive cross-thread bytes in `SecureByteBuffer`; its final shared owner wipes the sole `QByteArray` allocation.
 - Support only V2 unprotected Words text in this slice. Do not misrepresent later encodings, passphrases, files, saving, or printing as implemented.
 - Do not add autonomous networking, persistence, content logs, session restoration, or undo history.
