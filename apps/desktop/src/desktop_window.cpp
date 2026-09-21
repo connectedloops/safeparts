@@ -664,6 +664,8 @@ void DesktopWindow::clearRecoveryFields() {
     clearingRecoveryFields_ = false;
     renumberRecoveryFields();
     recoveryHasEmptyFields_ = true;
+    pendingInspectionHasEmptyFields_ = true;
+    pendingInspectionGeneration_ = 0;
 }
 
 void DesktopWindow::recoveryInputChanged() {
@@ -708,6 +710,8 @@ void DesktopWindow::synchronizeRecoveryFields() {
     recoveryCount_->setText(QStringLiteral("%1 of %2 Recovery shares entered")
                                 .arg(nonempty)
                                 .arg(recoveryFields_.size()));
+    pendingInspectionGeneration_ = generation_;
+    pendingInspectionHasEmptyFields_ = recoveryHasEmptyFields_;
     pending_ = Pending::Inspect;
     setBusy(true);
     emit requestReplaceRecovery(generation_, std::move(inputs),
@@ -764,7 +768,9 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
         }
         const bool invalid = status != statusCode(Status::Ok)
                              && status != statusCode(Status::NotEnoughShares);
-        if (recoveryHasEmptyFields_ && !invalid) {
+        const bool hasRequiredEmptyField = pendingInspectionGeneration_ == generation
+                                           && pendingInspectionHasEmptyFields_;
+        if (hasRequiredEmptyField && !invalid) {
             recoverButton_->setEnabled(false);
             recoveryStatus_->setText(QStringLiteral("Share content is required."));
         } else {

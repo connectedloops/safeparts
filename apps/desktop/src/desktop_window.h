@@ -88,6 +88,8 @@ private:
     bool resetRequested_ = false;
     bool clearingRecoveryFields_ = false;
     bool recoveryHasEmptyFields_ = true;
+    bool pendingInspectionHasEmptyFields_ = true;
+    quint64 pendingInspectionGeneration_ = 0;
     Pending pending_ = Pending::None;
     QThread *thread_ = nullptr;
     RustWorker *worker_ = nullptr;

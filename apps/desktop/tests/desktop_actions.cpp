@@ -98,9 +98,20 @@ QString createAndCopy(DesktopWindow &window, int index) {
     auto *copy = required<QPushButton>(&window, qPrintable(QStringLiteral("copyShare%1").arg(index)));
     if (!QTest::qWaitFor([copy] { return copy->isEnabled(); }, 10'000))
         return {};
+    const QString expected = required<QPlainTextEdit>(
+                                 &window, qPrintable(QStringLiteral("generatedShare%1").arg(index)))
+                                 ->toPlainText();
     QApplication::clipboard()->clear();
     QTest::mouseClick(copy, Qt::LeftButton);
-    if (!QTest::qWaitFor([] { return !QApplication::clipboard()->text().isEmpty(); }, 10'000))
+    if (!QTest::qWaitFor(
+            [&window, index] {
+                return required<QLabel>(&window, "createStatus")->text()
+                       == QStringLiteral("Share %1 copied.").arg(index);
+            },
+            10'000))
+        return {};
+    if (!QTest::qWaitFor([&expected] { return QApplication::clipboard()->text() == expected; },
+                         10'000))
         return {};
     return QApplication::clipboard()->text();
 }
@@ -171,6 +182,7 @@ private slots:
     void all_share_formats_round_trip_with_auto_and_manual_selection();
     void auto_detection_expands_to_the_required_threshold();
     void released_v1_v2_fixtures_inspect_through_qt_auto();
+    void empty_recovery_field_precedence_survives_encoding_inspection();
     void created_shares_keep_source_and_use_compact_native_layout();
     void generated_shares_show_authoritative_text_and_clear_stale_previews();
     void generated_share_presentation_fails_all_or_none_at_budget();
@@ -192,6 +204,7 @@ void DesktopActions::create_copy_recover_preserves_exact_utf8_through_user_actio
 
     chooseRecover(window);
     pasteRecovery(window, first);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), first.toUtf8());
     QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
     QCOMPARE(required<QLabel>(&window, "recoveryStatus")->text(),
              QStringLiteral("Share content is required."));
@@ -563,6 +576,41 @@ void DesktopActions::released_v1_v2_fixtures_inspect_through_qt_auto() {
                                  10'000);
         QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
     }
+}
+
+void DesktopActions::empty_recovery_field_precedence_survives_encoding_inspection() {
+    DesktopWindow window;
+    window.show();
+    pasteIntoCreate(window, QStringLiteral("empty-field inspection precedence"));
+    const QString share = createAndCopy(window, 1);
+    QVERIFY(!share.isEmpty());
+
+    chooseRecover(window);
+    setRecoveryField(window, 1, share);
+    QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")->text(),
+                              QStringLiteral("Share content is required."), 10'000);
+    QCOMPARE(required<QLabel>(&window, "detectedRecoveryEncoding")->text(),
+             QStringLiteral("Detected: Words"));
+
+    auto *encoding = required<QComboBox>(&window, "recoveryEncoding");
+    encoding->setCurrentIndex(encoding->findData(1));
+    QTRY_VERIFY_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")
+                                 ->text()
+                                 .contains(QStringLiteral("could not be decoded")),
+                             10'000);
+
+    encoding->setCurrentIndex(encoding->findData(0));
+    QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")->text(),
+                              QStringLiteral("Share content is required."), 10'000);
+
+    setRecoveryField(window, 1, share + QStringLiteral(" abandon"));
+    QVERIFY(required<QLabel>(&window, "recoveryStatus")
+                ->text()
+                .contains(QStringLiteral("could not be decoded")));
+
+    setRecoveryField(window, 1, share);
+    QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")->text(),
+                              QStringLiteral("Share content is required."), 10'000);
 }
 
 void DesktopActions::created_shares_keep_source_and_use_compact_native_layout() {
