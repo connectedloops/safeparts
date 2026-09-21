@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <optional>
 #include <utility>
 
 namespace {
@@ -32,11 +33,20 @@ void RustWorker::encodeShare(quint64 generation, quint16 index, int purpose) {
 
 void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs) {
     OperationOutput output = operation_->reset(generation);
+    std::optional<Status> firstFatalStatus;
     for (const SecureByteBuffer &input : inputs) {
+        const quint16 previousBatchCount = output.recovery_batch_count;
         output = operation_->add_recovery_words(generation, slice(input));
-        if (output.status != Status::Ok && output.status != Status::NotEnoughShares)
+        const bool fatal = output.status != Status::Ok && output.status != Status::NotEnoughShares;
+        if (fatal && !firstFatalStatus.has_value())
+            firstFatalStatus = output.status;
+
+        const bool retained = output.recovery_batch_count > previousBatchCount;
+        if (fatal && !retained)
             break;
     }
+    if (firstFatalStatus.has_value())
+        output.status = *firstFatalStatus;
     emitOperation(output);
 }
 

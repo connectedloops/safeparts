@@ -1,6 +1,7 @@
 #include "clipboard.h"
 #include "desktop_window.h"
 #include "exact_text_edit.h"
+#include "rust_worker.h"
 #include "secure_byte_buffer.h"
 
 #include <QApplication>
@@ -14,6 +15,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QSignalSpy>
 #include <QSpinBox>
 #include <QTabBar>
 #include <QTest>
@@ -156,6 +158,7 @@ private slots:
     void maximum_valid_workload_remains_bounded_and_resettable();
     void web_terms_icons_and_selector_keyboard_match();
     void recovery_fields_add_remove_renumber_and_invalidate();
+    void recovery_worker_retains_the_complete_visible_set_after_a_middle_error();
     void created_shares_keep_source_and_use_compact_native_layout();
     void generated_shares_show_authoritative_text_and_clear_stale_previews();
     void generated_share_presentation_fails_all_or_none_at_budget();
@@ -429,6 +432,32 @@ void DesktopActions::recovery_fields_add_remove_renumber_and_invalidate() {
     QTRY_COMPARE_WITH_TIMEOUT(recoveryEditors(window).size(), 2, 10'000);
     QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), QByteArray());
     QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare2")->exactUtf8(), QByteArray());
+}
+
+void DesktopActions::recovery_worker_retains_the_complete_visible_set_after_a_middle_error() {
+    DesktopWindow window;
+    window.show();
+    pasteIntoCreate(window, QStringLiteral("complete visible set worker boundary"));
+    const QString first = createAndCopy(window, 1);
+    const QString second = createAndCopy(window, 2);
+    QVERIFY(!first.isEmpty());
+    QVERIFY(!second.isEmpty());
+
+    RustWorker worker;
+    QSignalSpy operationSpy(&worker, &RustWorker::operationFinished);
+    QList<SecureByteBuffer> inputs;
+    inputs.append(SecureByteBuffer::take(first.toUtf8()));
+    inputs.append(SecureByteBuffer::take(QByteArray("invalid middle Recovery share")));
+    inputs.append(SecureByteBuffer::take(second.toUtf8()));
+
+    worker.replaceRecovery(77, std::move(inputs));
+
+    QCOMPARE(operationSpy.count(), 1);
+    const QList<QVariant> result = operationSpy.takeFirst();
+    QCOMPARE(result.at(0).toULongLong(), 77ULL);
+    QCOMPARE(result.at(1).toInt(), static_cast<int>(static_cast<std::uint8_t>(Status::MalformedInput)));
+    QCOMPARE(result.at(5).toUInt(), 3U);
+    QVERIFY(!result.at(6).toBool());
 }
 
 void DesktopActions::created_shares_keep_source_and_use_compact_native_layout() {

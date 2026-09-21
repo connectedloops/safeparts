@@ -35,7 +35,7 @@ The development-host adapter calls `-[NSPasteboard dataForType:]`, which returns
 
 Evidence was collected on Apple-silicon macOS 15.5 (24F74), Qt 6.9.1 from `/opt/homebrew`, CMake 4.0.1, Apple Clang 17, Rust/Cargo 1.93.0 through `mise exec --`, and the owner-approved CXX 1.0.195 security update. RustSec reports no findings for the locked Cargo graph; no advisory exception was added. Qt 6.9.1 is only the installed development runtime; it does not replace the approved Qt 6.11 evaluation and packaging target.
 
-Artifacts under `target/desktop-evidence/` were captured at commit `9851d0acfce8958cd698d51d3b42b087dddfce0f` after the final Split/Combine layout and visible-share changes.
+Artifacts under `target/desktop-evidence/` were captured at commit `9851d0acfce8958cd698d51d3b42b087dddfce0f` after the Split/Combine layout and visible-share changes. The later complete-visible-set worker fix changes the observed executable and test workload, so recapture these artifacts at the final reviewed commit before acceptance.
 
 - `versions.txt`: exact host and tool versions.
 - `network.csv`: five one-second, PID-filtered `nettop` samples during the synthetic Qt create/copy/recover/reset/close suite. The observed process had no TCP/UDP rows or bytes in those samples.
