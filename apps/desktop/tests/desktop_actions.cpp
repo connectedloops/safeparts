@@ -8,6 +8,7 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QContextMenuEvent>
+#include <QFile>
 #include <QFrame>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
@@ -36,6 +37,13 @@ QByteArray exactBytes() {
 QString exactText() {
     const QByteArray bytes = exactBytes();
     return QString::fromUtf8(bytes.constData(), bytes.size());
+}
+
+QString fixtureText(const QString &relativePath) {
+    QFile file(QStringLiteral(SAFEPARTS_REPO_ROOT "/") + relativePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return {};
+    return QString::fromUtf8(file.readAll());
 }
 
 template <typename T>
@@ -162,6 +170,7 @@ private slots:
     void recovery_worker_retains_the_complete_visible_set_after_a_middle_error();
     void all_share_formats_round_trip_with_auto_and_manual_selection();
     void auto_detection_expands_to_the_required_threshold();
+    void released_v1_v2_fixtures_inspect_through_qt_auto();
     void created_shares_keep_source_and_use_compact_native_layout();
     void generated_shares_show_authoritative_text_and_clear_stale_previews();
     void generated_share_presentation_fails_all_or_none_at_budget();
@@ -518,6 +527,42 @@ void DesktopActions::auto_detection_expands_to_the_required_threshold() {
     QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("1 of 3"))
             || required<QLabel>(&window, "recoveryStatus")->text()
                    .contains(QStringLiteral("Share content")));
+}
+
+void DesktopActions::released_v1_v2_fixtures_inspect_through_qt_auto() {
+    const QList<QPair<QString, QString>> fixtures = {
+        {QStringLiteral("v1-unprotected/base64url.txt"), QStringLiteral("Base64url")},
+        {QStringLiteral("v1-unprotected/base58check.txt"), QStringLiteral("Base58check")},
+        {QStringLiteral("v1-unprotected/mnemo-words.txt"), QStringLiteral("Words")},
+        {QStringLiteral("v1-unprotected/mnemo-bip39.txt"), QStringLiteral("BIP-39")},
+        {QStringLiteral("v2-unprotected/base64url.txt"), QStringLiteral("Base64url")},
+        {QStringLiteral("v2-unprotected/base58check.txt"), QStringLiteral("Base58check")},
+        {QStringLiteral("v2-unprotected/mnemo-words.txt"), QStringLiteral("Words")},
+        {QStringLiteral("v2-unprotected/mnemo-bip39.txt"), QStringLiteral("BIP-39")},
+    };
+    const QString fixtureRoot = QStringLiteral(
+        "crates/safeparts_core/tests/fixtures/share_compatibility/");
+    for (const auto &[relativePath, format] : fixtures) {
+        const QStringList shares = fixtureText(fixtureRoot + relativePath)
+                                       .split(QRegularExpression(QStringLiteral("[\\r\\n]+")),
+                                              Qt::SkipEmptyParts);
+        QCOMPARE(shares.size(), 3);
+        DesktopWindow window;
+        window.show();
+        chooseRecover(window);
+        setRecoveryField(window, 1, shares.at(0));
+        setRecoveryField(window, 2, shares.at(1));
+        QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "detectedRecoveryEncoding")->text(),
+                                  QStringLiteral("Detected: %1").arg(format), 10'000);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(),
+                                 10'000);
+        QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")
+                                     ->text()
+                                     .contains(QStringLiteral("valid UTF-8")),
+                                 10'000);
+        QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
+    }
 }
 
 void DesktopActions::created_shares_keep_source_and_use_compact_native_layout() {

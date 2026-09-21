@@ -2,7 +2,9 @@
 
 #include <array>
 #include <cstdint>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -14,6 +16,13 @@ rust::Slice<const std::uint8_t> bytes(const std::string &value) {
 
 std::string stringFrom(const rust::Vec<std::uint8_t> &value) {
     return {reinterpret_cast<const char *>(value.data()), value.size()};
+}
+
+std::string fixture(const char *relativePath) {
+    std::ifstream input(std::string(SAFEPARTS_REPO_ROOT) + "/" + relativePath);
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    return contents.str();
 }
 } // namespace
 
@@ -115,8 +124,37 @@ int main() {
         destroy_operation(std::move(encodedOperation));
     }
 
+    struct FixtureCase {
+        const char *path;
+        ShareEncoding encoding;
+    };
+    const std::array<FixtureCase, 8> releasedFixtures = {{
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v1-unprotected/base64url.txt", ShareEncoding::Base64url},
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v1-unprotected/base58check.txt", ShareEncoding::Base58check},
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v1-unprotected/mnemo-words.txt", ShareEncoding::MnemoWords},
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v1-unprotected/mnemo-bip39.txt", ShareEncoding::MnemoBip39},
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v2-unprotected/base64url.txt", ShareEncoding::Base64url},
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v2-unprotected/base58check.txt", ShareEncoding::Base58check},
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v2-unprotected/mnemo-words.txt", ShareEncoding::MnemoWords},
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v2-unprotected/mnemo-bip39.txt", ShareEncoding::MnemoBip39},
+    }};
+    for (const FixtureCase &fixtureCase : releasedFixtures) {
+        const std::string text = fixture(fixtureCase.path);
+        for (ShareEncoding requested : {ShareEncoding::Auto, fixtureCase.encoding}) {
+            auto fixtureOperation = new_operation();
+            const auto inspected = fixtureOperation->add_recovery(7, bytes(text), requested);
+            if (text.empty() || inspected.status != Status::Ok || !inspected.ready
+                || inspected.encoding != fixtureCase.encoding
+                || fixtureOperation->recover(7).status != Status::InvalidUtf8) {
+                std::cerr << "released fixture CXX contract failed\n";
+                return 11;
+            }
+            destroy_operation(std::move(fixtureOperation));
+        }
+    }
+
     destroy_operation(std::move(other));
     destroy_operation(std::move(operation));
-    std::cout << "CXX_DESKTOP_BOUNDARY_OK shares=3 threshold=2 encodings=4 auto=yes handled_errors=yes explicit_release=yes\n";
+    std::cout << "CXX_DESKTOP_BOUNDARY_OK shares=3 threshold=2 encodings=4 fixtures=8 auto=yes handled_errors=yes explicit_release=yes\n";
     return 0;
 }
