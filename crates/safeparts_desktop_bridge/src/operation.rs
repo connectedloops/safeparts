@@ -5,12 +5,14 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::str;
 use std::sync::Once;
 
-use safeparts_core::encoding::{Encoding, encode_packet, parse_mnemo_words_packets_with_versions};
+use safeparts_core::encoding::{
+    Encoding as CoreEncoding, encode_packet, parse_share_packets_wrapped_mnemonics_with_versions,
+};
 use safeparts_core::packet::{PacketVersion, SharePacket};
 use safeparts_core::{CoreError, combine_shares, inspect_share_set, split_secret};
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::bridge::ffi::{BytesOutput, OperationOutput, Status};
+use crate::bridge::ffi::{BytesOutput, OperationOutput, ShareEncoding, Status};
 
 const MIB: usize = 1_048_576;
 const MAX_SECRET_BYTES: usize = MIB;
@@ -31,8 +33,11 @@ static PANIC_HOOK: Once = Once::new();
 
 pub struct Operation {
     created_packets: Vec<SharePacket>,
+    created_encoding: CoreEncoding,
     recovery_batches: Vec<Zeroizing<Vec<u8>>>,
     recovery_packets: Vec<SharePacket>,
+    recovery_encoding: Option<CoreEncoding>,
+    recovery_version: Option<PacketVersion>,
     recovered: Zeroizing<Vec<u8>>,
     inspection: OperationOutput,
 }
@@ -41,8 +46,11 @@ pub fn new_operation() -> Box<Operation> {
     PANIC_HOOK.call_once(|| std::panic::set_hook(Box::new(|_| {})));
     Box::new(Operation {
         created_packets: Vec::new(),
+        created_encoding: CoreEncoding::MnemoWords,
         recovery_batches: Vec::new(),
         recovery_packets: Vec::new(),
+        recovery_encoding: None,
+        recovery_version: None,
         recovered: Zeroizing::new(Vec::new()),
         inspection: output(0, Status::NotEnoughShares),
     })
@@ -71,21 +79,42 @@ impl Operation {
         threshold: u8,
         share_count: u8,
     ) -> OperationOutput {
+        self.create(
+            generation,
+            secret,
+            threshold,
+            share_count,
+            ShareEncoding::MnemoWords,
+        )
+    }
+
+    pub fn create(
+        &mut self,
+        generation: u64,
+        secret: &[u8],
+        threshold: u8,
+        share_count: u8,
+        encoding: ShareEncoding,
+    ) -> OperationOutput {
         match catch_unwind(AssertUnwindSafe(|| {
-            self.create_words_inner(generation, secret, threshold, share_count)
+            self.create_inner(generation, secret, threshold, share_count, encoding)
         })) {
             Ok(result) => result,
             Err(_) => self.panic_output(generation),
         }
     }
 
-    fn create_words_inner(
+    fn create_inner(
         &mut self,
         generation: u64,
         secret: &[u8],
         threshold: u8,
         share_count: u8,
+        encoding: ShareEncoding,
     ) -> OperationOutput {
+        let Some(encoding) = concrete_core_encoding(encoding) else {
+            return output(generation, Status::UnsupportedInput);
+        };
         if secret.is_empty() {
             return output(generation, Status::EmptySecret);
         }
@@ -111,7 +140,9 @@ impl Operation {
         };
         clear_packets(&mut self.created_packets);
         self.created_packets = packets;
+        self.created_encoding = encoding;
         let mut result = output(generation, Status::Ok);
+        result.encoding = bridge_encoding(encoding);
         result.threshold = threshold;
         result.share_count = u16::from(share_count);
         result
@@ -130,7 +161,7 @@ impl Operation {
         let Some(packet) = self.created_packets.get(usize::from(share_index)) else {
             return bytes_output(generation, Status::InvalidIndex);
         };
-        let encoded = match encode_packet(packet, Encoding::MnemoWords) {
+        let encoded = match encode_packet(packet, self.created_encoding) {
             Ok(encoded) => encoded,
             Err(error) => return bytes_output(generation, status_from_core(&error)),
         };
@@ -145,15 +176,32 @@ impl Operation {
     }
 
     pub fn add_recovery_words(&mut self, generation: u64, input: &[u8]) -> OperationOutput {
+        self.add_recovery(generation, input, ShareEncoding::MnemoWords)
+    }
+
+    pub fn add_recovery(
+        &mut self,
+        generation: u64,
+        input: &[u8],
+        encoding: ShareEncoding,
+    ) -> OperationOutput {
         match catch_unwind(AssertUnwindSafe(|| {
-            self.add_recovery_words_inner(generation, input)
+            self.add_recovery_inner(generation, input, encoding)
         })) {
             Ok(result) => result,
             Err(_) => self.panic_output(generation),
         }
     }
 
-    fn add_recovery_words_inner(&mut self, generation: u64, input: &[u8]) -> OperationOutput {
+    fn add_recovery_inner(
+        &mut self,
+        generation: u64,
+        input: &[u8],
+        encoding: ShareEncoding,
+    ) -> OperationOutput {
+        let Some(requested_encoding) = core_encoding(encoding) else {
+            return self.with_batch_count(output(generation, Status::UnsupportedInput));
+        };
         if input.len() > MAX_PASTE_BYTES {
             return self.with_batch_count(output(generation, Status::PasteTooLarge));
         }
@@ -190,7 +238,7 @@ impl Operation {
         }
         retained_input.extend_from_slice(input);
         self.recovery_batches.push(Zeroizing::new(retained_input));
-        self.inspect_recovery(generation)
+        self.inspect_recovery(generation, requested_encoding)
     }
 
     pub fn remove_recovery_batch(&mut self, generation: u64, batch_index: u16) -> OperationOutput {
@@ -199,17 +247,23 @@ impl Operation {
                 return self.with_batch_count(output(generation, Status::InvalidIndex));
             }
             self.recovery_batches.remove(usize::from(batch_index));
-            self.inspect_recovery(generation)
+            self.inspect_recovery(generation, CoreEncoding::Auto)
         })) {
             Ok(result) => result,
             Err(_) => self.panic_output(generation),
         }
     }
 
-    fn inspect_recovery(&mut self, generation: u64) -> OperationOutput {
+    fn inspect_recovery(
+        &mut self,
+        generation: u64,
+        requested_encoding: CoreEncoding,
+    ) -> OperationOutput {
         self.recovered.zeroize();
         self.recovered.clear();
         clear_packets(&mut self.recovery_packets);
+        self.recovery_encoding = None;
+        self.recovery_version = None;
         if self.recovery_batches.is_empty() {
             self.inspection = self.with_batch_count(output(generation, Status::NotEnoughShares));
             return clone_output(&self.inspection);
@@ -226,27 +280,42 @@ impl Operation {
                     return clone_output(&self.inspection);
                 }
             };
-            let mut decoded = match parse_mnemo_words_packets_with_versions(text) {
-                Ok(decoded) => decoded,
-                Err(_) => {
+            let parsed =
+                match parse_share_packets_wrapped_mnemonics_with_versions(text, requested_encoding)
+                {
+                    Ok(parsed) => parsed,
+                    Err(error) => {
+                        clear_packets(&mut packets);
+                        self.inspection =
+                            self.with_batch_count(output(generation, status_from_core(&error)));
+                        return clone_output(&self.inspection);
+                    }
+                };
+            if let Some(existing) = self.recovery_encoding {
+                if existing != parsed.encoding {
+                    clear_decoded_packets(parsed.packets);
                     clear_packets(&mut packets);
                     self.inspection =
-                        self.with_batch_count(output(generation, Status::MalformedInput));
+                        self.with_batch_count(output(generation, Status::MixedEncoding));
                     return clone_output(&self.inspection);
                 }
-            };
-            if decoded.iter().any(|item| {
-                item.version != PacketVersion::V2 || item.packet.crypto_params.is_some()
-            }) {
-                for item in &mut decoded {
-                    item.packet.payload.zeroize();
-                }
-                clear_packets(&mut packets);
-                self.inspection =
-                    self.with_batch_count(output(generation, Status::UnsupportedInput));
-                return clone_output(&self.inspection);
+            } else {
+                self.recovery_encoding = Some(parsed.encoding);
             }
-            packets.extend(decoded.into_iter().map(|item| item.packet));
+            for item in &parsed.packets {
+                if self
+                    .recovery_version
+                    .is_some_and(|version| version != item.version)
+                {
+                    clear_decoded_packets(parsed.packets);
+                    clear_packets(&mut packets);
+                    self.inspection =
+                        self.with_batch_count(output(generation, Status::MixedVersion));
+                    return clone_output(&self.inspection);
+                }
+                self.recovery_version = Some(item.version);
+            }
+            packets.extend(parsed.packets.into_iter().map(|item| item.packet));
             if packets.len() > MAX_ACCEPTED_SHARES {
                 clear_packets(&mut packets);
                 self.inspection = self.with_batch_count(output(generation, Status::TooManyShares));
@@ -289,15 +358,23 @@ impl Operation {
         }
 
         self.recovery_packets = packets;
-        let ready = inspected.supplied_count >= usize::from(inspected.threshold);
+        let protected = inspected.passphrase_protected;
+        let ready = !protected && inspected.supplied_count >= usize::from(inspected.threshold);
         let mut result = output(
             generation,
-            if ready {
+            if protected {
+                Status::PassphraseRequired
+            } else if ready {
                 Status::Ok
             } else {
                 Status::NotEnoughShares
             },
         );
+        result.encoding = self
+            .recovery_encoding
+            .map(bridge_encoding)
+            .unwrap_or(ShareEncoding::Auto);
+        result.protected = protected;
         result.threshold = inspected.threshold;
         result.share_count = u16::from(inspected.share_count);
         result.supplied_count = u16::try_from(inspected.supplied_count).unwrap_or(u16::MAX);
@@ -309,13 +386,17 @@ impl Operation {
     }
 
     pub fn recover_words(&mut self, generation: u64) -> BytesOutput {
-        match catch_unwind(AssertUnwindSafe(|| self.recover_words_inner(generation))) {
+        self.recover(generation)
+    }
+
+    pub fn recover(&mut self, generation: u64) -> BytesOutput {
+        match catch_unwind(AssertUnwindSafe(|| self.recover_inner(generation))) {
             Ok(result) => result,
             Err(_) => self.panic_bytes(generation),
         }
     }
 
-    fn recover_words_inner(&mut self, generation: u64) -> BytesOutput {
+    fn recover_inner(&mut self, generation: u64) -> BytesOutput {
         if !self.inspection.ready || self.inspection.status != Status::Ok {
             return bytes_output(generation, self.inspection.status);
         }
@@ -325,13 +406,6 @@ impl Operation {
         };
         if recovered.len() > MAX_SECRET_BYTES {
             return bytes_output(generation, Status::SecretTooLarge);
-        }
-        let expected_len = match inspect_share_set(&self.recovery_packets) {
-            Ok(inspected) => inspected.expected_secret_len,
-            Err(error) => return bytes_output(generation, status_from_core(&error)),
-        };
-        if recovered.len() != expected_len {
-            return bytes_output(generation, Status::IntegrityFailure);
         }
         if str::from_utf8(&recovered).is_err() {
             return bytes_output(generation, Status::InvalidUtf8);
@@ -490,6 +564,8 @@ impl Operation {
         clear_packets(&mut self.created_packets);
         self.recovery_batches.clear();
         clear_packets(&mut self.recovery_packets);
+        self.recovery_encoding = None;
+        self.recovery_version = None;
         self.recovered.zeroize();
         self.recovered.clear();
     }
@@ -564,6 +640,38 @@ fn clear_packets(packets: &mut Vec<SharePacket>) {
     packets.clear();
 }
 
+fn clear_decoded_packets(mut packets: Vec<safeparts_core::packet::DecodedSharePacket>) {
+    for item in &mut packets {
+        item.packet.payload.zeroize();
+    }
+}
+
+fn core_encoding(encoding: ShareEncoding) -> Option<CoreEncoding> {
+    match encoding {
+        ShareEncoding::Auto => Some(CoreEncoding::Auto),
+        ShareEncoding::Base64url => Some(CoreEncoding::Base64url),
+        ShareEncoding::Base58check => Some(CoreEncoding::Base58check),
+        ShareEncoding::MnemoWords => Some(CoreEncoding::MnemoWords),
+        ShareEncoding::MnemoBip39 => Some(CoreEncoding::MnemoBip39),
+        _ => None,
+    }
+}
+
+fn concrete_core_encoding(encoding: ShareEncoding) -> Option<CoreEncoding> {
+    core_encoding(encoding).filter(|encoding| !encoding.is_auto())
+}
+
+fn bridge_encoding(encoding: CoreEncoding) -> ShareEncoding {
+    match encoding {
+        CoreEncoding::Auto => ShareEncoding::Auto,
+        CoreEncoding::Base64url => ShareEncoding::Base64url,
+        CoreEncoding::Base58check => ShareEncoding::Base58check,
+        CoreEncoding::MnemoWords => ShareEncoding::MnemoWords,
+        CoreEncoding::MnemoBip39 => ShareEncoding::MnemoBip39,
+        _ => ShareEncoding::Auto,
+    }
+}
+
 fn status_from_core(error: &CoreError) -> Status {
     match error {
         CoreError::InvalidKAndN { .. } => Status::InvalidThreshold,
@@ -575,9 +683,10 @@ fn status_from_core(error: &CoreError) -> Status {
         | CoreError::InvalidX => Status::MixedShareSet,
         CoreError::TooManyShares { .. } => Status::TooManyShares,
         CoreError::IntegrityCheckFailed | CoreError::DecryptFailed => Status::IntegrityFailure,
-        CoreError::PassphraseRequired
-        | CoreError::UnsupportedCryptoParams { .. }
-        | CoreError::UnsupportedPacketFlags { .. } => Status::UnsupportedInput,
+        CoreError::PassphraseRequired => Status::PassphraseRequired,
+        CoreError::UnsupportedCryptoParams { .. } | CoreError::UnsupportedPacketFlags { .. } => {
+            Status::UnsupportedParameters
+        }
         CoreError::InvalidPacket(_)
         | CoreError::Encoding(_)
         | CoreError::EmptyShareInput
@@ -594,6 +703,8 @@ fn output(generation: u64, status: Status) -> OperationOutput {
         share_count: 0,
         supplied_count: 0,
         recovery_batch_count: 0,
+        encoding: ShareEncoding::Auto,
+        protected: false,
         ready: false,
     }
 }
@@ -606,6 +717,8 @@ fn clone_output(value: &OperationOutput) -> OperationOutput {
         share_count: value.share_count,
         supplied_count: value.supplied_count,
         recovery_batch_count: value.recovery_batch_count,
+        encoding: value.encoding,
+        protected: value.protected,
         ready: value.ready,
     }
 }

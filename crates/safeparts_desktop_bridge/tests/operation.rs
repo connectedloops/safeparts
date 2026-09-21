@@ -1,6 +1,6 @@
 use safeparts_core::encoding::{Encoding, encode_packet};
 use safeparts_core::split_secret;
-use safeparts_desktop_bridge::{Status, new_operation};
+use safeparts_desktop_bridge::{ShareEncoding, Status, new_operation};
 
 const FIDELITY_TEXT: &str = "\0 leading\nline\u{00a0}space\u{2028}separator\u{2029}paragraph\ne\u{301} \u{1f600}\ntrailing \n";
 
@@ -52,7 +52,7 @@ fn public_operation_rejects_duplicate_and_preserves_correctable_input() {
 }
 
 #[test]
-fn public_operation_rejects_trailing_mixed_and_unsupported_inputs() {
+fn public_operation_rejects_trailing_mixed_sets_and_encodings() {
     let mut first_set = new_operation();
     assert!(
         first_set
@@ -88,29 +88,125 @@ fn public_operation_rejects_trailing_mixed_and_unsupported_inputs() {
     assert_eq!(corrected.recovery_batch_count, 1);
     assert!(recovery.add_recovery_words(4, &second.bytes).status == Status::MixedShareSet);
 
-    let packet = split_secret(b"synthetic unsupported encoding", 1, 1, None)
+    let packet = split_secret(b"synthetic mixed encoding", 1, 1, None)
         .unwrap_or_else(|error| panic!("synthetic split failed: {error}"));
+    let words = encode_packet(&packet[0], Encoding::MnemoWords)
+        .unwrap_or_else(|error| panic!("synthetic encode failed: {error}"));
     let base64 = encode_packet(&packet[0], Encoding::Base64url)
         .unwrap_or_else(|error| panic!("synthetic encode failed: {error}"));
-    let mut unsupported_encoding = new_operation();
+    let mut mixed_encoding = new_operation();
     assert!(
-        unsupported_encoding
-            .add_recovery_words(5, base64.as_bytes())
+        mixed_encoding
+            .add_recovery(5, words.as_bytes(), ShareEncoding::Auto)
             .status
-            == Status::MalformedInput
+            == Status::Ok
     );
+    assert!(
+        mixed_encoding
+            .add_recovery(5, base64.as_bytes(), ShareEncoding::Auto)
+            .status
+            == Status::MixedEncoding
+    );
+}
 
-    let v1_words = include_str!(
-        "../../safeparts_core/tests/fixtures/share_compatibility/v1-unprotected/mnemo-words.txt"
+#[test]
+fn public_operation_creates_and_recovers_every_encoding_and_released_version() {
+    const ENCODINGS: &[(Encoding, ShareEncoding)] = &[
+        (Encoding::Base64url, ShareEncoding::Base64url),
+        (Encoding::Base58check, ShareEncoding::Base58check),
+        (Encoding::MnemoWords, ShareEncoding::MnemoWords),
+        (Encoding::MnemoBip39, ShareEncoding::MnemoBip39),
+    ];
+    for &(core_encoding, bridge_encoding) in ENCODINGS {
+        let mut created = new_operation();
+        assert!(
+            created
+                .create(1, FIDELITY_TEXT.as_bytes(), 2, 3, bridge_encoding)
+                .status
+                == Status::Ok
+        );
+        let first = created.encode_share(1, 0);
+        let parsed = safeparts_core::encoding::decode_packet(
+            std::str::from_utf8(&first.bytes).unwrap_or(""),
+            core_encoding,
+        );
+        assert!(parsed.is_ok());
+    }
+
+    const FIXTURES: &[(&str, ShareEncoding)] = &[
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v1-unprotected/base64url.txt"
+            ),
+            ShareEncoding::Base64url,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v1-unprotected/base58check.txt"
+            ),
+            ShareEncoding::Base58check,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v1-unprotected/mnemo-words.txt"
+            ),
+            ShareEncoding::MnemoWords,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v1-unprotected/mnemo-bip39.txt"
+            ),
+            ShareEncoding::MnemoBip39,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-unprotected/base64url.txt"
+            ),
+            ShareEncoding::Base64url,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-unprotected/base58check.txt"
+            ),
+            ShareEncoding::Base58check,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-unprotected/mnemo-words.txt"
+            ),
+            ShareEncoding::MnemoWords,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-unprotected/mnemo-bip39.txt"
+            ),
+            ShareEncoding::MnemoBip39,
+        ),
+    ];
+    for &(fixture, manual) in FIXTURES {
+        for requested in [ShareEncoding::Auto, manual] {
+            let mut recovery = new_operation();
+            let inspected = recovery.add_recovery(2, fixture.as_bytes(), requested);
+            assert!(inspected.status == Status::Ok);
+            assert!(inspected.ready);
+            assert!(inspected.encoding == manual);
+            assert!(recovery.recover(2).status == Status::InvalidUtf8);
+        }
+    }
+}
+
+#[test]
+fn public_operation_recognizes_protected_shares_without_recovering() {
+    let protected = include_str!(
+        "../../safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/base64url.txt"
     );
-    let first_v1 = v1_words.lines().next().unwrap_or("");
-    let mut unsupported_version = new_operation();
-    assert!(
-        unsupported_version
-            .add_recovery_words(6, first_v1.as_bytes())
-            .status
-            == Status::UnsupportedInput
-    );
+    let mut operation = new_operation();
+    let inspected = operation.add_recovery(3, protected.as_bytes(), ShareEncoding::Auto);
+    assert!(inspected.status == Status::PassphraseRequired);
+    assert!(inspected.protected);
+    assert!(!inspected.ready);
+    assert!(inspected.encoding == ShareEncoding::Base64url);
+    assert!(operation.recover(3).status == Status::PassphraseRequired);
 }
 
 #[test]
