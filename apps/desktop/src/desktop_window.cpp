@@ -34,7 +34,13 @@
 namespace {
 constexpr qsizetype kMaximumRecoveryFieldBytes = 8 * 1'048'576;
 constexpr qsizetype kMaximumRetainedRecoveryBytes = 160 * 1'048'576;
+constexpr qsizetype kMaximumGeneratedPresentationBytes = 160 * 1'048'576;
+constexpr qsizetype kGeneratedPresentationExpansion = 4;
 constexpr qsizetype kMaximumRecoveryFields = 255;
+constexpr int kShareClipboardPurpose = 0;
+constexpr int kRecoveredDisplayPurpose = 1;
+constexpr int kRecoveredClipboardPurpose = 2;
+constexpr int kShareDisplayPurpose = 3;
 
 int statusCode(Status status) {
     return static_cast<int>(static_cast<std::uint8_t>(status));
@@ -660,11 +666,11 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
         return;
     }
     if (pending_ == Pending::Create) {
-        pending_ = Pending::None;
-        if (status == statusCode(Status::Ok))
+        if (status == statusCode(Status::Ok)) {
             showCreated(threshold, shareCount);
-        else
-            createStatus_->setText(statusText(status));
+            return;
+        }
+        createStatus_->setText(statusText(status));
     } else if (pending_ == Pending::Inspect) {
         Q_UNUSED(batchCount);
         const bool invalid = status != statusCode(Status::Ok)
@@ -683,25 +689,51 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
                                   quint16 index) {
     if (generation != generation_)
         return;
+    if (purpose == kShareDisplayPurpose) {
+        if (status != statusCode(Status::Ok)) {
+            failGeneratedPresentation(statusText(status));
+            return;
+        }
+        if (index != nextGeneratedShare_
+            || index >= static_cast<quint16>(generatedShareDisplays_.size())) {
+            failGeneratedPresentation(QStringLiteral("Recovery shares could not be displayed safely."));
+            return;
+        }
+        const qsizetype remaining = kMaximumGeneratedPresentationBytes
+                                    - retainedGeneratedPresentationBytes_;
+        if (bytes.size() > remaining / kGeneratedPresentationExpansion) {
+            failGeneratedPresentation(
+                QStringLiteral("Recovery shares exceed the 160 MiB presentation budget."));
+            return;
+        }
+        retainedGeneratedPresentationBytes_ += bytes.size() * kGeneratedPresentationExpansion;
+        generatedShareDisplays_.at(index)->setPlainText(
+            QString::fromUtf8(bytes.data(), bytes.size()));
+        ++nextGeneratedShare_;
+        requestNextGeneratedShare();
+        return;
+    }
+
     setBusy(false);
     if (status != statusCode(Status::Ok)) {
-        if (purpose == 0) {
+        if (purpose == kShareClipboardPurpose) {
             createStatus_->setText(statusText(status));
         } else {
             recoveryStatus_->setText(statusText(status));
-            recoverButton_->setEnabled(purpose == 1);
+            recoverButton_->setEnabled(purpose == kRecoveredDisplayPurpose);
         }
+        pending_ = Pending::None;
         return;
     }
-    if (purpose == 0) {
+    if (purpose == kShareClipboardPurpose) {
         if (writeClipboardUtf8(bytes.view()))
             createStatus_->setText(QStringLiteral("Share %1 copied.").arg(index + 1));
-    } else if (purpose == 1) {
+    } else if (purpose == kRecoveredDisplayPurpose) {
         recoveredDisplay_->setPlainText(QString::fromUtf8(bytes.data(), bytes.size()));
         recoveryResult_->show();
         recoverButton_->setEnabled(true);
         recoveryStatus_->setText(QStringLiteral("Recovered exact UTF-8 secret."));
-    } else if (writeClipboardUtf8(bytes.view())) {
+    } else if (purpose == kRecoveredClipboardPurpose && writeClipboardUtf8(bytes.view())) {
         recoveryStatus_->setText(QStringLiteral("Recovered secret copied."));
     }
     pending_ = Pending::None;
@@ -722,6 +754,7 @@ void DesktopWindow::clearVisibleState() {
         threshold_->setValue(2);
     if (shareCount_ != nullptr)
         shareCount_->setValue(3);
+    clearGeneratedPresentation();
     if (createdResult_ != nullptr)
         createdResult_->hide();
     if (createStatus_ != nullptr)
@@ -742,6 +775,7 @@ void DesktopWindow::clearVisibleState() {
 void DesktopWindow::createInputChanged() {
     const bool invalidatesCreatedShares = createdResult_ != nullptr && !createdResult_->isHidden();
     nextGeneration();
+    clearGeneratedPresentation();
     if (createdResult_ != nullptr)
         createdResult_->hide();
     createStatus_->setText(
@@ -763,6 +797,9 @@ void DesktopWindow::queueCurrentReset() {
 
 void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
     createdTitle_->setText(QStringLiteral("Recovery shares"));
+    clearGeneratedPresentation();
+    generatedShareDisplays_.clear();
+    generatedShareCopyButtons_.clear();
     if (QLayout *oldRows = createdRows_->layout(); oldRows != nullptr) {
         while (QLayoutItem *item = oldRows->takeAt(0)) {
             delete item->widget();
@@ -788,9 +825,9 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
             rows->addWidget(separator);
         }
         auto *row = new QWidget;
-        row->setMinimumHeight(44);
+        row->setMinimumHeight(84);
         auto *rowLayout = new QHBoxLayout(row);
-        rowLayout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->setContentsMargins(0, 6, 0, 6);
         rowLayout->setSpacing(12);
         auto *number = label(QString::number(index + 1));
         number->setAlignment(Qt::AlignCenter);
@@ -798,29 +835,83 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
         QFont numberFont = number->font();
         numberFont.setWeight(QFont::DemiBold);
         number->setFont(numberFont);
-        rowLayout->addWidget(number);
-        rowLayout->addWidget(label(QStringLiteral("Recovery share %1").arg(index + 1)), 1);
+        rowLayout->addWidget(number, 0, Qt::AlignTop);
+
+        auto *share = new QPlainTextEdit;
+        share->setObjectName(QStringLiteral("generatedShare%1").arg(index + 1));
+        share->setAccessibleName(QStringLiteral("Recovery share %1").arg(index + 1));
+        share->setPlaceholderText(QStringLiteral("Loading…"));
+        share->setReadOnly(true);
+        share->setUndoRedoEnabled(false);
+        share->setTextInteractionFlags(Qt::TextSelectableByKeyboard | Qt::TextSelectableByMouse);
+        share->setFixedHeight(72);
+        configureEditor(share);
+        generatedShareDisplays_.append(share);
+        rowLayout->addWidget(share, 1);
+
         auto *copy = new QPushButton;
         copy->setObjectName(QStringLiteral("copyShare%1").arg(index + 1));
         configureCopyButton(copy, QStringLiteral("Copy Recovery share %1").arg(index + 1));
+        copy->setEnabled(false);
         connect(copy, &QPushButton::clicked, this, [this, index] {
             pending_ = Pending::CopyShare;
             setBusy(true);
-            emit requestEncodeShare(generation_, index);
+            emit requestEncodeShare(generation_, index, kShareClipboardPurpose);
         });
-        rowLayout->addWidget(copy);
+        generatedShareCopyButtons_.append(copy);
+        rowLayout->addWidget(copy, 0, Qt::AlignTop);
         rows->addWidget(row);
     }
     rows->addWidget(label(QStringLiteral("%1 of %2 · Words").arg(threshold).arg(shareCount), true));
     createdRows_->setMinimumHeight(rows->sizeHint().height());
+    createdRows_->show();
     createdResult_->show();
     createdResult_->updateGeometry();
-    createStatus_->setText(QStringLiteral("Shares created in memory."));
+    createStatus_->setText(QStringLiteral("Loading Recovery shares…"));
+    pending_ = Pending::PreviewShares;
+    setBusy(true);
+    requestNextGeneratedShare();
+}
+
+void DesktopWindow::requestNextGeneratedShare() {
+    if (pending_ != Pending::PreviewShares)
+        return;
+    if (nextGeneratedShare_ >= static_cast<quint16>(generatedShareDisplays_.size())) {
+        pending_ = Pending::None;
+        setBusy(false);
+        createStatus_->setText(QStringLiteral("Shares created in memory."));
+        return;
+    }
+    emit requestEncodeShare(generation_, nextGeneratedShare_, kShareDisplayPurpose);
+}
+
+void DesktopWindow::clearGeneratedPresentation() {
+    for (QPlainTextEdit *display : std::as_const(generatedShareDisplays_))
+        display->clear();
+    for (QPushButton *copy : std::as_const(generatedShareCopyButtons_))
+        copy->setEnabled(false);
+    nextGeneratedShare_ = 0;
+    retainedGeneratedPresentationBytes_ = 0;
+}
+
+void DesktopWindow::failGeneratedPresentation(const QString &message) {
+    clearGeneratedPresentation();
+    if (createdResult_ != nullptr)
+        createdResult_->hide();
+    pending_ = Pending::None;
+    setBusy(false);
+    createStatus_->setText(message);
 }
 
 void DesktopWindow::setBusy(bool busy) {
     if (createButton_ != nullptr)
         createButton_->setEnabled(!busy);
+    const bool generatedSharesReady = !busy && createdResult_ != nullptr
+                                      && !createdResult_->isHidden()
+                                      && nextGeneratedShare_
+                                             == static_cast<quint16>(generatedShareDisplays_.size());
+    for (QPushButton *copy : std::as_const(generatedShareCopyButtons_))
+        copy->setEnabled(generatedSharesReady);
     if (addRecoveryButton_ != nullptr)
         addRecoveryButton_->setEnabled(!busy && recoveryFields_.size() < kMaximumRecoveryFields);
     for (ExactTextEdit *editor : std::as_const(recoveryFields_)) {

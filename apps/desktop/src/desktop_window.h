@@ -29,7 +29,7 @@ public:
 signals:
     void requestReset(quint64 generation);
     void requestCreate(quint64 generation, SecureByteBuffer secret, quint8 threshold, quint8 shareCount);
-    void requestEncodeShare(quint64 generation, quint16 index);
+    void requestEncodeShare(quint64 generation, quint16 index, int purpose);
     void requestReplaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs);
     void requestRecover(quint64 generation);
     void requestRecoveredText(quint64 generation);
@@ -47,7 +47,17 @@ private slots:
     void bytesFinished(quint64 generation, int status, SecureByteBuffer bytes, int purpose, quint16 index);
 
 private:
-    enum class Pending { None, Reset, Create, Inspect, InspectReset, CopyShare, Recover, CopyRecovered };
+    enum class Pending {
+        None,
+        Reset,
+        Create,
+        PreviewShares,
+        Inspect,
+        InspectReset,
+        CopyShare,
+        Recover,
+        CopyRecovered
+    };
 
     void buildUi();
     QWidget *buildCreatePage();
@@ -56,6 +66,9 @@ private:
     void createInputChanged();
     void queueCurrentReset();
     void showCreated(quint8 threshold, quint16 shareCount);
+    void requestNextGeneratedShare();
+    void clearGeneratedPresentation();
+    void failGeneratedPresentation(const QString &message);
     void addRecoveryField();
     void removeRecoveryField(ExactTextEdit *editor);
     void renumberRecoveryFields();
@@ -86,6 +99,10 @@ private:
     QWidget *createdResult_ = nullptr;
     QWidget *createdRows_ = nullptr;
     QLabel *createdTitle_ = nullptr;
+    QList<QPlainTextEdit *> generatedShareDisplays_;
+    QList<QPushButton *> generatedShareCopyButtons_;
+    quint16 nextGeneratedShare_ = 0;
+    qsizetype retainedGeneratedPresentationBytes_ = 0;
 
     QVBoxLayout *recoveryFieldsLayout_ = nullptr;
     QList<ExactTextEdit *> recoveryFields_;

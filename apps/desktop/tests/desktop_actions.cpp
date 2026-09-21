@@ -13,6 +13,7 @@
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QSpinBox>
 #include <QTabBar>
 #include <QTest>
@@ -84,6 +85,8 @@ QString createAndCopy(DesktopWindow &window, int index) {
             10'000))
         return {};
     auto *copy = required<QPushButton>(&window, qPrintable(QStringLiteral("copyShare%1").arg(index)));
+    if (!QTest::qWaitFor([copy] { return copy->isEnabled(); }, 10'000))
+        return {};
     QApplication::clipboard()->clear();
     QTest::mouseClick(copy, Qt::LeftButton);
     if (!QTest::qWaitFor([] { return !QApplication::clipboard()->text().isEmpty(); }, 10'000))
@@ -154,6 +157,8 @@ private slots:
     void web_terms_icons_and_selector_keyboard_match();
     void recovery_fields_add_remove_renumber_and_invalidate();
     void created_shares_keep_source_and_use_compact_native_layout();
+    void generated_shares_show_authoritative_text_and_clear_stale_previews();
+    void generated_share_presentation_fails_all_or_none_at_budget();
     void secure_queued_buffers_wipe_on_final_release();
     void ordinary_create_edits_reject_stale_success_and_error_results();
     void start_over_rejects_stale_success_and_error_results();
@@ -474,6 +479,103 @@ void DesktopActions::created_shares_keep_source_and_use_compact_native_layout() 
     QCOMPARE(editor->exactUtf8(), source + '!');
     QTRY_VERIFY_WITH_TIMEOUT(!required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
     QTRY_VERIFY_WITH_TIMEOUT(createButton->isEnabled(), 10'000);
+}
+
+void DesktopActions::generated_shares_show_authoritative_text_and_clear_stale_previews() {
+    DesktopWindow window;
+    window.show();
+    pasteIntoCreate(window, QStringLiteral("visible generated shares"));
+    QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
+
+    QStringList displayed;
+    for (int index = 1; index <= 3; ++index) {
+        auto *share = required<QPlainTextEdit>(
+            &window, qPrintable(QStringLiteral("generatedShare%1").arg(index)));
+        QTRY_VERIFY_WITH_TIMEOUT(!share->toPlainText().isEmpty(), 10'000);
+        QVERIFY(share->isReadOnly());
+        QVERIFY(share->textInteractionFlags().testFlag(Qt::TextSelectableByMouse));
+        displayed.append(share->toPlainText());
+    }
+    QCOMPARE(displayed.size(), 3);
+    QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "createStatus")->text(),
+                              QStringLiteral("Shares created in memory."), 10'000);
+    for (int index = 1; index <= 3; ++index) {
+        QApplication::clipboard()->clear();
+        auto *copy = required<QPushButton>(
+            &window, qPrintable(QStringLiteral("copyShare%1").arg(index)));
+        QVERIFY(copy->isEnabled());
+        QTest::mouseClick(copy, Qt::LeftButton);
+        QTRY_COMPARE_WITH_TIMEOUT(QApplication::clipboard()->text(), displayed.at(index - 1), 10'000);
+    }
+    QVERIFY(displayed.at(0) != displayed.at(1));
+    QVERIFY(displayed.at(1) != displayed.at(2));
+
+    const auto labels = required<QWidget>(&window, "createdShares")->findChildren<QLabel *>();
+    QVERIFY(std::none_of(labels.cbegin(), labels.cend(), [](const QLabel *candidate) {
+        return candidate->text().startsWith(QStringLiteral("Recovery share "));
+    }));
+
+    auto *secret = required<ExactTextEdit>(&window, "secretInput");
+    required<QSpinBox>(&window, "thresholdInput")->setValue(1);
+    QTRY_VERIFY_WITH_TIMEOUT(!required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
+    for (int index = 1; index <= 3; ++index) {
+        auto *share = window.findChild<QPlainTextEdit *>(
+            QStringLiteral("generatedShare%1").arg(index));
+        QVERIFY(share == nullptr || share->toPlainText().isEmpty());
+    }
+
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
+    QTRY_VERIFY_WITH_TIMEOUT(!required<QPlainTextEdit>(&window, "generatedShare3")
+                                  ->toPlainText()
+                                  .isEmpty(),
+                              10'000);
+    secret->moveCursor(QTextCursor::End);
+    QTest::keyClicks(secret, QStringLiteral("!"));
+    QTRY_VERIFY_WITH_TIMEOUT(!required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
+    QTest::qWait(500);
+    for (QPlainTextEdit *share : window.findChildren<QPlainTextEdit *>(QRegularExpression(
+             QStringLiteral("generatedShare\\d+"))))
+        QVERIFY(share->toPlainText().isEmpty());
+
+    QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+    for (QPlainTextEdit *share : window.findChildren<QPlainTextEdit *>(QRegularExpression(
+             QStringLiteral("generatedShare\\d+"))))
+        QVERIFY(share->toPlainText().isEmpty());
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
+    required<QSpinBox>(&window, "shareCountInput")->setValue(16);
+    pasteIntoCreate(window, QString(500'000, QLatin1Char('p')));
+    QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 30'000);
+    secret = required<ExactTextEdit>(&window, "secretInput");
+    secret->moveCursor(QTextCursor::End);
+    QTest::keyClicks(secret, QStringLiteral("!"));
+    QTRY_VERIFY_WITH_TIMEOUT(!required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
+    QTest::qWait(1'000);
+    for (QPlainTextEdit *share : window.findChildren<QPlainTextEdit *>(QRegularExpression(
+             QStringLiteral("generatedShare\\d+"))))
+        QVERIFY(share->toPlainText().isEmpty());
+}
+
+void DesktopActions::generated_share_presentation_fails_all_or_none_at_budget() {
+    DesktopWindow window;
+    window.show();
+    required<QSpinBox>(&window, "shareCountInput")->setValue(16);
+    const QString maximumSecret(1'048'576, QLatin1Char('b'));
+    pasteIntoCreate(window, maximumSecret);
+    QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        required<QLabel>(&window, "createStatus")->text().contains(
+            QStringLiteral("160 MiB presentation budget")),
+        60'000);
+    QVERIFY(!required<QWidget>(&window, "createdShares")->isVisible());
+    QCOMPARE(required<ExactTextEdit>(&window, "secretInput")->exactUtf8(),
+             maximumSecret.toUtf8());
+    for (QPlainTextEdit *share : window.findChildren<QPlainTextEdit *>(QRegularExpression(
+             QStringLiteral("generatedShare\\d+"))))
+        QVERIFY(share->toPlainText().isEmpty());
 }
 
 void DesktopActions::secure_queued_buffers_wipe_on_final_release() {
