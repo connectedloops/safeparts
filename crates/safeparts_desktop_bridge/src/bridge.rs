@@ -46,7 +46,7 @@ pub mod ffi {
         supplied_count: u16,
         recovery_batch_count: u16,
         encoding: ShareEncoding,
-        protected: bool,
+        passphrase_protected: bool,
         ready: bool,
     }
 

@@ -7,6 +7,7 @@
 #include <QString>
 
 class ExactTextEdit;
+class QComboBox;
 class QLabel;
 class QPlainTextEdit;
 class QPushButton;
@@ -28,9 +29,10 @@ public:
 
 signals:
     void requestReset(quint64 generation);
-    void requestCreate(quint64 generation, SecureByteBuffer secret, quint8 threshold, quint8 shareCount);
+    void requestCreate(quint64 generation, SecureByteBuffer secret, quint8 threshold,
+                       quint8 shareCount, int encoding);
     void requestEncodeShare(quint64 generation, quint16 index, int purpose);
-    void requestReplaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs);
+    void requestReplaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs, int encoding);
     void requestRecover(quint64 generation);
     void requestRecoveredText(quint64 generation);
 
@@ -43,7 +45,8 @@ private slots:
     void createShares();
     void recover();
     void operationFinished(quint64 generation, int status, quint8 threshold, quint16 shareCount,
-                           quint16 suppliedCount, quint16 batchCount, bool ready);
+                           quint16 suppliedCount, quint16 batchCount, int encoding,
+                           bool protectedInput, bool ready);
     void bytesFinished(quint64 generation, int status, SecureByteBuffer bytes, int purpose, quint16 index);
 
 private:
@@ -94,6 +97,7 @@ private:
     ExactTextEdit *secretInput_ = nullptr;
     QSpinBox *threshold_ = nullptr;
     QSpinBox *shareCount_ = nullptr;
+    QComboBox *createEncoding_ = nullptr;
     QPushButton *createButton_ = nullptr;
     QLabel *createStatus_ = nullptr;
     QWidget *createdResult_ = nullptr;
@@ -107,6 +111,8 @@ private:
     QVBoxLayout *recoveryFieldsLayout_ = nullptr;
     QList<ExactTextEdit *> recoveryFields_;
     QTimer *recoverySyncTimer_ = nullptr;
+    QComboBox *recoveryEncoding_ = nullptr;
+    QLabel *recoveryDetectedFormat_ = nullptr;
     QLabel *recoveryCount_ = nullptr;
     QLabel *recoveryStatus_ = nullptr;
     QPushButton *addRecoveryButton_ = nullptr;

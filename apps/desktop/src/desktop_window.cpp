@@ -5,6 +5,7 @@
 #include "rust_worker.h"
 
 #include <QCloseEvent>
+#include <QComboBox>
 #include <QFontDatabase>
 #include <QFrame>
 #include <QGridLayout>
@@ -44,6 +45,30 @@ constexpr int kShareDisplayPurpose = 3;
 
 int statusCode(Status status) {
     return static_cast<int>(static_cast<std::uint8_t>(status));
+}
+
+QString encodingName(int encoding) {
+    switch (encoding) {
+    case 1:
+        return QStringLiteral("Base64url");
+    case 2:
+        return QStringLiteral("Base58check");
+    case 3:
+        return QStringLiteral("Words");
+    case 4:
+        return QStringLiteral("BIP-39");
+    default:
+        return QStringLiteral("Auto");
+    }
+}
+
+void populateEncodingChoices(QComboBox *combo, bool includeAuto) {
+    if (includeAuto)
+        combo->addItem(QStringLiteral("Auto"), 0);
+    combo->addItem(QStringLiteral("Base64url"), 1);
+    combo->addItem(QStringLiteral("Base58check"), 2);
+    combo->addItem(QStringLiteral("Words"), 3);
+    combo->addItem(QStringLiteral("BIP-39"), 4);
 }
 
 QColor blend(const QColor &first, const QColor &second, qreal amount) {
@@ -286,7 +311,7 @@ void DesktopWindow::buildUi() {
     connect(help, &QToolButton::clicked, this, [this] {
         QMessageBox::information(this, QStringLiteral("Safeparts help"),
                                  QStringLiteral("Split keeps one share set in memory. Store Recovery shares separately. "
-                                                "Combine runs only after the visible shares form a valid set. This build supports unprotected Words text shares."));
+                                                "Combine auto-detects or manually selects one Share format. Protected shares are recognized; passphrase entry follows in the next slice."));
     });
 }
 
@@ -341,12 +366,38 @@ QWidget *DesktopWindow::buildCreatePage() {
     shareCountLabel->setBuddy(shareCount_);
     settings->addWidget(shareCountLabel, 0, 1);
     settings->addWidget(shareCount_, 1, 1);
-    settings->addWidget(label(QStringLiteral("Share format")), 0, 2);
-    settings->addWidget(label(QStringLiteral("Words"), true), 1, 2);
     settings->setColumnStretch(0, 1);
     settings->setColumnStretch(1, 1);
-    settings->setColumnStretch(2, 1);
     groupLayout->addLayout(settings);
+
+    auto *additionalOptions = new QToolButton;
+    additionalOptions->setObjectName(QStringLiteral("additionalOptionsButton"));
+    additionalOptions->setText(QStringLiteral("Additional options"));
+    additionalOptions->setCheckable(true);
+    additionalOptions->setArrowType(Qt::RightArrow);
+    additionalOptions->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    additionalOptions->setAutoRaise(true);
+    groupLayout->addWidget(additionalOptions, 0, Qt::AlignLeft);
+    auto *additionalOptionsPanel = new QWidget;
+    additionalOptionsPanel->setObjectName(QStringLiteral("additionalOptionsPanel"));
+    auto *additionalLayout = new QHBoxLayout(additionalOptionsPanel);
+    additionalLayout->setContentsMargins(0, 0, 0, 0);
+    auto *formatLabel = label(QStringLiteral("Share format"));
+    createEncoding_ = new QComboBox;
+    createEncoding_->setObjectName(QStringLiteral("createEncoding"));
+    createEncoding_->setAccessibleName(QStringLiteral("Share format"));
+    populateEncodingChoices(createEncoding_, false);
+    createEncoding_->setCurrentIndex(2);
+    formatLabel->setBuddy(createEncoding_);
+    additionalLayout->addWidget(formatLabel);
+    additionalLayout->addWidget(createEncoding_, 1);
+    additionalOptionsPanel->hide();
+    groupLayout->addWidget(additionalOptionsPanel);
+    connect(additionalOptions, &QToolButton::toggled, this,
+            [additionalOptions, additionalOptionsPanel](bool shown) {
+                additionalOptions->setArrowType(shown ? Qt::DownArrow : Qt::RightArrow);
+                additionalOptionsPanel->setVisible(shown);
+            });
 
     auto *action = new QHBoxLayout;
     action->setSpacing(12);
@@ -390,6 +441,8 @@ QWidget *DesktopWindow::buildCreatePage() {
     });
     connect(threshold_, &QSpinBox::valueChanged, this, &DesktopWindow::createInputChanged);
     connect(shareCount_, &QSpinBox::valueChanged, this, &DesktopWindow::createInputChanged);
+    connect(createEncoding_, &QComboBox::currentIndexChanged, this,
+            &DesktopWindow::createInputChanged);
     return entry;
 }
 
@@ -415,6 +468,20 @@ QWidget *DesktopWindow::buildRecoverPage() {
     sharesFont.setWeight(QFont::DemiBold);
     sharesLabel->setFont(sharesFont);
     groupLayout->addWidget(sharesLabel);
+
+    auto *formatRow = new QHBoxLayout;
+    auto *formatLabel = label(QStringLiteral("Share format"));
+    recoveryEncoding_ = new QComboBox;
+    recoveryEncoding_->setObjectName(QStringLiteral("recoveryEncoding"));
+    recoveryEncoding_->setAccessibleName(QStringLiteral("Share format"));
+    populateEncodingChoices(recoveryEncoding_, true);
+    formatLabel->setBuddy(recoveryEncoding_);
+    recoveryDetectedFormat_ = label(QStringLiteral("Detected after paste"), true);
+    recoveryDetectedFormat_->setObjectName(QStringLiteral("detectedRecoveryEncoding"));
+    formatRow->addWidget(formatLabel);
+    formatRow->addWidget(recoveryEncoding_);
+    formatRow->addWidget(recoveryDetectedFormat_, 1);
+    groupLayout->addLayout(formatRow);
 
     auto *fields = new QWidget;
     fields->setObjectName(QStringLiteral("recoveryFields"));
@@ -470,6 +537,8 @@ QWidget *DesktopWindow::buildRecoverPage() {
     layout->addWidget(group);
 
     connect(addRecoveryButton_, &QPushButton::clicked, this, &DesktopWindow::addRecoveryField);
+    connect(recoveryEncoding_, &QComboBox::currentIndexChanged, this,
+            &DesktopWindow::recoveryInputChanged);
     connect(recoverButton_, &QPushButton::clicked, this, &DesktopWindow::recover);
     connect(copyRecovered_, &QPushButton::clicked, this, [this] {
         pending_ = Pending::CopyRecovered;
@@ -503,7 +572,8 @@ void DesktopWindow::createShares() {
     setBusy(true);
     createStatus_->setText(QStringLiteral("Working…"));
     emit requestCreate(requestGeneration, std::move(secret), static_cast<quint8>(threshold_->value()),
-                       static_cast<quint8>(shareCount_->value()));
+                       static_cast<quint8>(shareCount_->value()),
+                       createEncoding_->currentData().toInt());
 }
 
 void DesktopWindow::addRecoveryField() {
@@ -640,7 +710,8 @@ void DesktopWindow::synchronizeRecoveryFields() {
                                 .arg(recoveryFields_.size()));
     pending_ = Pending::Inspect;
     setBusy(true);
-    emit requestReplaceRecovery(generation_, std::move(inputs));
+    emit requestReplaceRecovery(generation_, std::move(inputs),
+                                recoveryEncoding_->currentData().toInt());
 }
 
 void DesktopWindow::recover() {
@@ -654,7 +725,8 @@ void DesktopWindow::recover() {
 
 void DesktopWindow::operationFinished(quint64 generation, int status, quint8 threshold,
                                       quint16 shareCount, quint16 suppliedCount,
-                                      quint16 batchCount, bool ready) {
+                                      quint16 batchCount, int encoding, bool protectedInput,
+                                      bool ready) {
     if (generation != generation_) {
         if (pending_ == Pending::Reset)
             queueCurrentReset();
@@ -673,6 +745,23 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
         createStatus_->setText(statusText(status));
     } else if (pending_ == Pending::Inspect) {
         Q_UNUSED(batchCount);
+        Q_UNUSED(protectedInput);
+        if (encoding != 0) {
+            recoveryDetectedFormat_->setText(
+                QStringLiteral("%1: %2")
+                    .arg(recoveryEncoding_->currentData().toInt() == 0 ? QStringLiteral("Detected")
+                                                                       : QStringLiteral("Using"),
+                         encodingName(encoding)));
+        }
+        if (threshold >= 2 && recoveryFields_.size() < threshold) {
+            clearingRecoveryFields_ = true;
+            while (recoveryFields_.size() < threshold)
+                addRecoveryField();
+            clearingRecoveryFields_ = false;
+            renumberRecoveryFields();
+            recoveryInputChanged();
+            return;
+        }
         const bool invalid = status != statusCode(Status::Ok)
                              && status != statusCode(Status::NotEnoughShares);
         if (recoveryHasEmptyFields_ && !invalid) {
@@ -754,12 +843,24 @@ void DesktopWindow::clearVisibleState() {
         threshold_->setValue(2);
     if (shareCount_ != nullptr)
         shareCount_->setValue(3);
+    if (createEncoding_ != nullptr) {
+        createEncoding_->blockSignals(true);
+        createEncoding_->setCurrentIndex(2);
+        createEncoding_->blockSignals(false);
+    }
     clearGeneratedPresentation();
     if (createdResult_ != nullptr)
         createdResult_->hide();
     if (createStatus_ != nullptr)
         createStatus_->setText(QStringLiteral("2 of 3 · Words"));
     clearRecoveryFields();
+    if (recoveryEncoding_ != nullptr) {
+        recoveryEncoding_->blockSignals(true);
+        recoveryEncoding_->setCurrentIndex(0);
+        recoveryEncoding_->blockSignals(false);
+    }
+    if (recoveryDetectedFormat_ != nullptr)
+        recoveryDetectedFormat_->setText(QStringLiteral("Detected after paste"));
     if (recoveryCount_ != nullptr)
         recoveryCount_->setText(QStringLiteral("0 of 2 Recovery shares entered"));
     if (recoveryStatus_ != nullptr)
@@ -778,8 +879,10 @@ void DesktopWindow::createInputChanged() {
     clearGeneratedPresentation();
     if (createdResult_ != nullptr)
         createdResult_->hide();
-    createStatus_->setText(
-        QStringLiteral("%1 of %2 · Words").arg(threshold_->value()).arg(shareCount_->value()));
+    createStatus_->setText(QStringLiteral("%1 of %2 · %3")
+                               .arg(threshold_->value())
+                               .arg(shareCount_->value())
+                               .arg(encodingName(createEncoding_->currentData().toInt())));
     if (pending_ == Pending::Create || invalidatesCreatedShares) {
         pending_ = Pending::Reset;
         setBusy(true);
@@ -862,7 +965,11 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
         rowLayout->addWidget(copy, 0, Qt::AlignTop);
         rows->addWidget(row);
     }
-    rows->addWidget(label(QStringLiteral("%1 of %2 · Words").arg(threshold).arg(shareCount), true));
+    rows->addWidget(label(QStringLiteral("%1 of %2 · %3")
+                              .arg(threshold)
+                              .arg(shareCount)
+                              .arg(encodingName(createEncoding_->currentData().toInt())),
+                          true));
     createdRows_->setMinimumHeight(rows->sizeHint().height());
     createdRows_->show();
     createdResult_->show();
@@ -958,9 +1065,17 @@ QString DesktopWindow::statusText(int status) {
     if (status == statusCode(Status::MixedShareSet))
         return QStringLiteral("All recovery shares must come from one compatible set.");
     if (status == statusCode(Status::UnsupportedInput))
-        return QStringLiteral("This slice accepts V2 unprotected Words shares only.");
+        return QStringLiteral("Choose one supported Share format.");
+    if (status == statusCode(Status::PassphraseRequired))
+        return QStringLiteral("These Recovery shares require a passphrase. Passphrase entry is not available yet.");
+    if (status == statusCode(Status::UnsupportedParameters))
+        return QStringLiteral("These Recovery shares use unsupported protection parameters.");
+    if (status == statusCode(Status::MixedEncoding))
+        return QStringLiteral("Use one Share format for every Recovery share.");
+    if (status == statusCode(Status::MixedVersion))
+        return QStringLiteral("Recovery shares from different packet versions cannot be mixed.");
     if (status == statusCode(Status::MalformedInput))
-        return QStringLiteral("A complete Words recovery share could not be decoded.");
+        return QStringLiteral("A complete Recovery share could not be decoded in the selected format.");
     if (status == statusCode(Status::NotEnoughShares))
         return QStringLiteral("Add enough distinct recovery shares.");
     if (status == statusCode(Status::InvalidUtf8))

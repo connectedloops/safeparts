@@ -374,7 +374,7 @@ impl Operation {
             .recovery_encoding
             .map(bridge_encoding)
             .unwrap_or(ShareEncoding::Auto);
-        result.protected = protected;
+        result.passphrase_protected = protected;
         result.threshold = inspected.threshold;
         result.share_count = u16::from(inspected.share_count);
         result.supplied_count = u16::try_from(inspected.supplied_count).unwrap_or(u16::MAX);
@@ -704,7 +704,7 @@ fn output(generation: u64, status: Status) -> OperationOutput {
         supplied_count: 0,
         recovery_batch_count: 0,
         encoding: ShareEncoding::Auto,
-        protected: false,
+        passphrase_protected: false,
         ready: false,
     }
 }
@@ -718,7 +718,7 @@ fn clone_output(value: &OperationOutput) -> OperationOutput {
         supplied_count: value.supplied_count,
         recovery_batch_count: value.recovery_batch_count,
         encoding: value.encoding,
-        protected: value.protected,
+        passphrase_protected: value.passphrase_protected,
         ready: value.ready,
     }
 }

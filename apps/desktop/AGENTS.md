@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Owns the real Qt Widgets text round-trip slice for issue 140. This is development-host evidence, not a packaged or platform-qualified release.
+Owns the experimental Qt Widgets text workflow through share-encoding and legacy-recovery issue 141. This is development-host evidence, not a packaged or platform-qualified release.
 
 ## Ownership
 
@@ -17,7 +17,7 @@ Owns the real Qt Widgets text round-trip slice for issue 140. This is developmen
 - Keep one worker. Parsing, encoding, splitting, and recovery never run on Qt's event thread.
 - Reject stale worker results by generation. Keep the admitted Secret visible after Split; a later Secret or split-setting edit hides the generated-share controls, resets Rust state, and invalidates pending work. Recovery share edits replace the complete nonempty visible set on the worker. Mode changes, Start over, and close clear the visible and generated state and always resolve the busy state.
 - Rust owns authoritative validation, packets, recovery state, and recovered bytes. Qt may retain only bounded presentation text shown in the Secret editor, generated Recovery share views, and Combine editors, plus intentional clipboard handoffs. Encode generated shares sequentially on the worker, retain all-or-none under the checked presentation budget, and keep Copy tied to a fresh authoritative Rust output. Replace the complete visible recovery set on the worker after edits; never parse it on the UI thread. Carry sensitive cross-thread bytes in `SecureByteBuffer`; its final shared owner wipes the sole `QByteArray` allocation.
-- Support only V2 unprotected Words text in this slice. Do not misrepresent later encodings, passphrases, files, saving, or printing as implemented.
+- Split V2 unprotected text into all four core Share formats. Combine unprotected V1/V2 shares through core Auto or an explicit format. Recognize protected shares as passphrase-required, but do not implement passphrase entry before issue 142. Do not misrepresent files, saving, or printing as implemented.
 - Do not add autonomous networking, persistence, content logs, session restoration, or undo history.
 
 ## Work Guidance

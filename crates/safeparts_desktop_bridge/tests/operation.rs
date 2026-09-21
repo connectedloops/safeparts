@@ -197,16 +197,81 @@ fn public_operation_creates_and_recovers_every_encoding_and_released_version() {
 
 #[test]
 fn public_operation_recognizes_protected_shares_without_recovering() {
-    let protected = include_str!(
-        "../../safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/base64url.txt"
+    const PROTECTED: &[(&str, ShareEncoding)] = &[
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/base64url.txt"
+            ),
+            ShareEncoding::Base64url,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/base58check.txt"
+            ),
+            ShareEncoding::Base58check,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/mnemo-words.txt"
+            ),
+            ShareEncoding::MnemoWords,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/mnemo-bip39.txt"
+            ),
+            ShareEncoding::MnemoBip39,
+        ),
+    ];
+    for &(protected, expected_encoding) in PROTECTED {
+        let mut operation = new_operation();
+        let inspected = operation.add_recovery(3, protected.as_bytes(), ShareEncoding::Auto);
+        assert!(inspected.status == Status::PassphraseRequired);
+        assert!(inspected.passphrase_protected);
+        assert!(!inspected.ready);
+        assert!(inspected.encoding == expected_encoding);
+        assert!(operation.recover(3).status == Status::PassphraseRequired);
+    }
+}
+
+#[test]
+fn public_operation_rejects_mixed_versions_and_honors_manual_encoding() {
+    let v1 = include_str!(
+        "../../safeparts_core/tests/fixtures/share_compatibility/v1-unprotected/mnemo-words.txt"
+    )
+    .lines()
+    .next()
+    .unwrap_or("");
+    let v2 = include_str!(
+        "../../safeparts_core/tests/fixtures/share_compatibility/v2-unprotected/mnemo-words.txt"
+    )
+    .lines()
+    .next()
+    .unwrap_or("");
+    let mut mixed = new_operation();
+    assert!(
+        mixed
+            .add_recovery(4, v1.as_bytes(), ShareEncoding::Auto)
+            .status
+            == Status::NotEnoughShares
     );
-    let mut operation = new_operation();
-    let inspected = operation.add_recovery(3, protected.as_bytes(), ShareEncoding::Auto);
-    assert!(inspected.status == Status::PassphraseRequired);
-    assert!(inspected.protected);
-    assert!(!inspected.ready);
-    assert!(inspected.encoding == ShareEncoding::Base64url);
-    assert!(operation.recover(3).status == Status::PassphraseRequired);
+    assert!(
+        mixed
+            .add_recovery(4, v2.as_bytes(), ShareEncoding::Auto)
+            .status
+            == Status::MixedVersion
+    );
+
+    let base64 = include_str!(
+        "../../safeparts_core/tests/fixtures/share_compatibility/v2-unprotected/base64url.txt"
+    );
+    let mut wrong_manual = new_operation();
+    assert!(
+        wrong_manual
+            .add_recovery(5, base64.as_bytes(), ShareEncoding::MnemoWords)
+            .status
+            == Status::MalformedInput
+    );
 }
 
 #[test]

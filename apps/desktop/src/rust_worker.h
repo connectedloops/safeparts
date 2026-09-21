@@ -14,15 +14,17 @@ public:
 
 public slots:
     void reset(quint64 generation);
-    void create(quint64 generation, SecureByteBuffer secret, quint8 threshold, quint8 shareCount);
+    void create(quint64 generation, SecureByteBuffer secret, quint8 threshold, quint8 shareCount,
+                int encoding);
     void encodeShare(quint64 generation, quint16 index, int purpose);
-    void replaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs);
+    void replaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs, int encoding);
     void recover(quint64 generation);
     void recoveredText(quint64 generation);
 
 signals:
     void operationFinished(quint64 generation, int status, quint8 threshold, quint16 shareCount,
-                           quint16 suppliedCount, quint16 batchCount, bool ready);
+                           quint16 suppliedCount, quint16 batchCount, int encoding, bool protectedInput,
+                           bool ready);
     void bytesFinished(quint64 generation, int status, SecureByteBuffer bytes, int purpose, quint16 index);
 
 private:

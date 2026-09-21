@@ -87,7 +87,7 @@ Default section order:
 ## Child DOX Index
 
 - `.agents/`: repository-local agent skills and skill support files.
-- `apps/desktop/`: experimental Qt Widgets desktop text round-trip app for issue 140.
+- `apps/desktop/`: experimental Qt Widgets desktop text app through share-encoding and legacy-recovery issue 141.
 - `crates/`: Rust workspace crates for core algorithms, CLI, TUI, WASM, and the generated desktop CXX adapter.
 - `web/`: Vite + React web app, WASM build integration, browser tests, and docs child site.
   - `web/help/`: Astro + Starlight help docs served under `/help/`.

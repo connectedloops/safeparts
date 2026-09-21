@@ -6,6 +6,7 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QComboBox>
 #include <QContextMenuEvent>
 #include <QFrame>
 #include <QInputMethodEvent>
@@ -159,6 +160,8 @@ private slots:
     void web_terms_icons_and_selector_keyboard_match();
     void recovery_fields_add_remove_renumber_and_invalidate();
     void recovery_worker_retains_the_complete_visible_set_after_a_middle_error();
+    void all_share_formats_round_trip_with_auto_and_manual_selection();
+    void auto_detection_expands_to_the_required_threshold();
     void created_shares_keep_source_and_use_compact_native_layout();
     void generated_shares_show_authoritative_text_and_clear_stale_previews();
     void generated_share_presentation_fails_all_or_none_at_budget();
@@ -450,7 +453,7 @@ void DesktopActions::recovery_worker_retains_the_complete_visible_set_after_a_mi
     inputs.append(SecureByteBuffer::take(QByteArray("invalid middle Recovery share")));
     inputs.append(SecureByteBuffer::take(second.toUtf8()));
 
-    worker.replaceRecovery(77, std::move(inputs));
+    worker.replaceRecovery(77, std::move(inputs), 3);
 
     QCOMPARE(operationSpy.count(), 1);
     const QList<QVariant> result = operationSpy.takeFirst();
@@ -458,6 +461,63 @@ void DesktopActions::recovery_worker_retains_the_complete_visible_set_after_a_mi
     QCOMPARE(result.at(1).toInt(), static_cast<int>(static_cast<std::uint8_t>(Status::MalformedInput)));
     QCOMPARE(result.at(5).toUInt(), 3U);
     QVERIFY(!result.at(6).toBool());
+}
+
+void DesktopActions::all_share_formats_round_trip_with_auto_and_manual_selection() {
+    const QList<QPair<int, QString>> formats = {
+        {1, QStringLiteral("Base64url")},
+        {2, QStringLiteral("Base58check")},
+        {3, QStringLiteral("Words")},
+        {4, QStringLiteral("BIP-39")},
+    };
+    for (const auto &[encoding, name] : formats) {
+        DesktopWindow window;
+        window.show();
+        auto *createEncoding = required<QComboBox>(&window, "createEncoding");
+        createEncoding->setCurrentIndex(createEncoding->findData(encoding));
+        const QString secret = QStringLiteral("synthetic %1 desktop round trip").arg(name);
+        pasteIntoCreate(window, secret);
+        const QString first = createAndCopy(window, 1);
+        const QString second = createAndCopy(window, 2);
+        QVERIFY(!first.isEmpty());
+        QVERIFY(!second.isEmpty());
+        QVERIFY(first != second);
+
+        chooseRecover(window);
+        setRecoveryField(window, 1, first);
+        QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "detectedRecoveryEncoding")->text(),
+                                  QStringLiteral("Detected: %1").arg(name), 10'000);
+        if (encoding == 3) {
+            auto *manual = required<QComboBox>(&window, "recoveryEncoding");
+            manual->setCurrentIndex(manual->findData(encoding));
+            QTRY_VERIFY_WITH_TIMEOUT(!required<QLabel>(&window, "recoveryStatus")
+                                          ->text()
+                                          .contains(QStringLiteral("Checking")),
+                                      10'000);
+        }
+        setRecoveryField(window, 2, second);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(),
+                                 10'000);
+        QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
+        QCOMPARE(required<QPlainTextEdit>(&window, "recoveredText")->toPlainText(), secret);
+    }
+}
+
+void DesktopActions::auto_detection_expands_to_the_required_threshold() {
+    DesktopWindow window;
+    window.show();
+    required<QSpinBox>(&window, "thresholdInput")->setValue(3);
+    pasteIntoCreate(window, QStringLiteral("synthetic threshold detection"));
+    const QString first = createAndCopy(window, 1);
+    chooseRecover(window);
+    setRecoveryField(window, 1, first);
+    QTRY_COMPARE_WITH_TIMEOUT(recoveryEditors(window).size(), 3, 10'000);
+    QCOMPARE(required<QLabel>(&window, "detectedRecoveryEncoding")->text(),
+             QStringLiteral("Detected: Words"));
+    QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("1 of 3"))
+            || required<QLabel>(&window, "recoveryStatus")->text()
+                   .contains(QStringLiteral("Share content")));
 }
 
 void DesktopActions::created_shares_keep_source_and_use_compact_native_layout() {

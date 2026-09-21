@@ -13,6 +13,21 @@ rust::Slice<const std::uint8_t> slice(const SecureByteBuffer &bytes) {
 int statusValue(Status status) {
     return static_cast<int>(static_cast<std::uint8_t>(status));
 }
+
+ShareEncoding shareEncoding(int value) {
+    switch (value) {
+    case 1:
+        return ShareEncoding::Base64url;
+    case 2:
+        return ShareEncoding::Base58check;
+    case 3:
+        return ShareEncoding::MnemoWords;
+    case 4:
+        return ShareEncoding::MnemoBip39;
+    default:
+        return ShareEncoding::Auto;
+    }
+}
 } // namespace
 
 RustWorker::RustWorker(QObject *parent) : QObject(parent), operation_(new_operation()) {}
@@ -21,8 +36,10 @@ void RustWorker::reset(quint64 generation) {
     emitOperation(operation_->reset(generation));
 }
 
-void RustWorker::create(quint64 generation, SecureByteBuffer secret, quint8 threshold, quint8 shareCount) {
-    emitOperation(operation_->create_words(generation, slice(secret), threshold, shareCount));
+void RustWorker::create(quint64 generation, SecureByteBuffer secret, quint8 threshold,
+                        quint8 shareCount, int encoding) {
+    emitOperation(operation_->create(generation, slice(secret), threshold, shareCount,
+                                     shareEncoding(encoding)));
 }
 
 void RustWorker::encodeShare(quint64 generation, quint16 index, int purpose) {
@@ -31,12 +48,12 @@ void RustWorker::encodeShare(quint64 generation, quint16 index, int purpose) {
                        purpose, index);
 }
 
-void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs) {
+void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs, int encoding) {
     OperationOutput output = operation_->reset(generation);
     std::optional<Status> firstFatalStatus;
     for (const SecureByteBuffer &input : inputs) {
         const quint16 previousBatchCount = output.recovery_batch_count;
-        output = operation_->add_recovery_words(generation, slice(input));
+        output = operation_->add_recovery(generation, slice(input), shareEncoding(encoding));
         const bool fatal = output.status != Status::Ok && output.status != Status::NotEnoughShares;
         if (fatal && !firstFatalStatus.has_value())
             firstFatalStatus = output.status;
@@ -51,7 +68,7 @@ void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inp
 }
 
 void RustWorker::recover(quint64 generation) {
-    BytesOutput output = operation_->recover_words(generation);
+    BytesOutput output = operation_->recover(generation);
     emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), 1, 0);
 }
 
@@ -63,7 +80,9 @@ void RustWorker::recoveredText(quint64 generation) {
 void RustWorker::emitOperation(const OperationOutput &output) {
     emit operationFinished(output.generation, statusValue(output.status), output.threshold,
                            output.share_count, output.supplied_count,
-                           output.recovery_batch_count, output.ready);
+                           output.recovery_batch_count,
+                           static_cast<int>(static_cast<std::uint8_t>(output.encoding)),
+                           output.passphrase_protected, output.ready);
 }
 
 SecureByteBuffer RustWorker::copyAndWipeBytes(rust::Vec<std::uint8_t> &bytes) {

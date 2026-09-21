@@ -1,5 +1,6 @@
 #include "bridge.rs.h"
 
+#include <array>
 #include <cstdint>
 #include <iostream>
 #include <string>
@@ -21,7 +22,7 @@ int main() {
     const std::string exact(kExact, sizeof(kExact) - 1);
     auto operation = new_operation();
 
-    const auto created = operation->create_words(1, bytes(exact), 2, 3);
+    const auto created = operation->create(1, bytes(exact), 2, 3, ShareEncoding::MnemoWords);
     if (created.status != Status::Ok || created.share_count != 3) {
         std::cerr << "create contract failed\n";
         return 1;
@@ -34,32 +35,37 @@ int main() {
     }
 
     operation->reset(2);
-    const auto malformed = operation->add_recovery_words(2, bytes("not a recovery share"));
+    const auto malformed = operation->add_recovery(2, bytes("not a recovery share"),
+                                                    ShareEncoding::MnemoWords);
     if (malformed.status != Status::MalformedInput || malformed.recovery_batch_count != 1) {
         std::cerr << "handled error contract failed\n";
         return 3;
     }
     operation->remove_recovery_batch(2, 0);
     const std::string trailing = stringFrom(first.bytes) + " abandon";
-    const auto trailingResult = operation->add_recovery_words(2, bytes(trailing));
+    const auto trailingResult = operation->add_recovery(2, bytes(trailing),
+                                                         ShareEncoding::MnemoWords);
     if (trailingResult.status != Status::MalformedInput || trailingResult.ready) {
         std::cerr << "trailing content contract failed\n";
         return 4;
     }
     operation->remove_recovery_batch(2, 0);
-    operation->add_recovery_words(2, {first.bytes.data(), first.bytes.size()});
-    const auto duplicate = operation->add_recovery_words(2, {first.bytes.data(), first.bytes.size()});
+    operation->add_recovery(2, {first.bytes.data(), first.bytes.size()},
+                            ShareEncoding::MnemoWords);
+    const auto duplicate = operation->add_recovery(
+        2, {first.bytes.data(), first.bytes.size()}, ShareEncoding::MnemoWords);
     if (duplicate.status != Status::DuplicateShare || duplicate.ready) {
         std::cerr << "duplicate contract failed\n";
         return 5;
     }
     operation->remove_recovery_batch(2, 1);
-    const auto ready = operation->add_recovery_words(2, {second.bytes.data(), second.bytes.size()});
+    const auto ready = operation->add_recovery(
+        2, {second.bytes.data(), second.bytes.size()}, ShareEncoding::MnemoWords);
     if (ready.status != Status::Ok || !ready.ready) {
         std::cerr << "readiness contract failed\n";
         return 6;
     }
-    const auto recovered = operation->recover_words(2);
+    const auto recovered = operation->recover(2);
     if (recovered.status != Status::Ok || stringFrom(recovered.bytes) != exact) {
         std::cerr << "exact recovery contract failed\n";
         return 7;
@@ -67,22 +73,50 @@ int main() {
 
     auto other = new_operation();
     const std::string otherText = "synthetic other CXX set";
-    if (other->create_words(3, bytes(otherText), 2, 3).status != Status::Ok) {
+    if (other->create(3, bytes(otherText), 2, 3, ShareEncoding::MnemoWords).status
+        != Status::Ok) {
         std::cerr << "other set create failed\n";
         return 8;
     }
     const auto otherFirst = other->encode_share(3, 0);
     operation->reset(4);
-    operation->add_recovery_words(4, {first.bytes.data(), first.bytes.size()});
-    const auto mixed = operation->add_recovery_words(
-        4, {otherFirst.bytes.data(), otherFirst.bytes.size()});
+    operation->add_recovery(4, {first.bytes.data(), first.bytes.size()},
+                            ShareEncoding::MnemoWords);
+    const auto mixed = operation->add_recovery(
+        4, {otherFirst.bytes.data(), otherFirst.bytes.size()}, ShareEncoding::MnemoWords);
     if (mixed.status != Status::MixedShareSet || mixed.ready) {
         std::cerr << "mixed set contract failed\n";
         return 9;
     }
 
+    const std::array<ShareEncoding, 4> encodings = {
+        ShareEncoding::Base64url,
+        ShareEncoding::Base58check,
+        ShareEncoding::MnemoWords,
+        ShareEncoding::MnemoBip39,
+    };
+    for (ShareEncoding encoding : encodings) {
+        auto encodedOperation = new_operation();
+        const auto formatCreated = encodedOperation->create(5, bytes(exact), 2, 3, encoding);
+        const auto formatFirst = encodedOperation->encode_share(5, 0);
+        const auto formatSecond = encodedOperation->encode_share(5, 1);
+        encodedOperation->reset(6);
+        encodedOperation->add_recovery(
+            6, {formatFirst.bytes.data(), formatFirst.bytes.size()}, ShareEncoding::Auto);
+        const auto formatReady = encodedOperation->add_recovery(
+            6, {formatSecond.bytes.data(), formatSecond.bytes.size()}, ShareEncoding::Auto);
+        const auto formatRecovered = encodedOperation->recover(6);
+        if (formatCreated.status != Status::Ok || formatReady.status != Status::Ok
+            || formatReady.encoding != encoding || formatRecovered.status != Status::Ok
+            || stringFrom(formatRecovered.bytes) != exact) {
+            std::cerr << "encoding-aware CXX contract failed\n";
+            return 10;
+        }
+        destroy_operation(std::move(encodedOperation));
+    }
+
     destroy_operation(std::move(other));
     destroy_operation(std::move(operation));
-    std::cout << "CXX_DESKTOP_BOUNDARY_OK shares=3 threshold=2 encoding=Words handled_errors=yes explicit_release=yes\n";
+    std::cout << "CXX_DESKTOP_BOUNDARY_OK shares=3 threshold=2 encodings=4 auto=yes handled_errors=yes explicit_release=yes\n";
     return 0;
 }
