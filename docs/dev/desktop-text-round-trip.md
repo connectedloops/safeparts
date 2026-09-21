@@ -17,15 +17,15 @@ Rust owns generated packets, recovery validation and state, and authoritative re
 
 ## Implemented slice
 
-- Split UTF-8 text into V2 unprotected Words shares, with 2-of-3 defaults and valid minimum/total-share customization. Text admission converts CRLF and lone CR to LF. It does not trim or apply Unicode normalization.
+- Split UTF-8 text into V2 unprotected Base64url, Base58check, Words, or BIP-39 shares. Words remains the default under Additional options. The 2-of-3 defaults and minimum/total-share controls apply to every format. Text admission converts CRLF and lone CR to LF without trimming or Unicode normalization.
 - Keep the admitted Secret visible above read-only, selectable generated Recovery share text. Encode the views sequentially on the worker; if every share cannot fit the presentation budget, clear the set and report a handled resource status instead of showing partial or truncated output. Editing the Secret or split settings clears and hides generated text immediately, rejects stale preview results, and resets the Rust operation before another Split.
 - Copy any displayed Recovery share with its icon-only control; Copy requests a fresh authoritative encoding from Rust.
 - Start Combine with two numbered, bounded Recovery share editors. Users can add or remove fields between the two-field minimum and 255-field maximum. A 250 ms debounce sends the complete nonempty field set to the worker; empty required fields remain visible and block Combine.
-- Reject malformed, trailing, duplicate, mixed, unsupported, over-count, and over-limit input without filtering a subset.
+- Use core Auto detection or an explicit Share format to inspect unprotected V1/V2 input. Auto reports the concrete format and expands the visible fields to the detected minimum. Reject malformed, trailing, duplicate, mixed-format, mixed-version, mixed-set, unsupported-parameter, over-count, and over-limit input without filtering a subset. Protected shares report that a passphrase is required without attempting recovery.
 - Reject stale success and error results by generation after edits, mode changes, Start over, and close.
 - Preserve NUL, NBSP, U+2028, U+2029, supplementary-plane and composed/decomposed Unicode, whitespace, and leading/trailing newlines in the editor-owned model. The recovered widget is presentation only; Copy reads the authoritative Rust result.
 
-Files, passphrases, other encodings, V1 input, save, print, packaging, and release-platform qualification remain outside this slice.
+Passphrase entry, files, save, print, packaging, and release-platform qualification remain outside this slice.
 
 ## Clipboard acquisition blocker
 
@@ -35,7 +35,7 @@ The development-host adapter calls `-[NSPasteboard dataForType:]`, which returns
 
 Evidence was collected on Apple-silicon macOS 15.5 (24F74), Qt 6.9.1 from `/opt/homebrew`, CMake 4.0.1, Apple Clang 17, Rust/Cargo 1.93.0 through `mise exec --`, and the owner-approved CXX 1.0.195 security update. RustSec reports no findings for the locked Cargo graph; no advisory exception was added. Qt 6.9.1 is only the installed development runtime; it does not replace the approved Qt 6.11 evaluation and packaging target.
 
-Artifacts under `target/desktop-evidence/` were captured at commit `a437a867dcd4084171d8cff43452f55d7d2262fd` after the complete-visible-set worker fix.
+Artifacts under `target/desktop-evidence/` were captured for issue 140 at commit `a437a867dcd4084171d8cff43452f55d7d2262fd`. The issue 141 encoding-aware executable and action workload require fresh host capture before acceptance.
 
 - `versions.txt`: exact host and tool versions.
 - `network.csv`: five one-second, PID-filtered `nettop` samples during the synthetic Qt create/copy/recover/reset/close suite. The observed process had no TCP/UDP rows or bytes in those samples.
@@ -54,4 +54,5 @@ The public operation boundary test admits a 1 MiB Secret at 16 shares while exer
 - Red: the Qt action suite preserved CR and did not cover modified-key text, replacement-only IME edits, or editor paste/cut model parity. Green: text admission uses LF and all covered mutation paths keep displayed text and authoritative bytes equal.
 - Red: the created-share state replaced and cleared the source form, lacked row separators, and inherited malformed global button styling. Green: the compact native layout retains source text, separates on-demand share rows, and invalidates the generated state after edits.
 - Red: the native labels diverged from the web UI, recovery accepted only opaque clipboard batches, copy controls used text, and the selector painted a focus border. Green: Split/Combine terminology, icon-only copy controls, bounded editable Recovery share fields, atomic worker replacement, and borderless keyboard switching pass Qt action tests.
-- Red: Split results showed only `Recovery share N` placeholders. Green: actual Words text is encoded sequentially on the worker, displayed read-only under all-or-none checked admission, copied from fresh Rust output, and cleared on edits or stale completion.
+- Red: Split results showed only `Recovery share N` placeholders. Green: actual encoded text is generated sequentially on the worker, displayed read-only under all-or-none checked admission, copied from fresh Rust output, and cleared on edits or stale completion.
+- Red: the bridge hard-coded V2 Words and discarded wire versions for other decoders. Green: one core-owned strict parser retains V1/V2 versions across all four encodings; generated CXX and Qt tests cover Auto/manual inspection, stable generated output, protected-share recognition, and threshold-driven fields.

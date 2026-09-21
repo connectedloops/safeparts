@@ -77,7 +77,7 @@ fn recover_from_paste(input: &str) -> CoreResult<Vec<u8>> {
 }
 ```
 
-For UIs that allow wrapped mnemonic lines, use `parse_share_packets_wrapped_mnemonics`. It first tries to strictly decode every nonempty line as a complete Recovery share, so CLI mnemonic output can be loaded unchanged. If that fails, it treats each blank-line-separated paragraph as one wrapped Recovery share. Both attempts consume all nonempty input, including every word and BIP-39 frame; empty BIP-39 frames are errors. It accepts LF and CRLF line endings with Auto encoding or an explicit mnemonic encoding. Compact encodings still use whitespace separators.
+For UIs that allow wrapped mnemonic lines, use `parse_share_packets_wrapped_mnemonics`. Use `parse_share_packets_wrapped_mnemonics_with_versions` when admission policy also needs each packet's released V1/V2 wire version. Both interfaces first try to strictly decode every nonempty line as a complete Recovery share, so CLI mnemonic output can be loaded unchanged. If that fails, they treat each blank-line-separated paragraph as one wrapped Recovery share. Both attempts consume all nonempty input, including every word and BIP-39 frame; empty BIP-39 frames are errors. They accept LF and CRLF line endings with Auto encoding or an explicit encoding. Compact encodings still use whitespace separators.
 
 ```rust
 use safeparts_core::encoding::{self, Encoding};
@@ -178,6 +178,7 @@ Use this module for text storage, copy/paste, and operator input.
 | `decode_packet(text, encoding)` | Decode one share packet. `Auto` requires exactly one packet in the input. |
 | `parse_share_packets(input, encoding)` | Parse one or more shares. Whitespace separates compact encodings. Mnemonic shares use lines or blank-line blocks. |
 | `parse_share_packets_wrapped_mnemonics(input, encoding)` | Parse UI input where a single mnemonic share may wrap across lines. |
+| `parse_share_packets_wrapped_mnemonics_with_versions(input, encoding)` | Parse the same strict input while retaining each packet's V1/V2 wire version. |
 | `detect_encoding(input)` | Return the likely concrete encoding without returning packets. |
 
 ### `packet` module
