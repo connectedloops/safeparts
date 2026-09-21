@@ -1,6 +1,6 @@
 use safeparts_core::crypto::CryptoParams;
 use safeparts_core::encoding::{self, Encoding};
-use safeparts_core::packet::SharePacket;
+use safeparts_core::packet::{PacketVersion, SharePacket};
 use safeparts_core::{combine_shares, sss::SetId};
 
 const V1_SECRET: &[u8] = b"\x00Safeparts V1 synthetic compatibility Secret\xff\n";
@@ -102,6 +102,13 @@ fn v2_unprotected_fixtures_preserve_released_recovery() {
 }
 
 #[test]
+fn version_preserving_parser_covers_every_released_encoding() {
+    assert_fixture_versions(V1_FIXTURES, PacketVersion::V1);
+    assert_fixture_versions(V2_FIXTURES, PacketVersion::V2);
+    assert_fixture_versions(V2_PROTECTED_FIXTURES, PacketVersion::V2);
+}
+
+#[test]
 fn v2_passphrase_protected_fixtures_preserve_released_recovery() {
     assert_fixture_set(
         "V2 passphrase-protected",
@@ -160,6 +167,18 @@ fn assert_fixture_set(name: &str, fixtures: &[(&str, Encoding)], expected: Expec
             expected.secret,
             "{name}: recovered bytes"
         );
+    }
+}
+
+fn assert_fixture_versions(fixtures: &[(&str, Encoding)], expected: PacketVersion) {
+    for &(text, encoding) in fixtures {
+        for requested in [encoding, Encoding::Auto] {
+            let parsed =
+                encoding::parse_share_packets_wrapped_mnemonics_with_versions(text, requested)
+                    .unwrap();
+            assert_eq!(parsed.encoding, encoding);
+            assert!(parsed.packets.iter().all(|item| item.version == expected));
+        }
     }
 }
 

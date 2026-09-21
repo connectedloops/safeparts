@@ -16,7 +16,7 @@ Owns the core library for secret splitting, combining, packets, encodings, integ
 ## Local Contracts
 
 - Keep cryptographic and encoding rules here; front-ends adapt IO and presentation only.
-- Keep reusable pre-recovery metadata inspection and version-preserving mnemonic framing here so front ends can enforce admission policy without decoding packets independently or interpolating early.
+- Keep reusable pre-recovery metadata inspection and strict version-preserving parsing for every share encoding here so front ends can enforce admission policy without decoding packets independently or interpolating early.
 - Do not log or fixture real secrets, share packets, passphrases, or reconstructed secrets.
 - Preserve strict validation and typed errors for malformed input, including empty BIP-39 frames.
 - `parse_share_packets_wrapped_mnemonics` accepts complete mnemonic packets per line only when every nonempty line strictly decodes; otherwise it decodes blank-line-separated wrapped packets. Consume all input in either framing.

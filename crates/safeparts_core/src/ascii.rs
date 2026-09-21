@@ -1,7 +1,7 @@
 use base64::Engine;
 
 use crate::error::{CoreError, CoreResult};
-use crate::packet::SharePacket;
+use crate::packet::{DecodedSharePacket, SharePacket};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Encoding {
@@ -18,6 +18,10 @@ pub fn encode_packet(packet: &SharePacket, encoding: Encoding) -> CoreResult<Str
 }
 
 pub fn decode_packet(s: &str, encoding: Encoding) -> CoreResult<SharePacket> {
+    Ok(decode_packet_with_version(s, encoding)?.packet)
+}
+
+pub fn decode_packet_with_version(s: &str, encoding: Encoding) -> CoreResult<DecodedSharePacket> {
     let bytes = match encoding {
         Encoding::Base58check => bs58::decode(s)
             .with_check(None)
@@ -28,7 +32,7 @@ pub fn decode_packet(s: &str, encoding: Encoding) -> CoreResult<SharePacket> {
             .map_err(|e| CoreError::Encoding(e.to_string()))?,
     };
 
-    SharePacket::decode_binary(&bytes)
+    SharePacket::decode_binary_with_version(&bytes)
 }
 
 #[cfg(test)]

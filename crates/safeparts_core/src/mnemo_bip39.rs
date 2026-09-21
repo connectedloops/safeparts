@@ -3,7 +3,7 @@ use core::convert::TryInto;
 use bip39::{Language, Mnemonic};
 
 use crate::error::{CoreError, CoreResult};
-use crate::packet::{self, SharePacket};
+use crate::packet::{self, DecodedSharePacket, SharePacket};
 
 const ENTROPY_LEN: usize = 32;
 const CHUNK_LEN: usize = 28;
@@ -36,6 +36,10 @@ pub fn encode_packet(packet: &SharePacket) -> CoreResult<String> {
 }
 
 pub fn decode_packet(s: &str) -> CoreResult<SharePacket> {
+    Ok(decode_packet_with_version(s)?.packet)
+}
+
+pub fn decode_packet_with_version(s: &str) -> CoreResult<DecodedSharePacket> {
     let phrases: Vec<&str> = s.split('/').map(str::trim).collect();
 
     if phrases.iter().any(|phrase| phrase.is_empty()) {
@@ -137,7 +141,7 @@ pub fn decode_packet(s: &str) -> CoreResult<SharePacket> {
         ));
     }
 
-    SharePacket::decode_binary(&combined[..total_len])
+    SharePacket::decode_binary_with_version(&combined[..total_len])
 }
 
 #[cfg(test)]

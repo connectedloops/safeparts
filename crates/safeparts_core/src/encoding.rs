@@ -67,6 +67,13 @@ pub struct ParsedSharePackets {
     pub encoding: Encoding,
 }
 
+/// Strictly parsed share packets with their released wire versions retained.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParsedDecodedSharePackets {
+    pub packets: Vec<DecodedSharePacket>,
+    pub encoding: Encoding,
+}
+
 /// Encode one share packet as text.
 ///
 /// `Encoding::Auto` is not valid for output because callers must choose a
@@ -140,7 +147,23 @@ pub fn parse_share_packets_wrapped_mnemonics(
     input: &str,
     encoding: Encoding,
 ) -> CoreResult<ParsedSharePackets> {
-    parse_share_packets_with_mnemonic_lines(input, encoding, MnemonicLineMode::WrappedShare)
+    let parsed = parse_share_packets_wrapped_mnemonics_with_versions(input, encoding)?;
+    Ok(ParsedSharePackets {
+        packets: parsed.packets.into_iter().map(|item| item.packet).collect(),
+        encoding: parsed.encoding,
+    })
+}
+
+/// Parse complete share input while retaining each packet's released wire version.
+///
+/// Detection, strict all-content consumption, and mnemonic framing stay core-owned.
+/// The returned encoding is always concrete, including when `Encoding::Auto` is
+/// requested.
+pub fn parse_share_packets_wrapped_mnemonics_with_versions(
+    input: &str,
+    encoding: Encoding,
+) -> CoreResult<ParsedDecodedSharePackets> {
+    parse_decoded_share_packets_with_mnemonic_lines(input, encoding, MnemonicLineMode::WrappedShare)
 }
 
 /// Parse one or more wrapped Words shares while retaining each packet version.
@@ -248,12 +271,39 @@ fn decode_share_packets_known(
     encoding: Encoding,
     mnemonic_line_mode: MnemonicLineMode,
 ) -> CoreResult<Vec<SharePacket>> {
+    decode_decoded_share_packets_known(input, encoding, mnemonic_line_mode)
+        .map(|packets| packets.into_iter().map(|item| item.packet).collect())
+}
+
+fn parse_decoded_share_packets_with_mnemonic_lines(
+    input: &str,
+    encoding: Encoding,
+    mnemonic_line_mode: MnemonicLineMode,
+) -> CoreResult<ParsedDecodedSharePackets> {
+    let lines = nonempty_lines(input);
+    if lines.is_empty() {
+        return Err(CoreError::EmptyShareInput);
+    }
+    let encoding = if encoding.is_auto() {
+        detect_encoding_from_lines(&lines, input)?.ok_or(CoreError::CouldNotDetectEncoding)?
+    } else {
+        encoding
+    };
+    let packets = decode_decoded_share_packets_known(input, encoding, mnemonic_line_mode)?;
+    Ok(ParsedDecodedSharePackets { packets, encoding })
+}
+
+fn decode_decoded_share_packets_known(
+    input: &str,
+    encoding: Encoding,
+    mnemonic_line_mode: MnemonicLineMode,
+) -> CoreResult<Vec<DecodedSharePacket>> {
     if matches!(mnemonic_line_mode, MnemonicLineMode::WrappedShare)
         && matches!(encoding, Encoding::MnemoWords | Encoding::MnemoBip39)
     {
         let line_packets = nonempty_lines(input)
             .iter()
-            .map(|line| decode_packet(line, encoding))
+            .map(|line| decode_packet_with_version(line, encoding))
             .collect::<CoreResult<Vec<_>>>();
         if let Ok(packets) = line_packets {
             return Ok(packets);
@@ -264,20 +314,32 @@ fn decode_share_packets_known(
         Encoding::Auto => Err(CoreError::CouldNotDetectEncoding),
         Encoding::MnemoWords => split_mnemonic_input(input, mnemonic_line_mode)
             .iter()
-            .map(|block| mnemo_words::decode_packet(block))
-            .collect::<CoreResult<Vec<_>>>(),
+            .map(|block| mnemo_words::decode_packet_with_version(block))
+            .collect(),
         Encoding::MnemoBip39 => split_mnemonic_input(input, mnemonic_line_mode)
             .iter()
-            .map(|block| mnemo_bip39::decode_packet(block))
-            .collect::<CoreResult<Vec<_>>>(),
+            .map(|block| mnemo_bip39::decode_packet_with_version(block))
+            .collect(),
         Encoding::Base64url => input
             .split_whitespace()
-            .map(|token| ascii::decode_packet(token, ascii::Encoding::Base64url))
-            .collect::<CoreResult<Vec<_>>>(),
+            .map(|token| ascii::decode_packet_with_version(token, ascii::Encoding::Base64url))
+            .collect(),
         Encoding::Base58check => input
             .split_whitespace()
-            .map(|token| ascii::decode_packet(token, ascii::Encoding::Base58check))
-            .collect::<CoreResult<Vec<_>>>(),
+            .map(|token| ascii::decode_packet_with_version(token, ascii::Encoding::Base58check))
+            .collect(),
+    }
+}
+
+fn decode_packet_with_version(input: &str, encoding: Encoding) -> CoreResult<DecodedSharePacket> {
+    match encoding {
+        Encoding::Auto => Err(CoreError::CouldNotDetectEncoding),
+        Encoding::Base64url => ascii::decode_packet_with_version(input, ascii::Encoding::Base64url),
+        Encoding::Base58check => {
+            ascii::decode_packet_with_version(input, ascii::Encoding::Base58check)
+        }
+        Encoding::MnemoWords => mnemo_words::decode_packet_with_version(input),
+        Encoding::MnemoBip39 => mnemo_bip39::decode_packet_with_version(input),
     }
 }
 
