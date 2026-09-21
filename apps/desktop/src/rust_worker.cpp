@@ -29,12 +29,14 @@ void RustWorker::encodeShare(quint64 generation, quint16 index) {
     emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), 0, index);
 }
 
-void RustWorker::addRecovery(quint64 generation, SecureByteBuffer input) {
-    emitOperation(operation_->add_recovery_words(generation, slice(input)));
-}
-
-void RustWorker::removeRecovery(quint64 generation, quint16 batchIndex) {
-    emitOperation(operation_->remove_recovery_batch(generation, batchIndex));
+void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs) {
+    OperationOutput output = operation_->reset(generation);
+    for (const SecureByteBuffer &input : inputs) {
+        output = operation_->add_recovery_words(generation, slice(input));
+        if (output.status != Status::Ok && output.status != Status::NotEnoughShares)
+            break;
+    }
+    emitOperation(output);
 }
 
 void RustWorker::recover(quint64 generation) {

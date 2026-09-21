@@ -7,13 +7,17 @@
 #include <QCloseEvent>
 #include <QFontDatabase>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
@@ -21,13 +25,16 @@
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QThread>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 #include <utility>
 
 namespace {
-constexpr qsizetype kMaximumPasteBytes = 16 * 1'048'576;
+constexpr qsizetype kMaximumRecoveryFieldBytes = 8 * 1'048'576;
+constexpr qsizetype kMaximumRetainedRecoveryBytes = 160 * 1'048'576;
+constexpr qsizetype kMaximumRecoveryFields = 255;
 
 int statusCode(Status status) {
     return static_cast<int>(static_cast<std::uint8_t>(status));
@@ -49,10 +56,10 @@ QFont pointFont(const QWidget *widget, qreal points, QFont::Weight weight = QFon
 class ModeSelector final : public QTabBar {
 public:
     explicit ModeSelector(QWidget *parent = nullptr) : QTabBar(parent) {
-        addTab(QStringLiteral("Create"));
-        addTab(QStringLiteral("Recover"));
+        addTab(QStringLiteral("Split"));
+        addTab(QStringLiteral("Combine"));
         setObjectName(QStringLiteral("modeSelector"));
-        setAccessibleName(QStringLiteral("Choose Create or Recover"));
+        setAccessibleName(QStringLiteral("Choose Split or Combine"));
         setFocusPolicy(Qt::StrongFocus);
         setUsesScrollButtons(false);
         setExpanding(true);
@@ -81,17 +88,10 @@ protected:
         painter.setBrush(blend(window, text, dark ? 0.19 : 0.015));
         painter.drawRoundedRect(selected, 6, 6);
 
-        if (hasFocus()) {
-            QColor focus = palette().color(QPalette::Highlight);
-            focus.setAlphaF(0.78);
-            painter.setPen(QPen(focus, 2));
-            painter.setBrush(Qt::NoBrush);
-            painter.drawRoundedRect(bounds.adjusted(1, 1, -1, -1), 7, 7);
-        }
-
         painter.setPen(text);
-        painter.setFont(pointFont(this, 11.5, QFont::Medium));
+        painter.setFont(pointFont(this, 11.5, currentIndex() == 0 ? QFont::DemiBold : QFont::Medium));
         painter.drawText(QRectF(0, 0, half, height()), Qt::AlignCenter, tabText(0));
+        painter.setFont(pointFont(this, 11.5, currentIndex() == 1 ? QFont::DemiBold : QFont::Medium));
         painter.drawText(QRectF(half, 0, half, height()), Qt::AlignCenter, tabText(1));
     }
 
@@ -142,6 +142,40 @@ void configureEditor(QPlainTextEdit *editor) {
     editor->setFrameShape(QFrame::NoFrame);
 }
 
+QIcon copyIcon(const QWidget *widget) {
+    QPixmap pixmap(24, 24);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    QPen pen(widget->palette().color(QPalette::ButtonText), 2.0, Qt::SolidLine, Qt::RoundCap,
+             Qt::RoundJoin);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(QRectF(8, 8, 10, 10), 0.8, 0.8);
+    QPainterPath rear;
+    rear.moveTo(5, 14);
+    rear.lineTo(4, 14);
+    rear.quadTo(3, 14, 3, 13);
+    rear.lineTo(3, 4);
+    rear.quadTo(3, 3, 4, 3);
+    rear.lineTo(13, 3);
+    rear.quadTo(14, 3, 14, 4);
+    rear.lineTo(14, 5);
+    painter.drawPath(rear);
+    return QIcon(pixmap);
+}
+
+void configureCopyButton(QPushButton *button, const QString &accessibleName) {
+    button->setText({});
+    button->setIcon(copyIcon(button));
+    button->setIconSize(QSize(20, 20));
+    button->setAccessibleName(accessibleName);
+    button->setToolTip(accessibleName);
+    button->setAutoDefault(false);
+    button->setFlat(true);
+    button->setFixedSize(32, 30);
+}
+
 QWidget *centeredPage(QWidget *content) {
     auto *viewport = new QWidget;
     auto *layout = new QHBoxLayout(viewport);
@@ -171,13 +205,18 @@ DesktopWindow::DesktopWindow(QWidget *parent) : QMainWindow(parent) {
     connect(this, &DesktopWindow::requestReset, worker_, &RustWorker::reset, Qt::QueuedConnection);
     connect(this, &DesktopWindow::requestCreate, worker_, &RustWorker::create, Qt::QueuedConnection);
     connect(this, &DesktopWindow::requestEncodeShare, worker_, &RustWorker::encodeShare, Qt::QueuedConnection);
-    connect(this, &DesktopWindow::requestAddRecovery, worker_, &RustWorker::addRecovery, Qt::QueuedConnection);
-    connect(this, &DesktopWindow::requestRemoveRecovery, worker_, &RustWorker::removeRecovery, Qt::QueuedConnection);
+    connect(this, &DesktopWindow::requestReplaceRecovery, worker_, &RustWorker::replaceRecovery,
+            Qt::QueuedConnection);
     connect(this, &DesktopWindow::requestRecover, worker_, &RustWorker::recover, Qt::QueuedConnection);
     connect(this, &DesktopWindow::requestRecoveredText, worker_, &RustWorker::recoveredText, Qt::QueuedConnection);
     connect(worker_, &RustWorker::operationFinished, this, &DesktopWindow::operationFinished);
     connect(worker_, &RustWorker::bytesFinished, this, &DesktopWindow::bytesFinished);
     thread_->start();
+
+    recoverySyncTimer_ = new QTimer(this);
+    recoverySyncTimer_->setSingleShot(true);
+    recoverySyncTimer_->setInterval(250);
+    connect(recoverySyncTimer_, &QTimer::timeout, this, &DesktopWindow::synchronizeRecoveryFields);
 
     buildUi();
     switchMode(0);
@@ -240,8 +279,8 @@ void DesktopWindow::buildUi() {
     connect(startOverButton, &QToolButton::clicked, this, &DesktopWindow::startOver);
     connect(help, &QToolButton::clicked, this, [this] {
         QMessageBox::information(this, QStringLiteral("Safeparts help"),
-                                 QStringLiteral("Create keeps one share set in memory. Store recovery shares separately. "
-                                                "Recover only runs after you choose Recover. This build supports unprotected Words text shares."));
+                                 QStringLiteral("Split keeps one share set in memory. Store Recovery shares separately. "
+                                                "Combine runs only after the visible shares form a valid set. This build supports unprotected Words text shares."));
     });
 }
 
@@ -251,49 +290,56 @@ QWidget *DesktopWindow::buildCreatePage() {
     entryLayout->setContentsMargins(0, 0, 0, 0);
     entryLayout->setSpacing(12);
     entryLayout->setSizeConstraint(QLayout::SetMinimumSize);
-    auto *title = label(QStringLiteral("Create recovery shares"));
+    auto *title = label(QStringLiteral("Split"));
     title->setObjectName(QStringLiteral("createPageTitle"));
     QFont titleFont = title->font();
     titleFont.setPointSizeF(22);
     titleFont.setWeight(QFont::DemiBold);
     title->setFont(titleFont);
     entryLayout->addWidget(title);
-    entryLayout->addWidget(label(QStringLiteral("Enter text exactly as you want to recover it."), true));
 
     auto *group = surface();
     group->setObjectName(QStringLiteral("createSurface"));
     auto *groupLayout = new QVBoxLayout(group);
     groupLayout->setContentsMargins(20, 16, 20, 16);
     groupLayout->setSpacing(10);
-    auto *secretLabel = label(QStringLiteral("Secret text"));
+    auto *secretLabel = label(QStringLiteral("Secret"));
     groupLayout->addWidget(secretLabel);
     secretInput_ = new ExactTextEdit;
     secretInput_->setObjectName(QStringLiteral("secretInput"));
-    secretInput_->setAccessibleName(QStringLiteral("Secret text"));
+    secretInput_->setAccessibleName(QStringLiteral("Secret"));
     secretInput_->setPlaceholderText(QStringLiteral("Type or paste text"));
     secretInput_->setFixedHeight(130);
     configureEditor(secretInput_);
     secretLabel->setBuddy(secretInput_);
     groupLayout->addWidget(secretInput_);
 
-    auto *settings = new QHBoxLayout;
-    settings->addWidget(label(QStringLiteral("Threshold")));
+    auto *settings = new QGridLayout;
+    settings->setHorizontalSpacing(12);
+    settings->setVerticalSpacing(4);
+    auto *thresholdLabel = label(QStringLiteral("Minimum shares to recover (k)"));
     threshold_ = new QSpinBox;
     threshold_->setObjectName(QStringLiteral("thresholdInput"));
-    threshold_->setAccessibleName(QStringLiteral("Threshold"));
+    threshold_->setAccessibleName(QStringLiteral("Minimum shares to recover (k)"));
     threshold_->setRange(1, 255);
     threshold_->setValue(2);
-    settings->addWidget(threshold_);
-    settings->addSpacing(12);
-    settings->addWidget(label(QStringLiteral("Share count")));
+    thresholdLabel->setBuddy(threshold_);
+    settings->addWidget(thresholdLabel, 0, 0);
+    settings->addWidget(threshold_, 1, 0);
+    auto *shareCountLabel = label(QStringLiteral("Total shares to create (n)"));
     shareCount_ = new QSpinBox;
     shareCount_->setObjectName(QStringLiteral("shareCountInput"));
-    shareCount_->setAccessibleName(QStringLiteral("Share count"));
+    shareCount_->setAccessibleName(QStringLiteral("Total shares to create (n)"));
     shareCount_->setRange(1, 255);
     shareCount_->setValue(3);
-    settings->addWidget(shareCount_);
-    settings->addStretch();
-    settings->addWidget(label(QStringLiteral("Words"), true));
+    shareCountLabel->setBuddy(shareCount_);
+    settings->addWidget(shareCountLabel, 0, 1);
+    settings->addWidget(shareCount_, 1, 1);
+    settings->addWidget(label(QStringLiteral("Share format")), 0, 2);
+    settings->addWidget(label(QStringLiteral("Words"), true), 1, 2);
+    settings->setColumnStretch(0, 1);
+    settings->setColumnStretch(1, 1);
+    settings->setColumnStretch(2, 1);
     groupLayout->addLayout(settings);
 
     auto *action = new QHBoxLayout;
@@ -301,7 +347,7 @@ QWidget *DesktopWindow::buildCreatePage() {
     createStatus_ = label(QStringLiteral("2 of 3 · Words"), true);
     createStatus_->setObjectName(QStringLiteral("createStatus"));
     action->addWidget(createStatus_, 1);
-    createButton_ = new QPushButton(QStringLiteral("Create shares"));
+    createButton_ = new QPushButton(QStringLiteral("Split"));
     createButton_->setObjectName(QStringLiteral("createButton"));
     createButton_->setDefault(true);
     createButton_->setFixedHeight(32);
@@ -323,7 +369,6 @@ QWidget *DesktopWindow::buildCreatePage() {
     createdTitleFont.setWeight(QFont::DemiBold);
     createdTitle_->setFont(createdTitleFont);
     createdLayout->addWidget(createdTitle_);
-    createdLayout->addWidget(label(QStringLiteral("Copy each complete share and store them separately."), true));
     createdRows_ = surface();
     createdRows_->setObjectName(QStringLiteral("createdShares"));
     createdLayout->addWidget(createdRows_);
@@ -334,8 +379,8 @@ QWidget *DesktopWindow::buildCreatePage() {
     connect(secretInput_, &ExactTextEdit::exactTextChanged, this, &DesktopWindow::createInputChanged);
     connect(secretInput_, &ExactTextEdit::inputRejected, this, [this](int reason) {
         createStatus_->setText(reason == static_cast<int>(ClipboardRead::Status::TooLarge)
-                                   ? QStringLiteral("Secret text cannot exceed the 1 MiB UTF-8 limit.")
-                                   : QStringLiteral("Secret text must be valid UTF-8."));
+                                   ? QStringLiteral("Secret cannot exceed the 1 MiB UTF-8 limit.")
+                                   : QStringLiteral("Secret must be valid UTF-8."));
     });
     connect(threshold_, &QSpinBox::valueChanged, this, &DesktopWindow::createInputChanged);
     connect(shareCount_, &QSpinBox::valueChanged, this, &DesktopWindow::createInputChanged);
@@ -346,42 +391,50 @@ QWidget *DesktopWindow::buildRecoverPage() {
     auto *page = new QWidget;
     auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(16);
-    auto *title = label(QStringLiteral("Recover a secret"));
+    layout->setSpacing(12);
+    auto *title = label(QStringLiteral("Combine"));
     title->setObjectName(QStringLiteral("recoverPageTitle"));
     QFont titleFont = title->font();
     titleFont.setPointSizeF(22);
     titleFont.setWeight(QFont::DemiBold);
     title->setFont(titleFont);
     layout->addWidget(title);
-    layout->addWidget(label(QStringLiteral("Paste complete, distinct Words shares. Recovery starts only when you choose Recover."), true));
 
     auto *group = surface();
     auto *groupLayout = new QVBoxLayout(group);
     groupLayout->setContentsMargins(20, 16, 20, 16);
     groupLayout->setSpacing(11);
-    recoveryCount_ = label(QStringLiteral("No recovery shares pasted"));
+    auto *sharesLabel = label(QStringLiteral("Shares"));
+    QFont sharesFont = sharesLabel->font();
+    sharesFont.setWeight(QFont::DemiBold);
+    sharesLabel->setFont(sharesFont);
+    groupLayout->addWidget(sharesLabel);
+
+    auto *fields = new QWidget;
+    fields->setObjectName(QStringLiteral("recoveryFields"));
+    recoveryFieldsLayout_ = new QVBoxLayout(fields);
+    recoveryFieldsLayout_->setContentsMargins(0, 0, 0, 0);
+    recoveryFieldsLayout_->setSpacing(10);
+    groupLayout->addWidget(fields);
+    addRecoveryField();
+    addRecoveryField();
+
+    auto *fieldActions = new QHBoxLayout;
+    addRecoveryButton_ = new QPushButton(QStringLiteral("Add share"));
+    addRecoveryButton_->setObjectName(QStringLiteral("addRecoveryShareButton"));
+    addRecoveryButton_->setFixedHeight(32);
+    fieldActions->addWidget(addRecoveryButton_);
+    fieldActions->addStretch();
+    recoveryCount_ = label(QStringLiteral("0 of 2 Recovery shares entered"), true);
     recoveryCount_->setObjectName(QStringLiteral("recoveryCount"));
-    groupLayout->addWidget(recoveryCount_);
-    auto *pasteActions = new QHBoxLayout;
-    pasteButton_ = new QPushButton(QStringLiteral("Paste share(s)"));
-    pasteButton_->setObjectName(QStringLiteral("pasteRecoveryButton"));
-    pasteButton_->setAccessibleName(QStringLiteral("Paste recovery shares from clipboard"));
-    pasteButton_->setFixedHeight(32);
-    removeButton_ = new QPushButton(QStringLiteral("Remove last"));
-    removeButton_->setObjectName(QStringLiteral("removeRecoveryButton"));
-    removeButton_->setEnabled(false);
-    removeButton_->setFixedHeight(32);
-    pasteActions->addWidget(pasteButton_);
-    pasteActions->addWidget(removeButton_);
-    pasteActions->addStretch();
-    groupLayout->addLayout(pasteActions);
+    fieldActions->addWidget(recoveryCount_);
+    groupLayout->addLayout(fieldActions);
 
     auto *action = new QHBoxLayout;
-    recoveryStatus_ = label(QStringLiteral("Add enough shares to recover."), true);
+    recoveryStatus_ = label(QStringLiteral("Share content is required."), true);
     recoveryStatus_->setObjectName(QStringLiteral("recoveryStatus"));
     action->addWidget(recoveryStatus_, 1);
-    recoverButton_ = new QPushButton(QStringLiteral("Recover"));
+    recoverButton_ = new QPushButton(QStringLiteral("Combine"));
     recoverButton_->setObjectName(QStringLiteral("recoverButton"));
     recoverButton_->setEnabled(false);
     recoverButton_->setDefault(true);
@@ -393,25 +446,24 @@ QWidget *DesktopWindow::buildRecoverPage() {
     recoveryResult_->setObjectName(QStringLiteral("recoveryResult"));
     auto *resultLayout = new QVBoxLayout(recoveryResult_);
     resultLayout->setContentsMargins(0, 8, 0, 0);
-    resultLayout->addWidget(label(QStringLiteral("Recovered text")));
+    resultLayout->addWidget(label(QStringLiteral("Recovered secret")));
     recoveredDisplay_ = new QPlainTextEdit;
     recoveredDisplay_->setObjectName(QStringLiteral("recoveredText"));
-    recoveredDisplay_->setAccessibleName(QStringLiteral("Recovered text"));
+    recoveredDisplay_->setAccessibleName(QStringLiteral("Recovered secret"));
     recoveredDisplay_->setReadOnly(true);
     recoveredDisplay_->setUndoRedoEnabled(false);
     recoveredDisplay_->setFixedHeight(130);
     configureEditor(recoveredDisplay_);
     resultLayout->addWidget(recoveredDisplay_);
-    copyRecovered_ = new QPushButton(QStringLiteral("Copy recovered text"));
+    copyRecovered_ = new QPushButton;
     copyRecovered_->setObjectName(QStringLiteral("copyRecoveredButton"));
-    copyRecovered_->setFixedHeight(32);
+    configureCopyButton(copyRecovered_, QStringLiteral("Copy recovered Secret"));
     resultLayout->addWidget(copyRecovered_, 0, Qt::AlignRight);
     recoveryResult_->hide();
     groupLayout->addWidget(recoveryResult_);
     layout->addWidget(group);
 
-    connect(pasteButton_, &QPushButton::clicked, this, &DesktopWindow::pasteRecovery);
-    connect(removeButton_, &QPushButton::clicked, this, &DesktopWindow::removeLastRecovery);
+    connect(addRecoveryButton_, &QPushButton::clicked, this, &DesktopWindow::addRecoveryField);
     connect(recoverButton_, &QPushButton::clicked, this, &DesktopWindow::recover);
     connect(copyRecovered_, &QPushButton::clicked, this, [this] {
         pending_ = Pending::CopyRecovered;
@@ -443,35 +495,146 @@ void DesktopWindow::createShares() {
     const quint64 requestGeneration = nextGeneration();
     pending_ = Pending::Create;
     setBusy(true);
-    createStatus_->setText(QStringLiteral("Creating shares…"));
+    createStatus_->setText(QStringLiteral("Working…"));
     emit requestCreate(requestGeneration, std::move(secret), static_cast<quint8>(threshold_->value()),
                        static_cast<quint8>(shareCount_->value()));
 }
 
-void DesktopWindow::pasteRecovery() {
-    ClipboardRead paste = readClipboardUtf8(kMaximumPasteBytes);
-    if (paste.status != ClipboardRead::Status::Ok) {
-        recoveryStatus_->setText(paste.status == ClipboardRead::Status::TooLarge
-                                     ? QStringLiteral("This paste exceeds the 16 MiB limit.")
-                                     : QStringLiteral("Clipboard does not contain valid UTF-8 share text."));
+void DesktopWindow::addRecoveryField() {
+    if (recoveryFieldsLayout_ == nullptr || recoveryFields_.size() >= kMaximumRecoveryFields)
         return;
-    }
-    recoveryResult_->hide();
-    recoveredDisplay_->clear();
-    pending_ = Pending::Inspect;
-    setBusy(true);
-    recoveryStatus_->setText(QStringLiteral("Checking all pasted shares…"));
-    emit requestAddRecovery(nextGeneration(), SecureByteBuffer::take(std::move(paste.bytes)));
+
+    auto *field = new QWidget;
+    auto *fieldLayout = new QVBoxLayout(field);
+    fieldLayout->setContentsMargins(0, 0, 0, 0);
+    fieldLayout->setSpacing(5);
+    auto *header = new QHBoxLayout;
+    auto *fieldLabel = label({});
+    fieldLabel->setProperty("recoveryFieldLabel", true);
+    header->addWidget(fieldLabel);
+    header->addStretch();
+    auto *remove = new QPushButton(QStringLiteral("Remove"));
+    remove->setProperty("recoveryRemoveButton", true);
+    remove->setFlat(true);
+    remove->setAutoDefault(false);
+    header->addWidget(remove);
+    fieldLayout->addLayout(header);
+
+    auto *editor = new ExactTextEdit(nullptr, kMaximumRecoveryFieldBytes);
+    editor->setPlaceholderText(QStringLiteral("Paste a share here…"));
+    editor->setFixedHeight(84);
+    configureEditor(editor);
+    fieldLayout->addWidget(editor);
+    recoveryFields_.append(editor);
+    recoveryFieldsLayout_->addWidget(field);
+
+    connect(editor, &ExactTextEdit::exactTextChanged, this, &DesktopWindow::recoveryInputChanged);
+    connect(editor, &ExactTextEdit::inputRejected, this, [this](int reason) {
+        recoveryStatus_->setText(reason == static_cast<int>(ClipboardRead::Status::TooLarge)
+                                     ? QStringLiteral("A Recovery share cannot exceed the 8 MiB UTF-8 limit.")
+                                     : QStringLiteral("A Recovery share must be valid UTF-8."));
+    });
+    connect(remove, &QPushButton::clicked, this, [this, editor] { removeRecoveryField(editor); });
+    renumberRecoveryFields();
+    if (recoveryFields_.size() > 2)
+        recoveryInputChanged();
 }
 
-void DesktopWindow::removeLastRecovery() {
-    if (recoveryBatchCount_ == 0)
+void DesktopWindow::removeRecoveryField(ExactTextEdit *editor) {
+    if (recoveryFields_.size() <= 2 || !recoveryFields_.contains(editor))
         return;
+    QWidget *container = editor->parentWidget();
+    recoveryFields_.removeOne(editor);
+    delete container;
+    renumberRecoveryFields();
+    recoveryInputChanged();
+}
+
+void DesktopWindow::renumberRecoveryFields() {
+    const bool canRemove = recoveryFields_.size() > 2;
+    for (qsizetype index = 0; index < recoveryFields_.size(); ++index) {
+        ExactTextEdit *editor = recoveryFields_.at(index);
+        QWidget *container = editor->parentWidget();
+        auto *fieldLabel = container->findChild<QLabel *>(QString(), Qt::FindDirectChildrenOnly);
+        auto *remove = container->findChild<QPushButton *>(QString(), Qt::FindChildrenRecursively);
+        const QString fieldName = QStringLiteral("Recovery share %1").arg(index + 1);
+        if (fieldLabel != nullptr) {
+            fieldLabel->setText(fieldName);
+            fieldLabel->setObjectName(QStringLiteral("recoveryShareLabel%1").arg(index + 1));
+            fieldLabel->setBuddy(editor);
+        }
+        editor->setObjectName(QStringLiteral("recoveryShare%1").arg(index + 1));
+        editor->setAccessibleName(fieldName);
+        if (remove != nullptr) {
+            remove->setObjectName(QStringLiteral("removeRecoveryShare%1").arg(index + 1));
+            remove->setAccessibleName(QStringLiteral("Remove Recovery share %1").arg(index + 1));
+            remove->setEnabled(canRemove);
+        }
+    }
+    if (addRecoveryButton_ != nullptr)
+        addRecoveryButton_->setEnabled(recoveryFields_.size() < kMaximumRecoveryFields);
+}
+
+void DesktopWindow::clearRecoveryFields() {
+    if (recoveryFieldsLayout_ == nullptr)
+        return;
+    clearingRecoveryFields_ = true;
+    while (recoveryFields_.size() > 2) {
+        ExactTextEdit *editor = recoveryFields_.takeLast();
+        delete editor->parentWidget();
+    }
+    for (ExactTextEdit *editor : std::as_const(recoveryFields_))
+        editor->clearExact();
+    clearingRecoveryFields_ = false;
+    renumberRecoveryFields();
+    recoveryHasEmptyFields_ = true;
+}
+
+void DesktopWindow::recoveryInputChanged() {
+    if (clearingRecoveryFields_)
+        return;
+    nextGeneration();
+    recoverySyncTimer_->start();
     recoveryResult_->hide();
     recoveredDisplay_->clear();
+    recoverButton_->setEnabled(false);
+    pending_ = Pending::Inspect;
+    recoveryStatus_->setText(QStringLiteral("Checking Recovery shares…"));
+}
+
+void DesktopWindow::synchronizeRecoveryFields() {
+    qsizetype aggregateBytes = 0;
+    int nonempty = 0;
+    recoveryHasEmptyFields_ = false;
+    for (const ExactTextEdit *editor : std::as_const(recoveryFields_)) {
+        const qsizetype fieldBytes = editor->exactUtf8Size();
+        if (fieldBytes == 0) {
+            recoveryHasEmptyFields_ = true;
+            continue;
+        }
+        if (aggregateBytes > kMaximumRetainedRecoveryBytes - fieldBytes) {
+            pending_ = Pending::InspectReset;
+            setBusy(true);
+            recoveryStatus_->setText(QStringLiteral("Retained Recovery share input would exceed 160 MiB."));
+            emit requestReset(generation_);
+            return;
+        }
+        aggregateBytes += fieldBytes;
+        ++nonempty;
+    }
+
+    QList<SecureByteBuffer> inputs;
+    inputs.reserve(nonempty);
+    for (ExactTextEdit *editor : std::as_const(recoveryFields_)) {
+        if (editor->exactUtf8Size() > 0)
+            inputs.append(SecureByteBuffer::take(editor->exactUtf8()));
+    }
+    recoveryCount_->setText(QStringLiteral("%1 of %2 Recovery shares entered")
+                                .arg(nonempty)
+                                .arg(recoveryFields_.size()));
     pending_ = Pending::Inspect;
     setBusy(true);
-    emit requestRemoveRecovery(nextGeneration(), recoveryBatchCount_ - 1);
+    emit requestReplaceRecovery(generation_, std::move(inputs));
 }
 
 void DesktopWindow::recover() {
@@ -479,7 +642,7 @@ void DesktopWindow::recover() {
     recoveredDisplay_->clear();
     pending_ = Pending::Recover;
     setBusy(true);
-    recoveryStatus_->setText(QStringLiteral("Recovering…"));
+    recoveryStatus_->setText(QStringLiteral("Working…"));
     emit requestRecover(generation_);
 }
 
@@ -492,7 +655,7 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
         return;
     }
     setBusy(false);
-    if (pending_ == Pending::Reset) {
+    if (pending_ == Pending::Reset || pending_ == Pending::InspectReset) {
         pending_ = Pending::None;
         return;
     }
@@ -503,12 +666,15 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
         else
             createStatus_->setText(statusText(status));
     } else if (pending_ == Pending::Inspect) {
-        recoveryBatchCount_ = batchCount;
-        recoveryCount_->setText(batchCount == 0
-                                    ? QStringLiteral("No recovery shares pasted")
-                                    : QStringLiteral("%1 paste(s), %2 valid share(s)").arg(batchCount).arg(suppliedCount));
-        removeButton_->setEnabled(batchCount > 0);
-        setRecoveryStatus(status, threshold, suppliedCount, ready);
+        Q_UNUSED(batchCount);
+        const bool invalid = status != statusCode(Status::Ok)
+                             && status != statusCode(Status::NotEnoughShares);
+        if (recoveryHasEmptyFields_ && !invalid) {
+            recoverButton_->setEnabled(false);
+            recoveryStatus_->setText(QStringLiteral("Share content is required."));
+        } else {
+            setRecoveryStatus(status, threshold, suppliedCount, ready);
+        }
     }
     pending_ = Pending::None;
 }
@@ -534,9 +700,9 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
         recoveredDisplay_->setPlainText(QString::fromUtf8(bytes.data(), bytes.size()));
         recoveryResult_->show();
         recoverButton_->setEnabled(true);
-        recoveryStatus_->setText(QStringLiteral("Recovered exact UTF-8 text."));
+        recoveryStatus_->setText(QStringLiteral("Recovered exact UTF-8 secret."));
     } else if (writeClipboardUtf8(bytes.view())) {
-        recoveryStatus_->setText(QStringLiteral("Recovered text copied."));
+        recoveryStatus_->setText(QStringLiteral("Recovered secret copied."));
     }
     pending_ = Pending::None;
 }
@@ -548,6 +714,8 @@ void DesktopWindow::closeEvent(QCloseEvent *event) {
 }
 
 void DesktopWindow::clearVisibleState() {
+    if (recoverySyncTimer_ != nullptr)
+        recoverySyncTimer_->stop();
     if (secretInput_ != nullptr)
         secretInput_->clearExact();
     if (threshold_ != nullptr)
@@ -558,13 +726,11 @@ void DesktopWindow::clearVisibleState() {
         createdResult_->hide();
     if (createStatus_ != nullptr)
         createStatus_->setText(QStringLiteral("2 of 3 · Words"));
-    recoveryBatchCount_ = 0;
+    clearRecoveryFields();
     if (recoveryCount_ != nullptr)
-        recoveryCount_->setText(QStringLiteral("No recovery shares pasted"));
+        recoveryCount_->setText(QStringLiteral("0 of 2 Recovery shares entered"));
     if (recoveryStatus_ != nullptr)
-        recoveryStatus_->setText(QStringLiteral("Add enough shares to recover."));
-    if (removeButton_ != nullptr)
-        removeButton_->setEnabled(false);
+        recoveryStatus_->setText(QStringLiteral("Share content is required."));
     if (recoverButton_ != nullptr)
         recoverButton_->setEnabled(false);
     if (recoveryResult_ != nullptr)
@@ -596,7 +762,7 @@ void DesktopWindow::queueCurrentReset() {
 }
 
 void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
-    createdTitle_->setText(QStringLiteral("%1 recovery shares").arg(shareCount));
+    createdTitle_->setText(QStringLiteral("Recovery shares"));
     if (QLayout *oldRows = createdRows_->layout(); oldRows != nullptr) {
         while (QLayoutItem *item = oldRows->takeAt(0)) {
             delete item->widget();
@@ -634,12 +800,9 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
         number->setFont(numberFont);
         rowLayout->addWidget(number);
         rowLayout->addWidget(label(QStringLiteral("Recovery share %1").arg(index + 1)), 1);
-        auto *copy = new QPushButton(QStringLiteral("Copy"));
+        auto *copy = new QPushButton;
         copy->setObjectName(QStringLiteral("copyShare%1").arg(index + 1));
-        copy->setAccessibleName(QStringLiteral("Copy recovery share %1").arg(index + 1));
-        copy->setAutoDefault(false);
-        copy->setFlat(true);
-        copy->setFixedHeight(30);
+        configureCopyButton(copy, QStringLiteral("Copy Recovery share %1").arg(index + 1));
         connect(copy, &QPushButton::clicked, this, [this, index] {
             pending_ = Pending::CopyShare;
             setBusy(true);
@@ -658,8 +821,13 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
 void DesktopWindow::setBusy(bool busy) {
     if (createButton_ != nullptr)
         createButton_->setEnabled(!busy);
-    if (pasteButton_ != nullptr)
-        pasteButton_->setEnabled(!busy);
+    if (addRecoveryButton_ != nullptr)
+        addRecoveryButton_->setEnabled(!busy && recoveryFields_.size() < kMaximumRecoveryFields);
+    for (ExactTextEdit *editor : std::as_const(recoveryFields_)) {
+        QWidget *container = editor->parentWidget();
+        if (auto *remove = container->findChild<QPushButton *>(); remove != nullptr)
+            remove->setEnabled(!busy && recoveryFields_.size() > 2);
+    }
     if (recoverButton_ != nullptr && busy)
         recoverButton_->setEnabled(false);
 }

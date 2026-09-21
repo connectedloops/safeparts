@@ -16,7 +16,6 @@
 #include <optional>
 
 namespace {
-constexpr qsizetype kMaximumSecretBytes = 1'048'576;
 constexpr qsizetype kMaximumPasteBytes = 16 * 1'048'576;
 
 QString withLfLineEndings(QString text) {
@@ -25,7 +24,7 @@ QString withLfLineEndings(QString text) {
     return text;
 }
 
-std::optional<qsizetype> utf8Length(QStringView text) {
+std::optional<qsizetype> utf8Length(QStringView text, qsizetype maximumBytes) {
     qsizetype bytes = 0;
     for (qsizetype index = 0; index < text.size(); ++index) {
         const char16_t value = text.at(index).unicode();
@@ -44,15 +43,17 @@ std::optional<qsizetype> utf8Length(QStringView text) {
         } else {
             encoded = 3;
         }
-        if (bytes > kMaximumSecretBytes - encoded)
-            return kMaximumSecretBytes + 1;
+        if (bytes > maximumBytes - encoded)
+            return maximumBytes + 1;
         bytes += encoded;
     }
     return bytes;
 }
 } // namespace
 
-ExactTextEdit::ExactTextEdit(QWidget *parent) : QPlainTextEdit(parent) {
+ExactTextEdit::ExactTextEdit(QWidget *parent, qsizetype maximumUtf8Bytes)
+    : QPlainTextEdit(parent), maximumUtf8Bytes_(maximumUtf8Bytes) {
+    Q_ASSERT(maximumUtf8Bytes_ > 0);
     setUndoRedoEnabled(false);
     setAcceptDrops(false);
     setTabChangesFocus(true);
@@ -60,6 +61,10 @@ ExactTextEdit::ExactTextEdit(QWidget *parent) : QPlainTextEdit(parent) {
 
 QByteArray ExactTextEdit::exactUtf8() const {
     return exact_.toUtf8();
+}
+
+qsizetype ExactTextEdit::exactUtf8Size() const {
+    return exactUtf8Size_;
 }
 
 void ExactTextEdit::clearExact() {
@@ -196,8 +201,8 @@ bool ExactTextEdit::insertExact(const QString &text) {
     const QTextCursor cursor = textCursor();
     const int start = cursor.selectionStart();
     const int end = cursor.selectionEnd();
-    const auto insertedBytes = utf8Length(QStringView(admitted));
-    const auto removedBytes = utf8Length(QStringView(exact_).mid(start, end - start));
+    const auto insertedBytes = utf8Length(QStringView(admitted), maximumUtf8Bytes_);
+    const auto removedBytes = utf8Length(QStringView(exact_).mid(start, end - start), maximumUtf8Bytes_);
     if (!insertedBytes || !removedBytes) {
         emit inputRejected(static_cast<int>(ClipboardRead::Status::InvalidUtf8));
         return false;
@@ -207,8 +212,8 @@ bool ExactTextEdit::insertExact(const QString &text) {
         return false;
     }
     const qsizetype retainedBytes = exactUtf8Size_ - *removedBytes;
-    if (*insertedBytes > kMaximumSecretBytes
-        || retainedBytes > kMaximumSecretBytes - *insertedBytes) {
+    if (*insertedBytes > maximumUtf8Bytes_
+        || retainedBytes > maximumUtf8Bytes_ - *insertedBytes) {
         emit inputRejected(static_cast<int>(ClipboardRead::Status::TooLarge));
         return false;
     }
@@ -235,7 +240,7 @@ void ExactTextEdit::removeSelectionOrCharacter(bool backwards) {
     }
     if (length == 0)
         return;
-    const auto removedBytes = utf8Length(QStringView(exact_).mid(start, length));
+    const auto removedBytes = utf8Length(QStringView(exact_).mid(start, length), maximumUtf8Bytes_);
     if (!removedBytes)
         return;
     exact_.remove(start, length);

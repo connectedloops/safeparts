@@ -15,15 +15,15 @@ Owns the real Qt Widgets text round-trip slice for issue 140. This is developmen
 
 - Use Qt Widgets and `crates/safeparts_desktop_bridge`; never copy core algorithms or use retired application sources.
 - Keep one worker. Parsing, encoding, splitting, and recovery never run on Qt's event thread.
-- Reject stale worker results by generation. Keep admitted source text visible after creation; a later create-field edit hides the generated-share controls, resets Rust state, and invalidates pending work. Mode changes, Start over, and close clear the source and generated state and always resolve the busy state.
-- Keep authoritative packets, recovery input, and recovered bytes in Rust. Qt owns bounded presentation and intentional clipboard handoffs. Carry sensitive cross-thread bytes in `SecureByteBuffer`; its final shared owner wipes the sole `QByteArray` allocation.
+- Reject stale worker results by generation. Keep the admitted Secret visible after Split; a later Secret or split-setting edit hides the generated-share controls, resets Rust state, and invalidates pending work. Recovery share edits replace the complete nonempty visible set on the worker. Mode changes, Start over, and close clear the visible and generated state and always resolve the busy state.
+- Rust owns authoritative validation, packets, recovery state, and recovered bytes. Qt may retain only the bounded text shown in the Secret and Recovery share editors plus intentional clipboard handoffs. Replace the complete visible recovery set on the worker after edits; never parse it on the UI thread. Carry sensitive cross-thread bytes in `SecureByteBuffer`; its final shared owner wipes the sole `QByteArray` allocation.
 - Support only V2 unprotected Words text in this slice. Do not misrepresent later encodings, passphrases, files, saving, or printing as implemented.
 - Do not add autonomous networking, persistence, content logs, session restoration, or undo history.
 
 ## Work Guidance
 
-- Follow the accepted visual direction at issue 140 comment `5747267572`: compact joined mode selector, system typography, rounded groups, restrained colors, clear status, and balanced spacing.
-- Preserve valid UTF-8 input in the editor-owned model without trimming or Unicode normalization. Convert CRLF and lone CR to LF on text admission, then admit keyboard, IME, and paste replacements against the 1 MiB resulting UTF-8 size before changing the model. Render data as plain text and copy authoritative worker output rather than reading a widget back.
+- Follow the accepted visual direction at issue 140 comment `5747267572`: compact joined Split/Combine selector without a focus border, system typography, rounded groups, restrained colors, clear status, and balanced spacing. Use the active web UI terminology and its overlapping-documents copy glyph.
+- Preserve valid UTF-8 input in each editor-owned model without trimming or Unicode normalization. Convert CRLF and lone CR to LF on text admission, then admit keyboard, IME, and paste replacements against the configured resulting UTF-8 limit before changing the model: 1 MiB for the Secret and 8 MiB for one visible Recovery share. Render data as plain text and copy authoritative worker output rather than reading a widget back.
 - The macOS clipboard adapter avoids Qt string materialization until after its byte check, but AppKit has already returned a complete `NSData`. Treat pre-materialization clipboard admission as blocked until a supported range/stream API exists. Other platform adapters remain unqualified.
 
 ## Verification

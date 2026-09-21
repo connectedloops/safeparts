@@ -97,11 +97,38 @@ void chooseRecover(DesktopWindow &window) {
     QTRY_COMPARE(tabs->currentIndex(), 1);
 }
 
-void pasteRecovery(DesktopWindow &window, const QString &share) {
-    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
+QList<ExactTextEdit *> recoveryEditors(DesktopWindow &window) {
+    QList<ExactTextEdit *> editors = required<QWidget>(&window, "recoveryFields")->findChildren<ExactTextEdit *>();
+    std::sort(editors.begin(), editors.end(), [](const ExactTextEdit *left, const ExactTextEdit *right) {
+        return left->objectName() < right->objectName();
+    });
+    return editors;
+}
+
+void setRecoveryField(DesktopWindow &window, int fieldNumber, const QString &share) {
+    auto *editor = required<ExactTextEdit>(&window,
+                                           qPrintable(QStringLiteral("recoveryShare%1").arg(fieldNumber)));
+    editor->clearExact();
     QApplication::clipboard()->setText(share);
-    QTest::mouseClick(required<QPushButton>(&window, "pasteRecoveryButton"), Qt::LeftButton);
-    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
+    editor->setFocus();
+    QTest::keySequence(editor, QKeySequence::Paste);
+    QTRY_VERIFY_WITH_TIMEOUT(!required<QLabel>(&window, "recoveryStatus")
+                                  ->text()
+                                  .contains(QStringLiteral("Checking")),
+                              10'000);
+}
+
+void pasteRecovery(DesktopWindow &window, const QString &share) {
+    QList<ExactTextEdit *> editors = recoveryEditors(window);
+    auto found = std::find_if(editors.begin(), editors.end(), [](const ExactTextEdit *editor) {
+        return editor->exactUtf8Size() == 0;
+    });
+    if (found == editors.end()) {
+        QTest::mouseClick(required<QPushButton>(&window, "addRecoveryShareButton"), Qt::LeftButton);
+        editors = recoveryEditors(window);
+        found = std::prev(editors.end());
+    }
+    setRecoveryField(window, editors.indexOf(*found) + 1, share);
 }
 
 struct WipeObservation final {
@@ -124,6 +151,8 @@ private slots:
     void duplicate_blocks_and_correctable_input_is_preserved();
     void malformed_and_mixed_inputs_block_without_filtering();
     void maximum_valid_workload_remains_bounded_and_resettable();
+    void web_terms_icons_and_selector_keyboard_match();
+    void recovery_fields_add_remove_renumber_and_invalidate();
     void created_shares_keep_source_and_use_compact_native_layout();
     void secure_queued_buffers_wipe_on_final_release();
     void ordinary_create_edits_reject_stale_success_and_error_results();
@@ -144,6 +173,8 @@ void DesktopActions::create_copy_recover_preserves_exact_utf8_through_user_actio
     chooseRecover(window);
     pasteRecovery(window, first);
     QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
+    QCOMPARE(required<QLabel>(&window, "recoveryStatus")->text(),
+             QStringLiteral("Share content is required."));
     pasteRecovery(window, second);
     QVERIFY2(required<QPushButton>(&window, "recoverButton")->isEnabled(),
              qPrintable(required<QLabel>(&window, "recoveryStatus")->text()));
@@ -228,17 +259,18 @@ void DesktopActions::duplicate_blocks_and_correctable_input_is_preserved() {
     window.show();
     pasteIntoCreate(window, QStringLiteral("synthetic duplicate action"));
     const QString first = createAndCopy(window, 1);
+    const QString second = createAndCopy(window, 2);
     chooseRecover(window);
 
     pasteRecovery(window, first);
     pasteRecovery(window, first);
     QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
     QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("duplicate")));
-    QCOMPARE(required<QLabel>(&window, "recoveryCount")->text().left(10), QStringLiteral("2 paste(s)"));
+    QCOMPARE(required<QLabel>(&window, "recoveryCount")->text(),
+             QStringLiteral("2 of 2 Recovery shares entered"));
 
-    QTest::mouseClick(required<QPushButton>(&window, "removeRecoveryButton"), Qt::LeftButton);
-    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
-    QCOMPARE(required<QLabel>(&window, "recoveryCount")->text().left(10), QStringLiteral("1 paste(s)"));
+    setRecoveryField(window, 2, second);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
 }
 
 void DesktopActions::malformed_and_mixed_inputs_block_without_filtering() {
@@ -253,13 +285,11 @@ void DesktopActions::malformed_and_mixed_inputs_block_without_filtering() {
     QVERIFY(first != second);
 
     chooseRecover(window);
-    pasteRecovery(window, first + QStringLiteral(" abandon"));
+    setRecoveryField(window, 1, first + QStringLiteral(" abandon"));
     QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("could not be decoded")));
-    QTest::mouseClick(required<QPushButton>(&window, "removeRecoveryButton"), Qt::LeftButton);
-    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
 
-    pasteRecovery(window, first);
-    pasteRecovery(window, second);
+    setRecoveryField(window, 1, first);
+    setRecoveryField(window, 2, second);
     QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("compatible set")));
     QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
 }
@@ -273,20 +303,127 @@ void DesktopActions::maximum_valid_workload_remains_bounded_and_resettable() {
     QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 30'000);
 
     chooseRecover(window);
-    const QString maximumBatch(16 * 1'048'576, QLatin1Char('x'));
-    for (int batch = 1; batch <= 10; ++batch) {
-        pasteRecovery(window, maximumBatch);
-        QVERIFY(required<QLabel>(&window, "recoveryCount")
-                    ->text()
-                    .startsWith(QStringLiteral("%1 paste(s)").arg(batch)));
-    }
-    pasteRecovery(window, maximumBatch);
-    QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("Retained recovery input")));
-    QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
+    auto *editor = required<ExactTextEdit>(&window, "recoveryShare1");
+    const QString largeVisibleShare(1'048'576, QLatin1Char('x'));
+    QApplication::clipboard()->setText(largeVisibleShare);
+    editor->setFocus();
+    QTest::keySequence(editor, QKeySequence::Paste);
+    QCOMPARE(editor->exactUtf8Size(), 1'048'576);
+
+    ExactTextEdit boundedEditor(nullptr, 4);
+    boundedEditor.show();
+    QApplication::clipboard()->setText(QStringLiteral("four"));
+    boundedEditor.setFocus();
+    QTest::keySequence(&boundedEditor, QKeySequence::Paste);
+    QCOMPARE(boundedEditor.exactUtf8(), QByteArray("four"));
+    QTest::keyClicks(&boundedEditor, QStringLiteral("x"));
+    QCOMPARE(boundedEditor.exactUtf8(), QByteArray("four"));
 
     QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
-    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "pasteRecoveryButton")->isEnabled(), 10'000);
-    QCOMPARE(required<QLabel>(&window, "recoveryCount")->text(), QStringLiteral("No recovery shares pasted"));
+    QTRY_COMPARE_WITH_TIMEOUT(recoveryEditors(window).size(), 2, 10'000);
+    QCOMPARE(required<QLabel>(&window, "recoveryCount")->text(),
+             QStringLiteral("0 of 2 Recovery shares entered"));
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), QByteArray());
+}
+
+void DesktopActions::web_terms_icons_and_selector_keyboard_match() {
+    DesktopWindow window;
+    window.show();
+    auto *selector = required<QTabBar>(&window, "modeSelector");
+    QCOMPARE(selector->tabText(0), QStringLiteral("Split"));
+    QCOMPARE(selector->tabText(1), QStringLiteral("Combine"));
+    QCOMPARE(selector->accessibleName(), QStringLiteral("Choose Split or Combine"));
+    selector->setFocus();
+    QTest::keyClick(selector, Qt::Key_Right);
+    QTRY_COMPARE(selector->currentIndex(), 1);
+    QTest::keyClick(selector, Qt::Key_Left);
+    QTRY_COMPARE(selector->currentIndex(), 0);
+
+    QCOMPARE(required<QLabel>(&window, "createPageTitle")->text(), QStringLiteral("Split"));
+    QCOMPARE(required<QPushButton>(&window, "createButton")->text(), QStringLiteral("Split"));
+    QCOMPARE(required<ExactTextEdit>(&window, "secretInput")->accessibleName(), QStringLiteral("Secret"));
+    QCOMPARE(required<QSpinBox>(&window, "thresholdInput")->accessibleName(),
+             QStringLiteral("Minimum shares to recover (k)"));
+    QCOMPARE(required<QSpinBox>(&window, "shareCountInput")->accessibleName(),
+             QStringLiteral("Total shares to create (n)"));
+
+    const auto labels = window.findChildren<QLabel *>();
+    const auto hasLabel = [&labels](const QString &text) {
+        return std::any_of(labels.begin(), labels.end(), [&text](const QLabel *item) {
+            return item->text() == text;
+        });
+    };
+    QVERIFY(hasLabel(QStringLiteral("Secret")));
+    QVERIFY(hasLabel(QStringLiteral("Share format")));
+    QVERIFY(!hasLabel(QStringLiteral("Enter text exactly as you want to recover it.")));
+    QVERIFY(!hasLabel(QStringLiteral("Copy each complete share and store them separately.")));
+    QVERIFY(!hasLabel(QStringLiteral("Paste complete, distinct Words shares. Recovery starts only when you choose Recover.")));
+
+    pasteIntoCreate(window, QStringLiteral("icon test"));
+    const QString copied = createAndCopy(window, 1);
+    QVERIFY(!copied.isEmpty());
+    auto *copyShare = required<QPushButton>(&window, "copyShare1");
+    QVERIFY(copyShare->text().isEmpty());
+    QVERIFY(!copyShare->icon().isNull());
+    QCOMPARE(copyShare->accessibleName(), QStringLiteral("Copy Recovery share 1"));
+
+    chooseRecover(window);
+    QCOMPARE(required<QLabel>(&window, "recoverPageTitle")->text(), QStringLiteral("Combine"));
+    QCOMPARE(required<QPushButton>(&window, "recoverButton")->text(), QStringLiteral("Combine"));
+    auto *copyRecovered = required<QPushButton>(&window, "copyRecoveredButton");
+    QVERIFY(copyRecovered->text().isEmpty());
+    QVERIFY(!copyRecovered->icon().isNull());
+    QCOMPARE(copyRecovered->accessibleName(), QStringLiteral("Copy recovered Secret"));
+}
+
+void DesktopActions::recovery_fields_add_remove_renumber_and_invalidate() {
+    DesktopWindow window;
+    window.show();
+    pasteIntoCreate(window, QStringLiteral("editable recovery fields"));
+    const QString first = createAndCopy(window, 1);
+    const QString second = createAndCopy(window, 2);
+    chooseRecover(window);
+
+    QCOMPARE(recoveryEditors(window).size(), 2);
+    QVERIFY(!required<QPushButton>(&window, "removeRecoveryShare1")->isEnabled());
+    QVERIFY(!required<QPushButton>(&window, "removeRecoveryShare2")->isEnabled());
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "addRecoveryShareButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "addRecoveryShareButton"), Qt::LeftButton);
+    QCOMPARE(recoveryEditors(window).size(), 3);
+    QVERIFY(required<QPushButton>(&window, "removeRecoveryShare1")->isEnabled());
+    QCOMPARE(required<QLabel>(&window, "recoveryShareLabel3")->text(),
+             QStringLiteral("Recovery share 3"));
+
+    setRecoveryField(window, 3, QStringLiteral("third field marker\r\nline"));
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare3")->exactUtf8(),
+             QStringLiteral("third field marker\nline").toUtf8());
+    QTest::mouseClick(required<QPushButton>(&window, "removeRecoveryShare2"), Qt::LeftButton);
+    QCOMPARE(recoveryEditors(window).size(), 2);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare2")->exactUtf8(),
+             QStringLiteral("third field marker\nline").toUtf8());
+    QVERIFY(!required<QPushButton>(&window, "removeRecoveryShare1")->isEnabled());
+
+    setRecoveryField(window, 1, first);
+    setRecoveryField(window, 2, second);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
+
+    auto *firstEditor = required<ExactTextEdit>(&window, "recoveryShare1");
+    firstEditor->moveCursor(QTextCursor::End);
+    firstEditor->setFocus();
+    QTest::keyClicks(firstEditor, QStringLiteral(" abandon"));
+    QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
+    QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
+    QTRY_VERIFY_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")
+                                 ->text()
+                                 .contains(QStringLiteral("could not be decoded")),
+                             10'000);
+
+    QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+    QTRY_COMPARE_WITH_TIMEOUT(recoveryEditors(window).size(), 2, 10'000);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), QByteArray());
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare2")->exactUtf8(), QByteArray());
 }
 
 void DesktopActions::created_shares_keep_source_and_use_compact_native_layout() {
@@ -425,12 +562,15 @@ void DesktopActions::start_over_rejects_stale_success_and_error_results() {
     QVERIFY(!required<QWidget>(&window, "createdShares")->isVisible());
 
     chooseRecover(window);
+    auto *recoveryEditor = required<ExactTextEdit>(&window, "recoveryShare1");
     QApplication::clipboard()->setText(QString(300'000, QLatin1Char('z')));
-    QTest::mouseClick(required<QPushButton>(&window, "pasteRecoveryButton"), Qt::LeftButton);
+    recoveryEditor->setFocus();
+    QTest::keySequence(recoveryEditor, QKeySequence::Paste);
     QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
-    QCOMPARE(required<QLabel>(&window, "recoveryStatus")->text(), QStringLiteral("Add enough shares to recover."));
+    QCOMPARE(required<QLabel>(&window, "recoveryStatus")->text(), QStringLiteral("Share content is required."));
     QTest::qWait(1'000);
-    QCOMPARE(required<QLabel>(&window, "recoveryStatus")->text(), QStringLiteral("Add enough shares to recover."));
+    QCOMPARE(required<QLabel>(&window, "recoveryStatus")->text(), QStringLiteral("Share content is required."));
+    QCOMPARE(recoveryEditor->exactUtf8(), QByteArray());
     QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
 }
 
