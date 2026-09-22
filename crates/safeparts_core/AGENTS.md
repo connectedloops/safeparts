@@ -13,7 +13,8 @@ Owns the core library for secret splitting, combining, packets, encodings, integ
 - `src/error.rs`: typed core errors.
 - `src/lib.rs`: public API.
 - `tests/fixtures/share_compatibility/`: immutable released-version compatibility evidence.
-- `tests/fixtures/surface_interoperability/`: immutable synthetic output captured from active and experimental boundaries for cross-surface checks.
+- `tests/fixtures/surface_interoperability/`: immutable synthetic UTF-8 output captured from active and experimental boundaries for cross-surface checks.
+- `tests/fixtures/binary_surface_interoperability/`: immutable synthetic arbitrary-byte output captured from CLI, TUI, WASM, and desktop boundaries.
 
 ## Local Contracts
 
@@ -24,7 +25,7 @@ Owns the core library for secret splitting, combining, packets, encodings, integ
 - `parse_share_packets_wrapped_mnemonics` accepts complete mnemonic packets per line only when every nonempty line strictly decodes; otherwise it decodes blank-line-separated wrapped packets. Consume all input in either framing.
 - Retain decoding for every released Share packet version unless an explicit migration decision changes the policy.
 - Treat `tests/fixtures/share_compatibility/` as immutable released evidence: add new versioned fixtures without regenerating expected data.
-- Treat `tests/fixtures/surface_interoperability/` as captured boundary evidence. Verify its hashes and provenance; add a new fixture set instead of regenerating files in place.
+- Treat `tests/fixtures/surface_interoperability/` and `tests/fixtures/binary_surface_interoperability/` as captured boundary evidence. Verify their hashes and provenance; add a new fixture set instead of regenerating files in place.
 - Workspace lint policy forbids `unsafe`; do not weaken it.
 
 ## Work Guidance

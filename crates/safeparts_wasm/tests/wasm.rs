@@ -55,6 +55,87 @@ fn web_recovers_every_desktop_encoding() {
 }
 
 #[wasm_bindgen_test]
+fn wasm_recovers_binary_desktop_fixtures_in_auto_and_manual_modes() {
+    const SECRET: &[u8] = include_bytes!(
+        "../../safeparts_core/tests/fixtures/binary_surface_interoperability/secret.bin"
+    );
+    const PASS: &str = "issue-143 synthetic binary interoperability passphrase";
+    const FIXTURES: &[(&str, &str, Option<&str>)] = &[
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/base64url.txt"
+            ),
+            "base64url",
+            None,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/base58check.txt"
+            ),
+            "base58check",
+            None,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/mnemo-words.txt"
+            ),
+            "mnemo-words",
+            None,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/mnemo-bip39.txt"
+            ),
+            "mnemo-bip39",
+            None,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/base64url.txt"
+            ),
+            "base64url",
+            Some(PASS),
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/base58check.txt"
+            ),
+            "base58check",
+            Some(PASS),
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/mnemo-words.txt"
+            ),
+            "mnemo-words",
+            Some(PASS),
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/mnemo-bip39.txt"
+            ),
+            "mnemo-bip39",
+            Some(PASS),
+        ),
+    ];
+    for &(fixture, encoding, passphrase) in FIXTURES {
+        let passphrase = passphrase.map(str::to_owned);
+        assert_eq!(
+            combine_share_input(fixture, "auto", passphrase.clone())
+                .unwrap()
+                .to_vec(),
+            SECRET
+        );
+        assert_eq!(
+            combine_share_input(fixture, encoding, passphrase)
+                .unwrap()
+                .to_vec(),
+            SECRET
+        );
+    }
+}
+
+#[wasm_bindgen_test]
 fn passphrase_failures_and_success_are_reported() {
     let shares = split_secret(
         b"synthetic protected wasm secret",

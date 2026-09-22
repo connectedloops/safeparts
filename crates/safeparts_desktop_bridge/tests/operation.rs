@@ -934,6 +934,144 @@ fn valid_empty_legacy_recovery_is_present_and_failed_retry_clears_it() {
 }
 
 #[test]
+fn desktop_recovers_foreign_binary_fixtures_in_auto_and_manual_modes() {
+    const SECRET: &[u8] = include_bytes!(
+        "../../safeparts_core/tests/fixtures/binary_surface_interoperability/secret.bin"
+    );
+    const FIXTURES: &[(&str, ShareEncoding)] = &[
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/cli/base64url.txt"
+            ),
+            ShareEncoding::Base64url,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/cli/base58check.txt"
+            ),
+            ShareEncoding::Base58check,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/cli/mnemo-words.txt"
+            ),
+            ShareEncoding::MnemoWords,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/cli/mnemo-bip39.txt"
+            ),
+            ShareEncoding::MnemoBip39,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/tui/base64url.txt"
+            ),
+            ShareEncoding::Base64url,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/tui/base58check.txt"
+            ),
+            ShareEncoding::Base58check,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/tui/mnemo-words.txt"
+            ),
+            ShareEncoding::MnemoWords,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/tui/mnemo-bip39.txt"
+            ),
+            ShareEncoding::MnemoBip39,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/wasm/base64url.txt"
+            ),
+            ShareEncoding::Base64url,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/wasm/base58check.txt"
+            ),
+            ShareEncoding::Base58check,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/wasm/mnemo-words.txt"
+            ),
+            ShareEncoding::MnemoWords,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/wasm/mnemo-bip39.txt"
+            ),
+            ShareEncoding::MnemoBip39,
+        ),
+    ];
+    for &(fixture, encoding) in FIXTURES {
+        for requested in [ShareEncoding::Auto, encoding] {
+            let mut operation = new_operation();
+            let inspected = operation.add_recovery(1, fixture.as_bytes(), requested);
+            assert!(inspected.status == Status::Ok);
+            assert!(inspected.encoding == encoding);
+            assert!(inspected.supplied_count == 3);
+            let recovered = operation.recover_bytes_with_passphrase(1, b"");
+            assert!(recovered.status == Status::Ok);
+            assert_eq!(recovered.bytes, SECRET);
+        }
+    }
+}
+
+#[test]
+fn desktop_recovers_immutable_protected_binary_fixtures() {
+    const SECRET: &[u8] = include_bytes!(
+        "../../safeparts_core/tests/fixtures/binary_surface_interoperability/secret.bin"
+    );
+    const PASS: &[u8] = b"issue-143 synthetic binary interoperability passphrase";
+    const FIXTURES: &[(&str, ShareEncoding)] = &[
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/base64url.txt"
+            ),
+            ShareEncoding::Base64url,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/base58check.txt"
+            ),
+            ShareEncoding::Base58check,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/mnemo-words.txt"
+            ),
+            ShareEncoding::MnemoWords,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/mnemo-bip39.txt"
+            ),
+            ShareEncoding::MnemoBip39,
+        ),
+    ];
+    for &(fixture, encoding) in FIXTURES {
+        for requested in [ShareEncoding::Auto, encoding] {
+            let mut operation = new_operation();
+            let inspected = operation.add_recovery(1, fixture.as_bytes(), requested);
+            assert!(inspected.status == Status::PassphraseRequired);
+            assert!(inspected.encoding == encoding);
+            let recovered = operation.recover_bytes_with_passphrase(1, PASS);
+            assert!(recovered.status == Status::Ok);
+            assert_eq!(recovered.bytes, SECRET);
+        }
+    }
+}
+
+#[test]
 fn byte_recovery_preserves_utf8_byte_forms_exactly() {
     for secret in [
         &b"\xef\xbb\xbfBOM\r\nNUL\0tail\n"[..],

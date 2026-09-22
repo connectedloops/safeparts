@@ -169,6 +169,46 @@ mod tests {
     }
 
     #[test]
+    fn tui_recovers_binary_desktop_fixtures_in_auto_and_manual_modes() {
+        const SECRET: &[u8] = include_bytes!(
+            "../../safeparts_core/tests/fixtures/binary_surface_interoperability/secret.bin"
+        );
+        const FIXTURES: &[(&str, Encoding)] = &[
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/base64url.txt"
+                ),
+                Encoding::Base64url,
+            ),
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/base58check.txt"
+                ),
+                Encoding::Base58check,
+            ),
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/mnemo-words.txt"
+                ),
+                Encoding::MnemoWords,
+            ),
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/mnemo-bip39.txt"
+                ),
+                Encoding::MnemoBip39,
+            ),
+        ];
+        for &(fixture, expected) in FIXTURES {
+            for requested in [Encoding::Auto, expected] {
+                let (_, recovered, detected) = combine_shares(fixture, requested, None).unwrap();
+                assert_eq!(detected, expected);
+                assert_eq!(recovered, SECRET);
+            }
+        }
+    }
+
+    #[test]
     fn malformed_share_errors_do_not_echo_input() {
         let sensitive = "SECRET-SHARE-TEXT";
         let error = combine_shares(sensitive, Encoding::MnemoWords, None)
@@ -207,6 +247,48 @@ mod protected_desktop_interoperability {
             )
             .unwrap();
             assert_eq!(secret, b"synthetic protected desktop interoperability");
+        }
+    }
+
+    #[test]
+    fn tui_recovers_every_protected_binary_desktop_encoding() {
+        const SECRET: &[u8] = include_bytes!(
+            "../../safeparts_core/tests/fixtures/binary_surface_interoperability/secret.bin"
+        );
+        const PASS: &[u8] = b"issue-143 synthetic binary interoperability passphrase";
+        const FIXTURES: &[(&str, Encoding)] = &[
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/base64url.txt"
+                ),
+                Encoding::Base64url,
+            ),
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/base58check.txt"
+                ),
+                Encoding::Base58check,
+            ),
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/mnemo-words.txt"
+                ),
+                Encoding::MnemoWords,
+            ),
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/mnemo-bip39.txt"
+                ),
+                Encoding::MnemoBip39,
+            ),
+        ];
+        for &(fixture, expected) in FIXTURES {
+            for requested in [Encoding::Auto, expected] {
+                let (_, recovered, detected) =
+                    combine_shares(fixture, requested, Some(PASS)).unwrap();
+                assert_eq!(detected, expected);
+                assert_eq!(recovered, SECRET);
+            }
         }
     }
 }

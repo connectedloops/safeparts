@@ -83,6 +83,77 @@ fn cli_recovers_every_desktop_encoding() {
 }
 
 #[test]
+fn cli_recovers_binary_desktop_fixtures_in_auto_and_manual_modes() {
+    const SECRET: &[u8] = include_bytes!(
+        "../../safeparts_core/tests/fixtures/binary_surface_interoperability/secret.bin"
+    );
+    const PASS: &str = "issue-143 synthetic binary interoperability passphrase";
+    const FIXTURES: &[(&str, &str, Option<&str>)] = &[
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/base64url.txt"
+            ),
+            "base64url",
+            None,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/base58check.txt"
+            ),
+            "base58check",
+            None,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/mnemo-words.txt"
+            ),
+            "mnemo-words",
+            None,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop/mnemo-bip39.txt"
+            ),
+            "mnemo-bip39",
+            None,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/base64url.txt"
+            ),
+            "base64url",
+            Some(PASS),
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/base58check.txt"
+            ),
+            "base58check",
+            Some(PASS),
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/mnemo-words.txt"
+            ),
+            "mnemo-words",
+            Some(PASS),
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/binary_surface_interoperability/desktop-protected/mnemo-bip39.txt"
+            ),
+            "mnemo-bip39",
+            Some(PASS),
+        ),
+    ];
+    for &(fixture, encoding, passphrase) in FIXTURES {
+        let shares = fixture.lines().map(str::to_owned).collect::<Vec<_>>();
+        assert_eq!(run_combine(None, &shares, passphrase), SECRET);
+        assert_eq!(run_combine(Some(encoding), &shares, passphrase), SECRET);
+    }
+}
+
+#[test]
 fn explicit_dash_paths_use_stdin_and_stdout() {
     let input = b"explicit stdio paths";
     let mut split = Command::new(assert_cmd::cargo::cargo_bin!("safeparts"));
