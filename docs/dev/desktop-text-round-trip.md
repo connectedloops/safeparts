@@ -4,7 +4,7 @@ Issue 140 adds a reviewable native slice, not a desktop release. The accepted vi
 
 ## Run and test
 
-Use synthetic text only.
+Use synthetic text and binary files only.
 
 ```bash
 mise run desktop:test
@@ -17,6 +17,9 @@ Rust owns generated packets, recovery validation and state, authoritative recove
 
 ## Implemented slice
 
+- Choose either UTF-8 text or one file for Split. File reads are bounded by actual streamed bytes, preserve binary content exactly, and add no filename or filesystem metadata. Loaded Recovery share files remain complete batches and use the same Rust parser as pasted input.
+- Save one complete authoritative encoded Recovery share at a time. Every successful Combine offers direct exact-byte Save; valid UTF-8 additionally has inert display and authoritative Copy, while binary output is Save-only. Empty legacy output remains a successful saveable result.
+- File writes target only the selected destination with truncate semantics and no temporary staging or rename. Cancellation changes no operation state. Open, short/zero, write, flush, and close failures do not clear the retained operation; because staging is forbidden, a partial destination can remain.
 - Split UTF-8 text into V2 Base64url, Base58check, Words, or BIP-39 shares. Optional passphrase protection is off by default. When enabled, Split requires an exact, nonempty confirmation and delegates encryption and KDF parameters to the core. Words remains the default under Additional options. The 2-of-3 defaults and minimum/total-share controls apply to every encoding. Secret admission converts CRLF and lone CR to LF without trimming or Unicode normalization; passphrase bytes, including line endings, remain exact.
 - Keep the admitted Secret visible above read-only, selectable generated Recovery share text. Encode the full set sequentially on the worker when it fits the presentation budget. For a larger valid set, show Copy controls for every share and reveal only the last copied share. Editing the Secret or split settings clears and hides generated text immediately, rejects stale preview results, and resets the Rust operation before another Split.
 - Copy any displayed Recovery share with its icon-only control; Copy requests a fresh authoritative encoding from Rust.
@@ -26,13 +29,15 @@ Rust owns generated packets, recovery validation and state, authoritative recove
 - Preserve NUL, NBSP, U+2028, U+2029, supplementary-plane and composed/decomposed Unicode, whitespace, and leading/trailing newlines in the editor-owned model. Passphrase editors are exact, masked, limited to 1 MiB of valid UTF-8, and have no copy action or undo history. The recovered widget is presentation only; Copy reads the authoritative Rust result.
 - Released protected V2 fixtures recover through Auto and every explicit encoding. Pinned synthetic interoperability fixtures cover protected traffic in both directions between desktop and the core library, CLI, TUI, and the generated real browser-WASM boundary for all four encodings; they do not claim protected web UI behavior.
 
-Files, save, print, packaging, and release-platform qualification remain outside this slice.
+Printing, packaging, issue 147 capacity certification, and issues 148–151 platform qualification remain outside this slice.
 
 ## Clipboard acquisition blocker
 
 The development-host adapter calls `-[NSPasteboard dataForType:]`, which returns a complete `NSData`. `NSPasteboardItem` type discovery reports available types but exposes payload bytes through the same complete-data call; AppKit has no supported byte-length query, ranged read, or stream for a string pasteboard item. The fallback Qt interface, `QMimeData::data()`, likewise returns a complete `QByteArray`. The adapter can avoid creating a Qt `QString` until after checking `NSData.length`, but it cannot enforce the 16 MiB limit before AppKit materializes the payload. That check is intentionally documented as post-acquisition and does not satisfy the required pre-materialization clipboard gate.
 
 ## Development-host evidence
+
+The executable evidence below predates issue 143 production changes and is stale for file workflows. Repeat the named Qt storage actions and owner-approved process-attributed trace for successful, cancelled, and failed share/recovered writes before accepting issue 143; no final host trace is claimed here.
 
 Evidence was collected on Apple-silicon macOS 15.5 (24F74), Qt 6.9.1 from `/opt/homebrew`, CMake 4.0.1, Apple Clang 17, Rust/Cargo 1.93.0 through `mise exec --`, and the owner-approved CXX 1.0.195 security update. RustSec reports no findings for the locked Cargo graph; no advisory exception was added. Qt 6.9.1 is only the installed development runtime; it does not replace the approved Qt 6.11 evaluation and packaging target.
 

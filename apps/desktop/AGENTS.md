@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Owns the experimental Qt Widgets text workflow through optional passphrase-protection issue 142. This is development-host evidence, not a packaged or platform-qualified release.
+Owns the experimental Qt Widgets text and exact-byte file workflow through issue 143. This is development-host evidence, not a packaged or platform-qualified release.
 
 ## Ownership
 
-- `src/`: single-window Qt UI, one serialized Rust worker, exact text editor, and bounded clipboard adapters.
+- `src/`: single-window Qt UI, one serialized Rust worker, exact text editor, bounded clipboard adapters, and direct file I/O.
 - `tests/`: generated-CXX contract and Qt user-action/lifecycle checks.
 - `scripts/`: deterministic generated-bridge command.
 - `CMakeLists.txt`, `run.sh`: local build, test, and launch entry points.
@@ -17,7 +17,8 @@ Owns the experimental Qt Widgets text workflow through optional passphrase-prote
 - Keep one worker. Parsing, encoding, splitting, and recovery never run on Qt's event thread.
 - Reject stale worker results by generation. Keep the admitted Secret visible after Split; a later Secret or split-setting edit hides the generated-share controls, resets Rust state, and invalidates pending work. Recovery share edits replace the complete nonempty visible set on the worker. Mode changes, Start over, and close clear the visible and generated state and always resolve the busy state.
 - Rust owns authoritative validation, packets, recovery state, and recovered bytes. Qt may retain only bounded editor-owned Secret, passphrase, generated Recovery share, and Combine presentation state, plus intentional clipboard handoffs. Passphrase controls admit at most 1 MiB of valid UTF-8, render only masking glyphs, expose no copy action or undo history, and clear their owned state on mode change, Start over, and close; Qt and OS copies remain subject to the documented forensic-erasure limitation. Encode generated shares sequentially on the worker when the complete set fits the checked presentation budget. For larger valid sets, keep every share exportable through authoritative Copy requests and retain at most one revealed share. Replace the complete visible recovery set on the worker after edits; never parse it on the UI thread. Carry sensitive cross-thread bytes in `SecureByteBuffer`; its final shared owner wipes the sole `QByteArray` allocation.
-- Split V2 unprotected or passphrase-protected text into all four core Share formats. Protection is off by default and requires a byte-exact nonempty confirmation. Combine unprotected V1/V2 and protected V2 shares through core Auto or an explicit format; require a passphrase before protected recovery and keep uncertain decryption failures content-free. The text UI rejects reconstructed non-UTF-8 bytes without displaying or copying them; binary save/export belongs to a later slice. Do not misrepresent files, saving, or printing as implemented.
+- Split V2 unprotected or passphrase-protected text or one exact-byte file into all four core Share formats. Protection is off by default and requires a byte-exact nonempty confirmation. Combine unprotected V1/V2 and protected V2 shares loaded from text fields or files through core Auto or an explicit format; require a passphrase before protected recovery and keep uncertain decryption failures content-free. Valid UTF-8 recovery has inert display and authoritative Copy; every successful recovery, including binary and empty output, has authoritative exact-byte Save.
+- File acquisition uses bounded streaming actual reads. Exports write directly to only the selected destination with no staging, rename, auto-open, rollback, or source alteration. Paths never cross CXX. Cancellation is a no-op; write failure preserves the operation and may leave a partial selected destination.
 - Do not add autonomous networking, persistence, content logs, session restoration, or undo history.
 
 ## Work Guidance
