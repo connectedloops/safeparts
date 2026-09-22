@@ -133,6 +133,42 @@ mod tests {
     }
 
     #[test]
+    fn tui_recovers_every_desktop_encoding() {
+        const FIXTURES: &[(&str, Encoding)] = &[
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/base64url.txt"
+                ),
+                Encoding::Base64url,
+            ),
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/base58check.txt"
+                ),
+                Encoding::Base58check,
+            ),
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/mnemo-words.txt"
+                ),
+                Encoding::MnemoWords,
+            ),
+            (
+                include_str!(
+                    "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/mnemo-bip39.txt"
+                ),
+                Encoding::MnemoBip39,
+            ),
+        ];
+
+        for &(fixture, expected_encoding) in FIXTURES {
+            let (_, recovered, detected) = combine_shares(fixture, Encoding::Auto, None).unwrap();
+            assert_eq!(detected, expected_encoding);
+            assert_eq!(recovered, b"synthetic desktop interoperability");
+        }
+    }
+
+    #[test]
     fn malformed_share_errors_do_not_echo_input() {
         let sensitive = "SECRET-SHARE-TEXT";
         let error = combine_shares(sensitive, Encoding::MnemoWords, None)

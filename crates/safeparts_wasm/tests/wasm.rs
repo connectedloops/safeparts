@@ -30,6 +30,31 @@ fn every_encoding_round_trips_binary_secrets() {
 }
 
 #[wasm_bindgen_test]
+fn web_recovers_every_desktop_encoding() {
+    const FIXTURES: &[&str] = &[
+        include_str!(
+            "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/base64url.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/base58check.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/mnemo-words.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/mnemo-bip39.txt"
+        ),
+    ];
+
+    for fixture in FIXTURES {
+        assert_eq!(
+            combine_share_input(fixture, "auto", None).unwrap().to_vec(),
+            b"synthetic desktop interoperability"
+        );
+    }
+}
+
+#[wasm_bindgen_test]
 fn passphrase_failures_and_success_are_reported() {
     let shares = split_secret(
         b"synthetic protected wasm secret",

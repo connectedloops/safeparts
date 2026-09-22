@@ -1,6 +1,5 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
-use safeparts_desktop_bridge::{ShareEncoding, Status, new_operation};
 
 fn run_split(encoding: &str, k: u8, n: u8, input: &[u8], passphrase: Option<&str>) -> Vec<String> {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("safeparts"));
@@ -58,37 +57,29 @@ fn run_combine(encoding: Option<&str>, shares: &[String], passphrase: Option<&st
 }
 
 #[test]
-fn desktop_and_cli_interoperate_in_both_directions() {
-    let desktop_secret = b"desktop output consumed by CLI";
-    let mut desktop = new_operation();
-    assert!(
-        desktop
-            .create(1, desktop_secret, 2, 3, ShareEncoding::Base58check)
-            .status
-            == Status::Ok
-    );
-    let desktop_shares = [0, 2]
-        .into_iter()
-        .map(|index| {
-            String::from_utf8(desktop.encode_share(1, index).bytes)
-                .unwrap_or_else(|error| panic!("desktop share was not UTF-8: {error}"))
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(run_combine(None, &desktop_shares, None), desktop_secret);
+fn cli_recovers_every_desktop_encoding() {
+    const FIXTURES: &[&str] = &[
+        include_str!(
+            "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/base64url.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/base58check.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/mnemo-words.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/surface_interoperability/desktop/mnemo-bip39.txt"
+        ),
+    ];
 
-    let cli_secret = b"CLI output consumed by desktop";
-    let cli_shares = run_split("mnemo-bip39", 2, 3, cli_secret, None);
-    let mut recovery = new_operation();
-    assert!(
-        recovery
-            .add_recovery(2, cli_shares[2].as_bytes(), ShareEncoding::Auto)
-            .status
-            == Status::NotEnoughShares
-    );
-    let ready = recovery.add_recovery(2, cli_shares[0].as_bytes(), ShareEncoding::Auto);
-    assert!(ready.status == Status::Ok);
-    assert!(ready.ready);
-    assert_eq!(recovery.recover(2).bytes, cli_secret);
+    for fixture in FIXTURES {
+        let shares = fixture.lines().map(str::to_owned).collect::<Vec<_>>();
+        assert_eq!(
+            run_combine(None, &shares, None),
+            b"synthetic desktop interoperability"
+        );
+    }
 }
 
 #[test]

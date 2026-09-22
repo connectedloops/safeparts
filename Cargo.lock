@@ -2035,7 +2035,6 @@ dependencies = [
  "clap",
  "predicates",
  "safeparts_core",
- "safeparts_desktop_bridge",
  "tempfile",
  "zeroize",
 ]

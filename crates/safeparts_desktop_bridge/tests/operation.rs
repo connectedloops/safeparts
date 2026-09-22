@@ -108,6 +108,13 @@ fn public_operation_rejects_trailing_mixed_sets_and_encodings() {
             .status
             == Status::MixedEncoding
     );
+
+    let same_batch = format!("{words}\n\n{base64}");
+    let mut mixed_batch = new_operation();
+    let rejected = mixed_batch.add_recovery(6, same_batch.as_bytes(), ShareEncoding::Auto);
+    assert!(rejected.status == Status::MixedEncoding);
+    assert!(!rejected.ready);
+    assert_eq!(rejected.recovery_batch_count, 1);
 }
 
 #[test]
@@ -193,6 +200,92 @@ fn public_operation_creates_and_recovers_every_encoding_and_released_version() {
             assert!(inspected.encoding == manual);
             assert!(recovery.recover(2).status == Status::InvalidUtf8);
         }
+    }
+}
+
+#[test]
+fn desktop_recovers_every_supported_surface_encoding() {
+    const FIXTURES: &[(&str, &[u8])] = &[
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/cli/base64url.txt"
+            ),
+            b"synthetic CLI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/cli/base58check.txt"
+            ),
+            b"synthetic CLI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/cli/mnemo-words.txt"
+            ),
+            b"synthetic CLI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/cli/mnemo-bip39.txt"
+            ),
+            b"synthetic CLI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/tui/base64url.txt"
+            ),
+            b"synthetic TUI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/tui/base58check.txt"
+            ),
+            b"synthetic TUI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/tui/mnemo-words.txt"
+            ),
+            b"synthetic TUI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/tui/mnemo-bip39.txt"
+            ),
+            b"synthetic TUI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/web/base64url.txt"
+            ),
+            b"synthetic web interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/web/base58check.txt"
+            ),
+            b"synthetic web interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/web/mnemo-words.txt"
+            ),
+            b"synthetic web interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/surface_interoperability/web/mnemo-bip39.txt"
+            ),
+            b"synthetic web interoperability",
+        ),
+    ];
+
+    for &(fixture, expected) in FIXTURES {
+        let mut operation = new_operation();
+        let inspected = operation.add_recovery(30, fixture.as_bytes(), ShareEncoding::Auto);
+        assert!(inspected.status == Status::Ok);
+        assert!(inspected.ready);
+        assert_eq!(operation.recover(30).bytes, expected);
     }
 }
 

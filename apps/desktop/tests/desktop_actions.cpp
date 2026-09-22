@@ -337,6 +337,26 @@ void DesktopActions::malformed_and_mixed_inputs_block_without_filtering() {
     setRecoveryField(window, 2, second);
     QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("compatible set")));
     QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
+
+    const QString fixtureRoot = QStringLiteral(
+        "crates/safeparts_core/tests/fixtures/share_compatibility/v2-unprotected/");
+    const QString words = fixtureText(fixtureRoot + QStringLiteral("mnemo-words.txt"))
+                              .split(QRegularExpression(QStringLiteral("[\\r\\n]+")),
+                                     Qt::SkipEmptyParts)
+                              .first();
+    const QString base64 = fixtureText(fixtureRoot + QStringLiteral("base64url.txt"))
+                               .split(QRegularExpression(QStringLiteral("[\\r\\n]+")),
+                                      Qt::SkipEmptyParts)
+                               .first();
+    const QString sameFieldMixed = words + QStringLiteral("\n\n") + base64;
+    setRecoveryField(window, 1, sameFieldMixed);
+    setRecoveryField(window, 2, QString());
+    QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")->text(),
+                              QStringLiteral("Use one Share format for every Recovery share."),
+                              10'000);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(),
+             sameFieldMixed.toUtf8());
+    QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
 }
 
 void DesktopActions::maximum_valid_workload_remains_bounded_and_resettable() {

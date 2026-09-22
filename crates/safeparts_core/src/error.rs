@@ -28,6 +28,9 @@ pub enum CoreError {
     #[error("unsupported packet version {version}")]
     UnsupportedPacketVersion { version: u8 },
 
+    #[error("recovery shares use mixed encodings")]
+    MixedEncoding,
+
     #[error("unsupported packet flags 0x{flags:02x} for version {version}")]
     UnsupportedPacketFlags { version: u8, flags: u8 },
 

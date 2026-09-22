@@ -186,7 +186,8 @@ fn js_recovery_error(error: CoreError) -> JsValue {
         }
         CoreError::InconsistentMetadata
         | CoreError::CryptoParamsMismatch
-        | CoreError::TooManyShares { .. } => "inconsistent_shares",
+        | CoreError::TooManyShares { .. }
+        | CoreError::MixedEncoding => "inconsistent_shares",
         CoreError::PassphraseRequired => "passphrase_required",
         CoreError::DecryptFailed => "decryption_failed",
         CoreError::UnsupportedPacketVersion { .. }

@@ -721,6 +721,7 @@ fn status_from_core(error: &CoreError) -> Status {
         CoreError::IntegrityCheckFailed | CoreError::DecryptFailed => Status::IntegrityFailure,
         CoreError::PassphraseRequired => Status::PassphraseRequired,
         CoreError::UnsupportedPacketVersion { .. } => Status::UnsupportedVersion,
+        CoreError::MixedEncoding => Status::MixedEncoding,
         CoreError::UnsupportedCryptoParams { .. } | CoreError::UnsupportedPacketFlags { .. } => {
             Status::UnsupportedParameters
         }

@@ -202,14 +202,21 @@ fn parse_share_packets_with_mnemonic_lines(
         return Err(CoreError::EmptyShareInput);
     }
 
-    let encoding = if encoding.is_auto() {
+    let automatic = encoding.is_auto();
+    let encoding = if automatic {
         detect_encoding_from_lines(&nonempty_lines, input)?
             .ok_or(CoreError::CouldNotDetectEncoding)?
     } else {
         encoding
     };
 
-    let packets = decode_share_packets_known(input, encoding, mnemonic_line_mode)?;
+    let packets = match decode_share_packets_known(input, encoding, mnemonic_line_mode) {
+        Ok(packets) => packets,
+        Err(_) if automatic && has_mixed_share_encodings(input) => {
+            return Err(CoreError::MixedEncoding);
+        }
+        Err(error) => return Err(error),
+    };
     Ok(ParsedSharePackets { packets, encoding })
 }
 
@@ -294,12 +301,19 @@ fn parse_decoded_share_packets_with_mnemonic_lines(
     if lines.is_empty() {
         return Err(CoreError::EmptyShareInput);
     }
-    let encoding = if encoding.is_auto() {
+    let automatic = encoding.is_auto();
+    let encoding = if automatic {
         detect_encoding_from_lines(&lines, input)?.ok_or(CoreError::CouldNotDetectEncoding)?
     } else {
         encoding
     };
-    let packets = decode_decoded_share_packets_known(input, encoding, mnemonic_line_mode)?;
+    let packets = match decode_decoded_share_packets_known(input, encoding, mnemonic_line_mode) {
+        Ok(packets) => packets,
+        Err(_) if automatic && has_mixed_share_encodings(input) => {
+            return Err(CoreError::MixedEncoding);
+        }
+        Err(error) => return Err(error),
+    };
     Ok(ParsedDecodedSharePackets { packets, encoding })
 }
 
@@ -351,6 +365,59 @@ fn decode_packet_with_version(input: &str, encoding: Encoding) -> CoreResult<Dec
         Encoding::MnemoWords => mnemo_words::decode_packet_with_version(input),
         Encoding::MnemoBip39 => mnemo_bip39::decode_packet_with_version(input),
     }
+}
+
+fn has_mixed_share_encodings(input: &str) -> bool {
+    let lines = nonempty_lines(input);
+    if units_have_mixed_encodings(&lines) {
+        return true;
+    }
+
+    let normalized = input.replace("\r\n", "\n");
+    let blocks = split_mnemonic_blocks(&normalized);
+    let block_refs = blocks.iter().map(String::as_str).collect::<Vec<_>>();
+    if units_have_mixed_encodings(&block_refs) {
+        return true;
+    }
+
+    let compact_tokens = input.split_whitespace().collect::<Vec<_>>();
+    units_have_mixed_compact_encodings(&compact_tokens)
+}
+
+fn units_have_mixed_encodings(units: &[&str]) -> bool {
+    mixed_concrete_encodings(
+        units,
+        &[
+            Encoding::Base64url,
+            Encoding::Base58check,
+            Encoding::MnemoWords,
+            Encoding::MnemoBip39,
+        ],
+    )
+}
+
+fn units_have_mixed_compact_encodings(units: &[&str]) -> bool {
+    mixed_concrete_encodings(units, &[Encoding::Base64url, Encoding::Base58check])
+}
+
+fn mixed_concrete_encodings(units: &[&str], encodings: &[Encoding]) -> bool {
+    if units.len() < 2 {
+        return false;
+    }
+
+    let mut detected = None;
+    let mut mixed = false;
+    for unit in units {
+        let Some(encoding) = encodings.iter().copied().find(|encoding| {
+            decode_decoded_share_packets_known(unit, *encoding, MnemonicLineMode::WrappedShare)
+                .is_ok_and(|packets| packets.len() == 1)
+        }) else {
+            return false;
+        };
+        mixed |= detected.is_some_and(|existing| existing != encoding);
+        detected = Some(encoding);
+    }
+    mixed
 }
 
 #[derive(Clone, Copy)]
@@ -449,6 +516,20 @@ mod tests {
             error,
             CoreError::UnsupportedPacketVersion { version: 99 }
         ));
+    }
+
+    #[test]
+    fn auto_reports_mixed_encodings_within_one_input_batch() {
+        let words = encode_packet(&packet(), Encoding::MnemoWords).unwrap();
+        let base64 = encode_packet(&packet(), Encoding::Base64url).unwrap();
+        let base58 = encode_packet(&packet(), Encoding::Base58check).unwrap();
+
+        for mixed in [format!("{words}\n\n{base64}"), format!("{base64} {base58}")] {
+            assert!(matches!(
+                parse_share_packets_wrapped_mnemonics(&mixed, Encoding::Auto),
+                Err(CoreError::MixedEncoding)
+            ));
+        }
     }
 
     #[test]

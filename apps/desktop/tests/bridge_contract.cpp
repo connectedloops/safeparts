@@ -170,8 +170,41 @@ int main() {
         }
     }
 
+    struct SurfaceFixtureCase {
+        const char *path;
+        const char *expected;
+    };
+    const std::array<SurfaceFixtureCase, 12> surfaceFixtures = {{
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/cli/base64url.txt", "synthetic CLI interoperability"},
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/cli/base58check.txt", "synthetic CLI interoperability"},
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/cli/mnemo-words.txt", "synthetic CLI interoperability"},
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/cli/mnemo-bip39.txt", "synthetic CLI interoperability"},
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/tui/base64url.txt", "synthetic TUI interoperability"},
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/tui/base58check.txt", "synthetic TUI interoperability"},
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/tui/mnemo-words.txt", "synthetic TUI interoperability"},
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/tui/mnemo-bip39.txt", "synthetic TUI interoperability"},
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/web/base64url.txt", "synthetic web interoperability"},
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/web/base58check.txt", "synthetic web interoperability"},
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/web/mnemo-words.txt", "synthetic web interoperability"},
+        {"crates/safeparts_core/tests/fixtures/surface_interoperability/web/mnemo-bip39.txt", "synthetic web interoperability"},
+    }};
+    for (const SurfaceFixtureCase &fixtureCase : surfaceFixtures) {
+        const std::string text = fixture(fixtureCase.path);
+        auto fixtureOperation = new_operation();
+        const auto inspected =
+            fixtureOperation->add_recovery(8, bytes(text), ShareEncoding::Auto);
+        const auto recovered = fixtureOperation->recover(8);
+        if (text.empty() || inspected.status != Status::Ok || !inspected.ready
+            || recovered.status != Status::Ok
+            || stringFrom(recovered.bytes) != fixtureCase.expected) {
+            std::cerr << "surface fixture CXX contract failed\n";
+            return 12;
+        }
+        destroy_operation(std::move(fixtureOperation));
+    }
+
     destroy_operation(std::move(other));
     destroy_operation(std::move(operation));
-    std::cout << "CXX_DESKTOP_BOUNDARY_OK shares=3 threshold=2 encodings=4 fixtures=8 auto=yes handled_errors=yes explicit_release=yes\n";
+    std::cout << "CXX_DESKTOP_BOUNDARY_OK shares=3 threshold=2 encodings=4 released_fixtures=8 surface_fixtures=12 auto=yes handled_errors=yes explicit_release=yes\n";
     return 0;
 }
