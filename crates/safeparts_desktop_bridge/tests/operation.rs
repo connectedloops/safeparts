@@ -614,3 +614,54 @@ fn public_operation_bounds_paste_tokens_and_recovery_memory() {
     assert!(rejected.status == Status::ResourceLimit);
     assert_eq!(usize::from(rejected.recovery_batch_count), retained_count);
 }
+
+#[test]
+fn protected_operation_preserves_exact_passphrase_and_safe_failures_in_all_encodings() {
+    const SECRET: &[u8] = b"synthetic protected desktop secret";
+    const PASSPHRASE: &[u8] = "  cafe\u{301} 🔐  ".as_bytes();
+    for encoding in [
+        ShareEncoding::Base64url,
+        ShareEncoding::Base58check,
+        ShareEncoding::MnemoWords,
+        ShareEncoding::MnemoBip39,
+    ] {
+        let mut operation = new_operation();
+        let created = operation.create_with_passphrase(1, SECRET, 2, 3, encoding, PASSPHRASE);
+        assert!(created.status == Status::Ok);
+        let first = operation.encode_share(1, 0);
+        let second = operation.encode_share(1, 1);
+
+        operation.reset(2);
+        operation.add_recovery(2, &first.bytes, ShareEncoding::Auto);
+        let inspected = operation.add_recovery(2, &second.bytes, ShareEncoding::Auto);
+        assert!(inspected.status == Status::PassphraseRequired);
+        assert!(inspected.passphrase_protected);
+        assert!(!inspected.ready);
+
+        let missing = operation.recover_with_passphrase(2, b"");
+        assert!(missing.status == Status::PassphraseRequired);
+        assert!(missing.bytes.is_empty());
+        let wrong = operation.recover_with_passphrase(2, "  cafe 🔐  ".as_bytes());
+        assert!(wrong.status == Status::IntegrityFailure);
+        assert!(wrong.bytes.is_empty());
+        let recovered = operation.recover_with_passphrase(2, PASSPHRASE);
+        assert!(recovered.status == Status::Ok);
+        assert_eq!(recovered.bytes, SECRET);
+    }
+}
+
+#[test]
+fn passphrases_over_the_inclusive_limit_are_rejected() {
+    let too_large = vec![b'x'; 1_048_577];
+    let mut operation = new_operation();
+    let created = operation.create_with_passphrase(
+        1,
+        b"synthetic limit",
+        1,
+        1,
+        ShareEncoding::Base64url,
+        &too_large,
+    );
+    assert!(created.status == Status::PassphraseTooLarge);
+    assert!(operation.recover_with_passphrase(2, &too_large).status == Status::PassphraseTooLarge);
+}

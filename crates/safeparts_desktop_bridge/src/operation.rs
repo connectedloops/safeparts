@@ -16,6 +16,7 @@ use crate::bridge::ffi::{BytesOutput, OperationOutput, ShareEncoding, Status};
 
 const MIB: usize = 1_048_576;
 const MAX_SECRET_BYTES: usize = MIB;
+const MAX_PASSPHRASE_BYTES: usize = MIB;
 const MAX_LOGICAL_VOLUME: usize = 16 * MIB;
 const MAX_PASTE_BYTES: usize = 16 * MIB;
 const MAX_PASTE_TOKENS: usize = 1_048_576;
@@ -96,8 +97,27 @@ impl Operation {
         share_count: u8,
         encoding: ShareEncoding,
     ) -> OperationOutput {
+        self.create_with_passphrase(generation, secret, threshold, share_count, encoding, &[])
+    }
+
+    pub fn create_with_passphrase(
+        &mut self,
+        generation: u64,
+        secret: &[u8],
+        threshold: u8,
+        share_count: u8,
+        encoding: ShareEncoding,
+        passphrase: &[u8],
+    ) -> OperationOutput {
         match catch_unwind(AssertUnwindSafe(|| {
-            self.create_inner(generation, secret, threshold, share_count, encoding)
+            self.create_inner(
+                generation,
+                secret,
+                threshold,
+                share_count,
+                encoding,
+                passphrase,
+            )
         })) {
             Ok(result) => result,
             Err(_) => self.panic_output(generation),
@@ -111,6 +131,7 @@ impl Operation {
         threshold: u8,
         share_count: u8,
         encoding: ShareEncoding,
+        passphrase: &[u8],
     ) -> OperationOutput {
         let Some(encoding) = concrete_core_encoding(encoding) else {
             return output(generation, Status::UnsupportedInput);
@@ -124,6 +145,9 @@ impl Operation {
         if secret.len() > MAX_SECRET_BYTES {
             return output(generation, Status::SecretTooLarge);
         }
+        if passphrase.len() > MAX_PASSPHRASE_BYTES {
+            return output(generation, Status::PassphraseTooLarge);
+        }
         if threshold == 0 || share_count == 0 || threshold > share_count {
             return output(generation, Status::InvalidThreshold);
         }
@@ -134,7 +158,8 @@ impl Operation {
             return output(generation, Status::LogicalVolumeTooLarge);
         }
 
-        let packets = match split_secret(secret, threshold, share_count, None) {
+        let passphrase = (!passphrase.is_empty()).then_some(passphrase);
+        let packets = match split_secret(secret, threshold, share_count, passphrase) {
             Ok(packets) => packets,
             Err(error) => return output(generation, status_from_core(&error)),
         };
@@ -359,7 +384,8 @@ impl Operation {
 
         self.recovery_packets = packets;
         let protected = inspected.passphrase_protected;
-        let ready = !protected && inspected.supplied_count >= usize::from(inspected.threshold);
+        let enough_shares = inspected.supplied_count >= usize::from(inspected.threshold);
+        let ready = !protected && enough_shares;
         let mut result = output(
             generation,
             if protected {
@@ -390,17 +416,34 @@ impl Operation {
     }
 
     pub fn recover(&mut self, generation: u64) -> BytesOutput {
-        match catch_unwind(AssertUnwindSafe(|| self.recover_inner(generation))) {
+        self.recover_with_passphrase(generation, &[])
+    }
+
+    pub fn recover_with_passphrase(&mut self, generation: u64, passphrase: &[u8]) -> BytesOutput {
+        match catch_unwind(AssertUnwindSafe(|| {
+            self.recover_inner(generation, passphrase)
+        })) {
             Ok(result) => result,
             Err(_) => self.panic_bytes(generation),
         }
     }
 
-    fn recover_inner(&mut self, generation: u64) -> BytesOutput {
-        if !self.inspection.ready || self.inspection.status != Status::Ok {
+    fn recover_inner(&mut self, generation: u64, passphrase: &[u8]) -> BytesOutput {
+        if passphrase.len() > MAX_PASSPHRASE_BYTES {
+            return bytes_output(generation, Status::PassphraseTooLarge);
+        }
+        let protected = self.inspection.passphrase_protected;
+        if self.recovery_packets.len() < usize::from(self.inspection.threshold) {
+            return bytes_output(generation, Status::NotEnoughShares);
+        }
+        if protected && passphrase.is_empty() {
+            return bytes_output(generation, Status::PassphraseRequired);
+        }
+        if !protected && (!self.inspection.ready || self.inspection.status != Status::Ok) {
             return bytes_output(generation, self.inspection.status);
         }
-        let recovered = match combine_shares(&self.recovery_packets, None) {
+        let passphrase = protected.then_some(passphrase);
+        let recovered = match combine_shares(&self.recovery_packets, passphrase) {
             Ok(recovered) => Zeroizing::new(recovered),
             Err(error) => return bytes_output(generation, status_from_core(&error)),
         };

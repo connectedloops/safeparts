@@ -37,9 +37,9 @@ void RustWorker::reset(quint64 generation) {
 }
 
 void RustWorker::create(quint64 generation, SecureByteBuffer secret, quint8 threshold,
-                        quint8 shareCount, int encoding) {
-    emitOperation(operation_->create(generation, slice(secret), threshold, shareCount,
-                                     shareEncoding(encoding)));
+                        quint8 shareCount, int encoding, SecureByteBuffer passphrase) {
+    emitOperation(operation_->create_with_passphrase(generation, slice(secret), threshold, shareCount,
+                                                     shareEncoding(encoding), slice(passphrase)));
 }
 
 void RustWorker::encodeShare(quint64 generation, quint16 index, int purpose) {
@@ -67,8 +67,8 @@ void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inp
     emitOperation(output);
 }
 
-void RustWorker::recover(quint64 generation) {
-    BytesOutput output = operation_->recover(generation);
+void RustWorker::recover(quint64 generation, SecureByteBuffer passphrase) {
+    BytesOutput output = operation_->recover_with_passphrase(generation, slice(passphrase));
     emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), 1, 0);
 }
 

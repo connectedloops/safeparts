@@ -7,8 +7,10 @@
 #include <QString>
 
 class ExactTextEdit;
+class QCheckBox;
 class QComboBox;
 class QLabel;
+class QLineEdit;
 class QPlainTextEdit;
 class QPushButton;
 class QSpinBox;
@@ -30,10 +32,10 @@ public:
 signals:
     void requestReset(quint64 generation);
     void requestCreate(quint64 generation, SecureByteBuffer secret, quint8 threshold,
-                       quint8 shareCount, int encoding);
+                       quint8 shareCount, int encoding, SecureByteBuffer passphrase);
     void requestEncodeShare(quint64 generation, quint16 index, int purpose);
     void requestReplaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs, int encoding);
-    void requestRecover(quint64 generation);
+    void requestRecover(quint64 generation, SecureByteBuffer passphrase);
     void requestRecoveredText(quint64 generation);
 
 protected:
@@ -101,6 +103,10 @@ private:
     QSpinBox *threshold_ = nullptr;
     QSpinBox *shareCount_ = nullptr;
     QComboBox *createEncoding_ = nullptr;
+    QCheckBox *protectWithPassphrase_ = nullptr;
+    QWidget *createPassphrasePanel_ = nullptr;
+    QLineEdit *createPassphrase_ = nullptr;
+    QLineEdit *confirmPassphrase_ = nullptr;
     QPushButton *createButton_ = nullptr;
     QLabel *createStatus_ = nullptr;
     QWidget *createdResult_ = nullptr;
@@ -119,6 +125,9 @@ private:
     QLabel *recoveryDetectedFormat_ = nullptr;
     QLabel *recoveryCount_ = nullptr;
     QLabel *recoveryStatus_ = nullptr;
+    QWidget *recoveryPassphrasePanel_ = nullptr;
+    QLineEdit *recoveryPassphrase_ = nullptr;
+    bool recoveryProtected_ = false;
     QPushButton *addRecoveryButton_ = nullptr;
     QPushButton *recoverButton_ = nullptr;
     QWidget *recoveryResult_ = nullptr;

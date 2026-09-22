@@ -4,6 +4,7 @@
 #include "exact_text_edit.h"
 #include "rust_worker.h"
 
+#include <QCheckBox>
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QFontDatabase>
@@ -13,6 +14,7 @@
 #include <QIcon>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QMouseEvent>
@@ -34,6 +36,7 @@
 #include <utility>
 
 namespace {
+constexpr qsizetype kMaximumPassphraseBytes = 1'048'576;
 constexpr qsizetype kMaximumRecoveryFieldBytes = 8 * 1'048'576;
 constexpr qsizetype kMaximumRetainedRecoveryBytes = 160 * 1'048'576;
 constexpr qsizetype kMaximumGeneratedPresentationBytes = 160 * 1'048'576;
@@ -313,7 +316,7 @@ void DesktopWindow::buildUi() {
     connect(help, &QToolButton::clicked, this, [this] {
         QMessageBox::information(this, QStringLiteral("Safeparts help"),
                                  QStringLiteral("Split keeps one share set in memory. Store Recovery shares separately. "
-                                                "Combine auto-detects or manually selects one Share format. Protected shares are recognized; passphrase entry follows in the next slice."));
+                                                "Combine auto-detects or manually selects one Share format. Passphrases are never included in Recovery shares or exports."));
     });
 }
 
@@ -395,6 +398,41 @@ QWidget *DesktopWindow::buildCreatePage() {
     additionalLayout->addWidget(createEncoding_, 1);
     additionalOptionsPanel->hide();
     groupLayout->addWidget(additionalOptionsPanel);
+
+    protectWithPassphrase_ = new QCheckBox(QStringLiteral("Protect with passphrase"));
+    protectWithPassphrase_->setObjectName(QStringLiteral("protectWithPassphrase"));
+    groupLayout->addWidget(protectWithPassphrase_);
+    createPassphrasePanel_ = new QWidget;
+    auto *passphraseLayout = new QGridLayout(createPassphrasePanel_);
+    passphraseLayout->setContentsMargins(0, 0, 0, 0);
+    auto *passphraseLabel = label(QStringLiteral("Passphrase"));
+    createPassphrase_ = new QLineEdit;
+    createPassphrase_->setObjectName(QStringLiteral("createPassphrase"));
+    createPassphrase_->setAccessibleName(QStringLiteral("Passphrase"));
+    createPassphrase_->setEchoMode(QLineEdit::Password);
+    auto *confirmationLabel = label(QStringLiteral("Confirm passphrase"));
+    confirmPassphrase_ = new QLineEdit;
+    confirmPassphrase_->setObjectName(QStringLiteral("confirmPassphrase"));
+    confirmPassphrase_->setAccessibleName(QStringLiteral("Confirm passphrase"));
+    confirmPassphrase_->setEchoMode(QLineEdit::Password);
+    passphraseLabel->setBuddy(createPassphrase_);
+    confirmationLabel->setBuddy(confirmPassphrase_);
+    passphraseLayout->addWidget(passphraseLabel, 0, 0);
+    passphraseLayout->addWidget(createPassphrase_, 0, 1);
+    passphraseLayout->addWidget(confirmationLabel, 1, 0);
+    passphraseLayout->addWidget(confirmPassphrase_, 1, 1);
+    createPassphrasePanel_->hide();
+    groupLayout->addWidget(createPassphrasePanel_);
+    connect(protectWithPassphrase_, &QCheckBox::toggled, this, [this](bool enabled) {
+        createPassphrasePanel_->setVisible(enabled);
+        if (!enabled) {
+            createPassphrase_->clear();
+            confirmPassphrase_->clear();
+        }
+        createInputChanged();
+    });
+    connect(createPassphrase_, &QLineEdit::textChanged, this, &DesktopWindow::createInputChanged);
+    connect(confirmPassphrase_, &QLineEdit::textChanged, this, &DesktopWindow::createInputChanged);
     connect(additionalOptions, &QToolButton::toggled, this,
             [additionalOptions, additionalOptionsPanel](bool shown) {
                 additionalOptions->setArrowType(shown ? Qt::DownArrow : Qt::RightArrow);
@@ -506,6 +544,22 @@ QWidget *DesktopWindow::buildRecoverPage() {
     groupLayout->addLayout(fieldActions);
 
     auto *action = new QHBoxLayout;
+    recoveryPassphrasePanel_ = new QWidget;
+    recoveryPassphrasePanel_->setObjectName(QStringLiteral("recoveryPassphrasePanel"));
+    auto *recoveryPassphraseLayout = new QHBoxLayout(recoveryPassphrasePanel_);
+    recoveryPassphraseLayout->setContentsMargins(0, 0, 0, 0);
+    auto *recoveryPassphraseLabel = label(QStringLiteral("Passphrase"));
+    recoveryPassphrase_ = new QLineEdit;
+    recoveryPassphrase_->setObjectName(QStringLiteral("recoveryPassphrase"));
+    recoveryPassphrase_->setAccessibleName(QStringLiteral("Passphrase"));
+    recoveryPassphrase_->setEchoMode(QLineEdit::Password);
+    recoveryPassphraseLabel->setBuddy(recoveryPassphrase_);
+    recoveryPassphraseLayout->addWidget(recoveryPassphraseLabel);
+    recoveryPassphraseLayout->addWidget(recoveryPassphrase_, 1);
+    recoveryPassphrasePanel_->hide();
+    groupLayout->addWidget(recoveryPassphrasePanel_);
+    connect(recoveryPassphrase_, &QLineEdit::textChanged, this, &DesktopWindow::recoveryInputChanged);
+
     recoveryStatus_ = label(QStringLiteral("Share content is required."), true);
     recoveryStatus_->setObjectName(QStringLiteral("recoveryStatus"));
     action->addWidget(recoveryStatus_, 1);
@@ -568,6 +622,25 @@ void DesktopWindow::startOver() {
 }
 
 void DesktopWindow::createShares() {
+    QByteArray passphraseBytes = createPassphrase_->text().toUtf8();
+    QByteArray confirmationBytes = confirmPassphrase_->text().toUtf8();
+    if (protectWithPassphrase_->isChecked()
+        && (passphraseBytes.isEmpty() || passphraseBytes != confirmationBytes)) {
+        createStatus_->setText(QStringLiteral("Enter and confirm the same nonempty passphrase."));
+        passphraseBytes.fill(0);
+        confirmationBytes.fill(0);
+        return;
+    }
+    if (passphraseBytes.size() > kMaximumPassphraseBytes) {
+        createStatus_->setText(QStringLiteral("Passphrase cannot exceed the 1 MiB UTF-8 limit."));
+        passphraseBytes.fill(0);
+        confirmationBytes.fill(0);
+        return;
+    }
+    confirmationBytes.fill(0);
+    SecureByteBuffer passphrase = SecureByteBuffer::take(
+        protectWithPassphrase_->isChecked() ? std::move(passphraseBytes) : QByteArray());
+    passphraseBytes.fill(0);
     SecureByteBuffer secret = SecureByteBuffer::take(secretInput_->exactUtf8());
     const quint64 requestGeneration = nextGeneration();
     pending_ = Pending::Create;
@@ -575,7 +648,7 @@ void DesktopWindow::createShares() {
     createStatus_->setText(QStringLiteral("Working…"));
     emit requestCreate(requestGeneration, std::move(secret), static_cast<quint8>(threshold_->value()),
                        static_cast<quint8>(shareCount_->value()),
-                       createEncoding_->currentData().toInt());
+                       createEncoding_->currentData().toInt(), std::move(passphrase));
 }
 
 void DesktopWindow::addRecoveryField() {
@@ -721,12 +794,25 @@ void DesktopWindow::synchronizeRecoveryFields() {
 }
 
 void DesktopWindow::recover() {
+    QByteArray passphraseBytes = recoveryPassphrase_->text().toUtf8();
+    if (recoveryProtected_ && passphraseBytes.isEmpty()) {
+        recoveryStatus_->setText(QStringLiteral("Enter the passphrase required by these Recovery shares."));
+        passphraseBytes.fill(0);
+        return;
+    }
+    if (passphraseBytes.size() > kMaximumPassphraseBytes) {
+        recoveryStatus_->setText(QStringLiteral("Passphrase cannot exceed the 1 MiB UTF-8 limit."));
+        passphraseBytes.fill(0);
+        return;
+    }
+    SecureByteBuffer passphrase = SecureByteBuffer::take(std::move(passphraseBytes));
+    passphraseBytes.fill(0);
     recoveryResult_->hide();
     recoveredDisplay_->clear();
     pending_ = Pending::Recover;
     setBusy(true);
     recoveryStatus_->setText(QStringLiteral("Working…"));
-    emit requestRecover(generation_);
+    emit requestRecover(generation_, std::move(passphrase));
 }
 
 void DesktopWindow::operationFinished(quint64 generation, int status, quint8 threshold,
@@ -751,7 +837,8 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
         createStatus_->setText(statusText(status));
     } else if (pending_ == Pending::Inspect) {
         Q_UNUSED(batchCount);
-        Q_UNUSED(protectedInput);
+        recoveryProtected_ = protectedInput;
+        recoveryPassphrasePanel_->setVisible(protectedInput);
         if (encoding != 0) {
             recoveryDetectedFormat_->setText(
                 QStringLiteral("%1: %2")
@@ -776,7 +863,9 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
             recoverButton_->setEnabled(false);
             recoveryStatus_->setText(QStringLiteral("Share content is required."));
         } else {
-            setRecoveryStatus(status, threshold, suppliedCount, ready);
+            const bool passphraseReady = !protectedInput || !recoveryPassphrase_->text().isEmpty();
+            setRecoveryStatus(status, threshold, suppliedCount,
+                              ready || (protectedInput && passphraseReady && suppliedCount >= threshold));
         }
     }
     pending_ = Pending::None;
@@ -858,6 +947,11 @@ void DesktopWindow::clearVisibleState() {
         threshold_->setValue(2);
     if (shareCount_ != nullptr)
         shareCount_->setValue(3);
+    if (protectWithPassphrase_ != nullptr) {
+        protectWithPassphrase_->setChecked(false);
+        createPassphrase_->clear();
+        confirmPassphrase_->clear();
+    }
     if (createEncoding_ != nullptr) {
         createEncoding_->blockSignals(true);
         createEncoding_->setCurrentIndex(2);
@@ -878,6 +972,11 @@ void DesktopWindow::clearVisibleState() {
         recoveryDetectedFormat_->setText(QStringLiteral("Detected after paste"));
     if (recoveryCount_ != nullptr)
         recoveryCount_->setText(QStringLiteral("0 of 2 Recovery shares entered"));
+    recoveryProtected_ = false;
+    if (recoveryPassphrase_ != nullptr)
+        recoveryPassphrase_->clear();
+    if (recoveryPassphrasePanel_ != nullptr)
+        recoveryPassphrasePanel_->hide();
     if (recoveryStatus_ != nullptr)
         recoveryStatus_->setText(QStringLiteral("Share content is required."));
     if (recoverButton_ != nullptr)
@@ -1111,7 +1210,7 @@ QString DesktopWindow::statusText(int status) {
     if (status == statusCode(Status::UnsupportedInput))
         return QStringLiteral("Choose one supported Share format.");
     if (status == statusCode(Status::PassphraseRequired))
-        return QStringLiteral("These Recovery shares require a passphrase. Passphrase entry is not available yet.");
+        return QStringLiteral("Enter the passphrase required by these Recovery shares.");
     if (status == statusCode(Status::UnsupportedParameters))
         return QStringLiteral("These Recovery shares use unsupported protection parameters.");
     if (status == statusCode(Status::UnsupportedVersion))
@@ -1127,7 +1226,9 @@ QString DesktopWindow::statusText(int status) {
     if (status == statusCode(Status::InvalidUtf8))
         return QStringLiteral("Input or recovered output is not valid UTF-8.");
     if (status == statusCode(Status::IntegrityFailure))
-        return QStringLiteral("Recovery integrity verification failed. No output was shown.");
+        return QStringLiteral("The passphrase may be incorrect or the Recovery shares may be damaged. No output was shown.");
+    if (status == statusCode(Status::PassphraseTooLarge))
+        return QStringLiteral("Passphrase cannot exceed the 1 MiB UTF-8 limit.");
     if (status == statusCode(Status::InternalPanic))
         return QStringLiteral("Processing stopped safely. Start over before retrying.");
     return QStringLiteral("The operation could not be completed.");

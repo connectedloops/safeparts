@@ -5,6 +5,7 @@
 #include "secure_byte_buffer.h"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
 #include <QContextMenuEvent>
@@ -13,6 +14,7 @@
 #include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -183,6 +185,7 @@ class DesktopActions final : public QObject {
 private slots:
     void create_copy_recover_preserves_exact_utf8_through_user_actions();
     void text_entry_preserves_content_and_bounds_typing_and_input_methods();
+    void protected_create_and_recovery_require_exact_confirmed_passphrase();
     void duplicate_blocks_and_correctable_input_is_preserved();
     void malformed_and_mixed_inputs_block_without_filtering();
     void maximum_valid_workload_remains_bounded_and_resettable();
@@ -230,6 +233,46 @@ void DesktopActions::create_copy_recover_preserves_exact_utf8_through_user_actio
     QApplication::clipboard()->clear();
     QTest::mouseClick(required<QPushButton>(&window, "copyRecoveredButton"), Qt::LeftButton);
     QTRY_COMPARE_WITH_TIMEOUT(QApplication::clipboard()->text(), exactText(), 10'000);
+}
+
+void DesktopActions::protected_create_and_recovery_require_exact_confirmed_passphrase() {
+    DesktopWindow window;
+    window.show();
+    pasteIntoCreate(window, QStringLiteral("synthetic protected Qt secret"));
+    required<QCheckBox>(&window, "protectWithPassphrase")->setChecked(true);
+    required<QLineEdit>(&window, "createPassphrase")->setText(QStringLiteral("  cafe\u0301 🔐  "));
+    required<QLineEdit>(&window, "confirmPassphrase")->setText(QStringLiteral("different"));
+    QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QCOMPARE(required<QLabel>(&window, "createStatus")->text(),
+             QStringLiteral("Enter and confirm the same nonempty passphrase."));
+
+    required<QLineEdit>(&window, "confirmPassphrase")->setText(QStringLiteral("  cafe\u0301 🔐  "));
+    const QString first = createAndCopy(window, 1);
+    const QString second = createAndCopy(window, 2);
+    QVERIFY(!first.isEmpty());
+    QVERIFY(!second.isEmpty());
+
+    chooseRecover(window);
+    pasteRecovery(window, first);
+    pasteRecovery(window, second);
+    QVERIFY(required<QWidget>(&window, "recoveryPassphrasePanel")->isVisible());
+    QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
+    required<QLineEdit>(&window, "recoveryPassphrase")->setText(QStringLiteral("wrong"));
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")
+                                 ->text()
+                                 .contains(QStringLiteral("may be incorrect")),
+                             10'000);
+    QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), first.toUtf8());
+
+    required<QLineEdit>(&window, "recoveryPassphrase")->setText(QStringLiteral("  cafe\u0301 🔐  "));
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
+    QCOMPARE(required<QPlainTextEdit>(&window, "recoveredText")->toPlainText(),
+             QStringLiteral("synthetic protected Qt secret"));
 }
 
 void DesktopActions::text_entry_preserves_content_and_bounds_typing_and_input_methods() {
@@ -707,7 +750,7 @@ void DesktopActions::unsupported_version_and_kdf_are_distinct_from_corruption() 
     setRecoveryField(protectedWindow, 1, protectedShares);
     QTRY_COMPARE_WITH_TIMEOUT(
         required<QLabel>(&protectedWindow, "recoveryStatus")->text(),
-        QStringLiteral("These Recovery shares require a passphrase. Passphrase entry is not available yet."),
+        QStringLiteral("Enter the passphrase required by these Recovery shares."),
         10'000);
     QCOMPARE(required<QLabel>(&protectedWindow, "detectedRecoveryEncoding")->text(),
              QStringLiteral("Detected: Base64url"));

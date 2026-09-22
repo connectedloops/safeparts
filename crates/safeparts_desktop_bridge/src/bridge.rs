@@ -28,6 +28,7 @@ pub mod ffi {
         MixedEncoding = 23,
         MixedVersion = 24,
         UnsupportedVersion = 25,
+        PassphraseTooLarge = 26,
     }
 
     #[repr(u8)]
@@ -71,6 +72,15 @@ pub mod ffi {
             share_count: u8,
             encoding: ShareEncoding,
         ) -> OperationOutput;
+        fn create_with_passphrase(
+            self: &mut Operation,
+            generation: u64,
+            secret: &[u8],
+            threshold: u8,
+            share_count: u8,
+            encoding: ShareEncoding,
+            passphrase: &[u8],
+        ) -> OperationOutput;
         fn encode_share(self: &mut Operation, generation: u64, share_index: u16) -> BytesOutput;
         fn add_recovery(
             self: &mut Operation,
@@ -84,6 +94,11 @@ pub mod ffi {
             batch_index: u16,
         ) -> OperationOutput;
         fn recover(self: &mut Operation, generation: u64) -> BytesOutput;
+        fn recover_with_passphrase(
+            self: &mut Operation,
+            generation: u64,
+            passphrase: &[u8],
+        ) -> BytesOutput;
         fn recovered_text(self: &mut Operation, generation: u64) -> BytesOutput;
     }
 }
