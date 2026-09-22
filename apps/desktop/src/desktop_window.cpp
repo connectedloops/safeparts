@@ -29,6 +29,7 @@
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStringDecoder>
+#include <QUtf8StringView>
 #include <QTabBar>
 #include <QThread>
 #include <QTimer>
@@ -753,9 +754,8 @@ void DesktopWindow::loadShareFiles() {
             recoveryStatus_->setText(QStringLiteral("Recovery share files cannot be empty."));
             return;
         }
-        QStringDecoder decoder(QStringDecoder::Utf8);
-        decoder.decode(result.bytes.view());
-        if (decoder.hasError()) {
+        const QUtf8StringView utf8(result.bytes.data(), result.bytes.size());
+        if (!utf8.isValidUtf8()) {
             recoveryStatus_->setText(QStringLiteral("Recovery share files must be valid UTF-8."));
             return;
         }
@@ -1130,6 +1130,8 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
             recoveredDisplay_->clear();
         saveRecovered_->show();
         recoveryResult_->show();
+        copyRecovered_->setEnabled(validUtf8);
+        saveRecovered_->setEnabled(true);
         recoverButton_->setEnabled(true);
         recoveryStatus_->setText(validUtf8 ? QStringLiteral("Recovered exact valid UTF-8 Secret.")
                                            : QStringLiteral("Recovered binary Secret. Save exact bytes."));
@@ -1425,6 +1427,12 @@ void DesktopWindow::setBusy(bool busy) {
     }
     if (recoverButton_ != nullptr && busy)
         recoverButton_->setEnabled(false);
+    const bool recoveredReady = !busy && recoveryResult_ != nullptr
+                                && !recoveryResult_->isHidden();
+    if (copyRecovered_ != nullptr)
+        copyRecovered_->setEnabled(recoveredReady && !copyRecovered_->isHidden());
+    if (saveRecovered_ != nullptr)
+        saveRecovered_->setEnabled(recoveredReady);
 }
 
 void DesktopWindow::clearPendingExport() {

@@ -64,7 +64,7 @@ template <typename T>
 T *required(QObject *root, const char *name) {
     T *value = root->findChild<T *>(QString::fromLatin1(name));
     if (value == nullptr)
-        qFatal("required test control is missing");
+        qFatal("required test control is missing: %s", name);
     return value;
 }
 
@@ -194,6 +194,29 @@ class WipeObserverReset final {
 public:
     ~WipeObserverReset() { SecureByteBuffer::setWipeObserverForTests({}); }
 };
+
+class FailingWriteDevice final : public FileDevice {
+public:
+    enum class Failure { Open, Zero, Short, Error, Flush, Close };
+    explicit FailingWriteDevice(Failure failure) : failure_(failure) {}
+    bool openReadOnly() override { return false; }
+    bool openWriteTruncate() override { return failure_ != Failure::Open; }
+    qint64 read(char *, qint64) override { return -1; }
+    qint64 write(const char *, qint64 size) override {
+        if (failure_ == Failure::Zero)
+            return 0;
+        if (failure_ == Failure::Short)
+            return std::max<qint64>(0, size - 1);
+        if (failure_ == Failure::Error)
+            return -1;
+        return size;
+    }
+    bool flush() override { return failure_ != Failure::Flush; }
+    bool close() override { return failure_ != Failure::Close; }
+
+private:
+    Failure failure_;
+};
 } // namespace
 
 class DesktopActions final : public QObject {
@@ -202,6 +225,11 @@ class DesktopActions final : public QObject {
 private slots:
     void create_copy_recover_preserves_exact_utf8_through_user_actions();
     void binary_file_create_share_save_load_and_exact_recovery_save();
+    void file_dialog_cancellation_and_rejected_imports_preserve_state();
+    void exact_file_byte_forms_and_empty_recovery_save();
+    void file_export_failures_preserve_share_identity();
+    void stale_file_export_never_writes_after_edit();
+    void file_workflow_storage_trace();
     void text_entry_preserves_content_and_bounds_typing_and_input_methods();
     void masked_passphrase_admission_and_disclosure_are_bounded();
     void protected_create_and_recovery_require_exact_confirmed_passphrase();
@@ -271,14 +299,25 @@ void DesktopActions::binary_file_create_share_save_load_and_exact_recovery_save(
     QString openPath = source;
     QStringList openPaths;
     QString savePath;
+    int saveDialogCalls = 0;
     DesktopWindow window;
     window.setFileServicesForTests(std::make_shared<FileIo>(), [&] { return openPath; },
-                                   [&] { return openPaths; }, [&] { return savePath; });
+                                   [&] { return openPaths; }, [&] {
+                                       ++saveDialogCalls;
+                                       return savePath;
+                                   });
     window.show();
+    pasteIntoCreate(window, QStringLiteral("inactive text must clear"));
     QVERIFY(window.findChild<QPushButton *>(QStringLiteral("chooseSecretFileButton")) != nullptr);
     QVERIFY(window.findChild<QLabel *>(QStringLiteral("secretFileMetadata")) != nullptr);
     QTest::mouseClick(required<QPushButton>(&window, "chooseSecretFileButton"), Qt::LeftButton);
     QVERIFY(required<QLabel>(&window, "secretFileMetadata")->text().contains(QStringLiteral("10 bytes")));
+    QCOMPARE(required<ExactTextEdit>(&window, "secretInput")->exactUtf8(), QByteArray());
+    required<QCheckBox>(&window, "protectWithPassphrase")->setChecked(true);
+    replaceExact(required<ExactTextEdit>(&window, "createPassphrase"),
+                 QStringLiteral("synthetic file passphrase"));
+    replaceExact(required<ExactTextEdit>(&window, "confirmPassphrase"),
+                 QStringLiteral("synthetic file passphrase"));
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
     QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(window.findChild<QPushButton *>(QStringLiteral("saveShare1")) != nullptr, 10'000);
@@ -286,11 +325,338 @@ void DesktopActions::binary_file_create_share_save_load_and_exact_recovery_save(
 
     const QString first = directory.filePath(QStringLiteral("share-1.txt"));
     const QString second = directory.filePath(QStringLiteral("share-2.txt"));
+    savePath.clear();
+    QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
+    QCOMPARE(saveDialogCalls, 1);
+    QVERIFY(required<QWidget>(&window, "createdResult")->isVisible());
+
     savePath = first;
     QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(first), 10'000);
+    QFile firstFile(first);
+    QVERIFY(firstFile.open(QIODevice::ReadOnly));
+    const QByteArray firstBytes = firstFile.readAll();
+    QCOMPARE(firstBytes, required<QPlainTextEdit>(&window, "generatedShare1")->toPlainText().toUtf8());
+    firstFile.close();
     savePath = second;
     QVERIFY(window.findChild<QPushButton *>(QStringLiteral("saveShare2")) != nullptr);
+    QTest::mouseClick(required<QPushButton>(&window, "saveShare2"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(second), 10'000);
+
+    chooseRecover(window);
+    openPath.clear();
+    openPaths = {first, second};
+    QTest::mouseClick(required<QPushButton>(&window, "loadRecoveryFilesButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryPassphrasePanel")->isVisible(), 10'000);
+    replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"),
+                 QStringLiteral("wrong file passphrase"));
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")
+                                 ->text()
+                                 .contains(QStringLiteral("may be incorrect")),
+                             10'000);
+    replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"),
+                 QStringLiteral("synthetic file passphrase"));
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
+    QVERIFY(!required<QPlainTextEdit>(&window, "recoveredText")->isVisible());
+    QVERIFY(!required<QPushButton>(&window, "copyRecoveredButton")->isVisible());
+
+    const QString recovered = directory.filePath(QStringLiteral("recovered.bin"));
+    savePath = recovered;
+    const int beforeRecoveredSave = saveDialogCalls;
+    QTest::mouseClick(required<QPushButton>(&window, "saveRecoveredButton"), Qt::LeftButton);
+    QTest::mouseClick(required<QPushButton>(&window, "saveRecoveredButton"), Qt::LeftButton);
+    QCOMPARE(saveDialogCalls, beforeRecoveredSave + 1);
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(recovered), 10'000);
+    QFile recoveredFile(recovered);
+    QVERIFY(recoveredFile.open(QIODevice::ReadOnly));
+    QCOMPARE(recoveredFile.readAll(), secret);
+}
+
+void DesktopActions::file_dialog_cancellation_and_rejected_imports_preserve_state() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString source = directory.filePath(QStringLiteral("source.bin"));
+    QFile sourceFile(source);
+    QVERIFY(sourceFile.open(QIODevice::WriteOnly));
+    QCOMPARE(sourceFile.write("file", 4), qint64(4));
+    sourceFile.close();
+
+    QString openPath;
+    QStringList openPaths;
+    QString savePath;
+    DesktopWindow window;
+    window.setFileServicesForTests(std::make_shared<FileIo>(), [&] { return openPath; },
+                                   [&] { return openPaths; }, [&] { return savePath; });
+    window.show();
+    pasteIntoCreate(window, QStringLiteral("preserved text"));
+    QTest::mouseClick(required<QPushButton>(&window, "chooseSecretFileButton"), Qt::LeftButton);
+    QCOMPARE(required<ExactTextEdit>(&window, "secretInput")->exactUtf8(),
+             QByteArray("preserved text"));
+
+    const QString first = createAndCopy(window, 1);
+    QVERIFY(!first.isEmpty());
+    savePath.clear();
+    QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
+    QVERIFY(required<QWidget>(&window, "createdResult")->isVisible());
+
+    const QString emptySecret = directory.filePath(QStringLiteral("empty-secret.bin"));
+    QFile emptySecretFile(emptySecret);
+    QVERIFY(emptySecretFile.open(QIODevice::WriteOnly));
+    emptySecretFile.close();
+    openPath = emptySecret;
+    QTest::mouseClick(required<QPushButton>(&window, "chooseSecretFileButton"), Qt::LeftButton);
+    QVERIFY(required<QLabel>(&window, "createStatus")->text().contains(QStringLiteral("cannot be empty")));
+    QVERIFY(required<QWidget>(&window, "createdResult")->isVisible());
+
+    const QString oversized = directory.filePath(QStringLiteral("oversized-secret.bin"));
+    QFile oversizedFile(oversized);
+    QVERIFY(oversizedFile.open(QIODevice::WriteOnly));
+    QCOMPARE(oversizedFile.write(QByteArray(1'048'577, 'x')), qint64(1'048'577));
+    oversizedFile.close();
+    openPath = oversized;
+    QTest::mouseClick(required<QPushButton>(&window, "chooseSecretFileButton"), Qt::LeftButton);
+    QVERIFY(required<QLabel>(&window, "createStatus")->text().contains(QStringLiteral("exceeds")));
+    QVERIFY(required<QWidget>(&window, "createdResult")->isVisible());
+
+    chooseRecover(window);
+    setRecoveryField(window, 1, first);
+    const QByteArray retained = required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8();
+    openPaths.clear();
+    QTest::mouseClick(required<QPushButton>(&window, "loadRecoveryFilesButton"), Qt::LeftButton);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), retained);
+
+    const QString empty = directory.filePath(QStringLiteral("empty.txt"));
+    QFile emptyFile(empty);
+    QVERIFY(emptyFile.open(QIODevice::WriteOnly));
+    emptyFile.close();
+    openPaths = {empty};
+    QTest::mouseClick(required<QPushButton>(&window, "loadRecoveryFilesButton"), Qt::LeftButton);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), retained);
+    QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("cannot be empty")));
+
+    const QString invalid = directory.filePath(QStringLiteral("invalid.txt"));
+    QFile invalidFile(invalid);
+    QVERIFY(invalidFile.open(QIODevice::WriteOnly));
+    QCOMPARE(invalidFile.write("\xff", 1), qint64(1));
+    invalidFile.close();
+    openPaths = {invalid};
+    QTest::mouseClick(required<QPushButton>(&window, "loadRecoveryFilesButton"), Qt::LeftButton);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), retained);
+    QVERIFY2(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("valid UTF-8")),
+             qPrintable(required<QLabel>(&window, "recoveryStatus")->text()));
+
+    openPaths = {directory.filePath(QStringLiteral("missing.txt"))};
+    QTest::mouseClick(required<QPushButton>(&window, "loadRecoveryFilesButton"), Qt::LeftButton);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), retained);
+    QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("could not be read")));
+
+    const QString malformed = directory.filePath(QStringLiteral("malformed.txt"));
+    QFile malformedFile(malformed);
+    QVERIFY(malformedFile.open(QIODevice::WriteOnly));
+    QCOMPARE(malformedFile.write("complete but malformed share"), qint64(28));
+    malformedFile.close();
+    openPaths = {malformed};
+    QTest::mouseClick(required<QPushButton>(&window, "loadRecoveryFilesButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")
+                                 ->text()
+                                 .contains(QStringLiteral("could not be decoded")),
+                             10'000);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), retained);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare2")->exactUtf8(),
+             QByteArray("complete but malformed share"));
+}
+
+void DesktopActions::exact_file_byte_forms_and_empty_recovery_save() {
+    const QList<QByteArray> forms = {
+        QByteArray("\xef\xbb\xbf" "BOM\r\nNUL\0tail\n", 17),
+        QStringLiteral(" leading NFC é / NFD e\u0301\r\ntrailing \n").toUtf8(),
+    };
+    for (qsizetype formIndex = 0; formIndex < forms.size(); ++formIndex) {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString source = directory.filePath(QStringLiteral("source.bin"));
+        QFile sourceFile(source);
+        QVERIFY(sourceFile.open(QIODevice::WriteOnly));
+        QCOMPARE(sourceFile.write(forms.at(formIndex)), forms.at(formIndex).size());
+        sourceFile.close();
+        QString openPath = source;
+        QStringList openPaths;
+        QString savePath;
+        DesktopWindow window;
+        window.setFileServicesForTests(std::make_shared<FileIo>(), [&] { return openPath; },
+                                       [&] { return openPaths; }, [&] { return savePath; });
+        window.show();
+        QTest::mouseClick(required<QPushButton>(&window, "chooseSecretFileButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
+        QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdResult")->isVisible(), 10'000);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "saveShare1")->isEnabled(), 10'000);
+        const QString first = directory.filePath(QStringLiteral("first.txt"));
+        const QString second = directory.filePath(QStringLiteral("second.txt"));
+        savePath = first;
+        QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(first), 10'000);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "saveShare2")->isEnabled(), 10'000);
+        savePath = second;
+        QTest::mouseClick(required<QPushButton>(&window, "saveShare2"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(second), 10'000);
+        chooseRecover(window);
+        openPath.clear();
+        openPaths = {first, second};
+        QTest::mouseClick(required<QPushButton>(&window, "loadRecoveryFilesButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+        QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
+        QVERIFY(required<QPlainTextEdit>(&window, "recoveredText")->isVisible());
+        const QString recovered = directory.filePath(QStringLiteral("recovered.bin"));
+        savePath = recovered;
+        QTest::mouseClick(required<QPushButton>(&window, "saveRecoveredButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(recovered), 10'000);
+        QFile recoveredFile(recovered);
+        QVERIFY(recoveredFile.open(QIODevice::ReadOnly));
+        QCOMPARE(recoveredFile.readAll(), forms.at(formIndex));
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "copyRecoveredButton")->isEnabled(), 10'000);
+        QTest::mouseClick(required<QPushButton>(&window, "copyRecoveredButton"), Qt::LeftButton);
+        const QByteArray expectedClipboard = formIndex == 0 ? forms.at(formIndex).mid(3)
+                                                            : forms.at(formIndex);
+        QTRY_COMPARE_WITH_TIMEOUT(QApplication::clipboard()->text().toUtf8(), expectedClipboard,
+                                  10'000);
+    }
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString emptyShare = directory.filePath(QStringLiteral("empty-share.txt"));
+    QFile shareFile(emptyShare);
+    QVERIFY(shareFile.open(QIODevice::WriteOnly));
+    const QByteArray encoded(
+        "U01OMQIAAQEBFH3mxqWB2Xj8LRQg38V3fwAAACCvE0m59fmhpqBATeo23MlJm8slya3BErfMmpPK5B8yYg");
+    QCOMPARE(shareFile.write(encoded), encoded.size());
+    shareFile.close();
+    QStringList openPaths{emptyShare};
+    QString savePath;
+    DesktopWindow window;
+    window.setFileServicesForTests(std::make_shared<FileIo>(), [] { return QString(); },
+                                   [&] { return openPaths; }, [&] { return savePath; });
+    window.show();
+    chooseRecover(window);
+    QTest::mouseClick(required<QPushButton>(&window, "loadRecoveryFilesButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
+    const QString emptyOutput = directory.filePath(QStringLiteral("empty-output.bin"));
+    savePath = emptyOutput;
+    QTest::mouseClick(required<QPushButton>(&window, "saveRecoveredButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(emptyOutput), 10'000);
+    QCOMPARE(QFileInfo(emptyOutput).size(), qint64(0));
+}
+
+void DesktopActions::file_export_failures_preserve_share_identity() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QString savePath = directory.filePath(QStringLiteral("selected-share.txt"));
+    DesktopWindow window;
+    window.setFileServicesForTests(std::make_shared<FileIo>(), [] { return QString(); },
+                                   [] { return QStringList(); }, [&] { return savePath; });
+    window.show();
+    pasteIntoCreate(window, QStringLiteral("stable export identity"));
+    const QString expected = createAndCopy(window, 1);
+    QVERIFY(!expected.isEmpty());
+
+    for (const FailingWriteDevice::Failure failure : {
+             FailingWriteDevice::Failure::Open, FailingWriteDevice::Failure::Zero,
+             FailingWriteDevice::Failure::Short, FailingWriteDevice::Failure::Error,
+             FailingWriteDevice::Failure::Flush, FailingWriteDevice::Failure::Close}) {
+        auto io = std::make_shared<FileIo>([failure](const QString &) {
+            return std::make_unique<FailingWriteDevice>(failure);
+        });
+        window.setFileServicesForTests(io, [] { return QString(); }, [] { return QStringList(); },
+                                       [&] { return savePath; });
+        QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QLabel>(&window, "createStatus")
+                                     ->text()
+                                     .contains(QStringLiteral("could not be saved")),
+                                 10'000);
+        QVERIFY(required<QWidget>(&window, "createdResult")->isVisible());
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "copyShare1")->isEnabled(), 10'000);
+        QCOMPARE(createAndCopy(window, 1), expected);
+    }
+
+    window.setFileServicesForTests(std::make_shared<FileIo>(), [] { return QString(); },
+                                   [] { return QStringList(); }, [&] { return savePath; });
+    QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(savePath), 10'000);
+    QFile saved(savePath);
+    QVERIFY(saved.open(QIODevice::ReadOnly));
+    QCOMPARE(saved.readAll(), expected.toUtf8());
+}
+
+void DesktopActions::stale_file_export_never_writes_after_edit() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QString savePath = directory.filePath(QStringLiteral("must-not-exist.txt"));
+    DesktopWindow window;
+    window.setFileServicesForTests(std::make_shared<FileIo>(), [] { return QString(); },
+                                   [] { return QStringList(); }, [&] { return savePath; });
+    window.show();
+    pasteIntoCreate(window, QStringLiteral("stale file export"));
+    QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdResult")->isVisible(), 10'000);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "saveShare1")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
+    auto *secret = required<ExactTextEdit>(&window, "secretInput");
+    secret->moveCursor(QTextCursor::End);
+    QTest::keyClicks(secret, QStringLiteral("!"));
+    QTest::qWait(500);
+    QVERIFY(!QFileInfo::exists(savePath));
+    QVERIFY(!required<QWidget>(&window, "createdResult")->isVisible());
+}
+
+void DesktopActions::file_workflow_storage_trace() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QByteArray secret("trace\0binary", 12);
+    const QString source = directory.filePath(QStringLiteral("selected-source.bin"));
+    QFile sourceFile(source);
+    QVERIFY(sourceFile.open(QIODevice::WriteOnly));
+    QCOMPARE(sourceFile.write(secret), secret.size());
+    sourceFile.close();
+
+    QString openPath = source;
+    QStringList openPaths;
+    QString savePath;
+    DesktopWindow window;
+    window.setFileServicesForTests(std::make_shared<FileIo>(), [&] { return openPath; },
+                                   [&] { return openPaths; }, [&] { return savePath; });
+    window.show();
+    QTest::mouseClick(required<QPushButton>(&window, "chooseSecretFileButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdResult")->isVisible(), 10'000);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "saveShare1")->isEnabled(), 10'000);
+
+    savePath.clear();
+    QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
+    QVERIFY(required<QWidget>(&window, "createdResult")->isVisible());
+
+    savePath = directory.path();
+    QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QLabel>(&window, "createStatus")
+                                 ->text()
+                                 .contains(QStringLiteral("could not be saved")),
+                             10'000);
+    QVERIFY(required<QWidget>(&window, "createdResult")->isVisible());
+
+    const QString first = directory.filePath(QStringLiteral("selected-share-1.txt"));
+    const QString second = directory.filePath(QStringLiteral("selected-share-2.txt"));
+    savePath = first;
+    QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(first), 10'000);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "saveShare2")->isEnabled(), 10'000);
+    savePath = second;
     QTest::mouseClick(required<QPushButton>(&window, "saveShare2"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(second), 10'000);
 
@@ -301,10 +667,7 @@ void DesktopActions::binary_file_create_share_save_load_and_exact_recovery_save(
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
     QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
-    QVERIFY(!required<QPlainTextEdit>(&window, "recoveredText")->isVisible());
-    QVERIFY(!required<QPushButton>(&window, "copyRecoveredButton")->isVisible());
-
-    const QString recovered = directory.filePath(QStringLiteral("recovered.bin"));
+    const QString recovered = directory.filePath(QStringLiteral("selected-recovered.bin"));
     savePath = recovered;
     QTest::mouseClick(required<QPushButton>(&window, "saveRecoveredButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(recovered), 10'000);
@@ -775,17 +1138,45 @@ void DesktopActions::all_share_formats_round_trip_with_auto_and_manual_selection
         {4, QStringLiteral("BIP-39")},
     };
     for (const auto &[encoding, name] : formats) {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QString savePath;
+        const QString secret = QStringLiteral("synthetic %1 desktop round trip").arg(name);
+        const QString sourcePath = directory.filePath(QStringLiteral("source.bin"));
+        QFile source(sourcePath);
+        QVERIFY(source.open(QIODevice::WriteOnly));
+        QCOMPARE(source.write(secret.toUtf8()), secret.toUtf8().size());
+        source.close();
         DesktopWindow window;
+        window.setFileServicesForTests(std::make_shared<FileIo>(), [&] { return sourcePath; },
+                                       [] { return QStringList(); }, [&] { return savePath; });
         window.show();
         auto *createEncoding = required<QComboBox>(&window, "createEncoding");
         createEncoding->setCurrentIndex(createEncoding->findData(encoding));
-        const QString secret = QStringLiteral("synthetic %1 desktop round trip").arg(name);
-        pasteIntoCreate(window, secret);
+        QTest::mouseClick(required<QPushButton>(&window, "chooseSecretFileButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
         const QString first = createAndCopy(window, 1);
         const QString second = createAndCopy(window, 2);
         QVERIFY(!first.isEmpty());
         QVERIFY(!second.isEmpty());
         QVERIFY(first != second);
+
+        const QString savedFirst = directory.filePath(QStringLiteral("first.txt"));
+        const QString repeatedFirst = directory.filePath(QStringLiteral("first-again.txt"));
+        savePath = savedFirst;
+        QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(savedFirst), 10'000);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "saveShare1")->isEnabled(), 10'000);
+        savePath = repeatedFirst;
+        QTest::mouseClick(required<QPushButton>(&window, "saveShare1"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(repeatedFirst), 10'000);
+        QFile saved(savedFirst);
+        QFile repeated(repeatedFirst);
+        QVERIFY(saved.open(QIODevice::ReadOnly));
+        QVERIFY(repeated.open(QIODevice::ReadOnly));
+        QCOMPARE(saved.readAll(), first.toUtf8());
+        QCOMPARE(repeated.readAll(), first.toUtf8());
+        QCOMPARE(createAndCopy(window, 1), first);
 
         chooseRecover(window);
         setRecoveryField(window, 1, first);

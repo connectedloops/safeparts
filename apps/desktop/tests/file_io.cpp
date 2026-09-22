@@ -5,6 +5,7 @@
 #include <QtTest>
 
 #include <algorithm>
+#include <atomic>
 #include <memory>
 #include <utility>
 
@@ -18,6 +19,8 @@ public:
     bool closeResult = true;
     qint64 forcedWrite = -2;
     qint64 failReadAfter = -1;
+    bool growAfterFirstRead = false;
+    bool grew = false;
     QByteArray written;
 
     bool openReadOnly() override { return openRead; }
@@ -30,6 +33,10 @@ public:
             return 0;
         std::copy_n(source.constData() + position, count, data);
         position += count;
+        if (growAfterFirstRead && !grew) {
+            source.append('g');
+            grew = true;
+        }
         return count;
     }
     qint64 write(const char *data, qint64 size) override {
@@ -43,6 +50,11 @@ public:
     }
     bool flush() override { return flushResult; }
     bool close() override { return closeResult; }
+};
+
+class WipeReset final {
+public:
+    ~WipeReset() { SecureByteBuffer::setWipeObserverForTests({}); }
 };
 
 class FileIoTest final : public QObject {
@@ -61,12 +73,55 @@ private slots:
         }
     }
 
+    void dynamic_growth_and_end_of_stream_are_bounded() {
+        auto *growing = new ScriptedDevice;
+        growing->source = QByteArray("abcd");
+        growing->growAfterFirstRead = true;
+        FileIo growingIo(
+            [growing](const QString &) { return std::unique_ptr<FileDevice>(growing); });
+        const auto rejected = growingIo.readBounded(QStringLiteral("growing"), 4);
+        QCOMPARE(rejected.status, FileIo::Status::TooLarge);
+        QVERIFY(rejected.bytes.isEmpty());
+
+        auto *shrinking = new ScriptedDevice;
+        shrinking->source = QByteArray("abc");
+        FileIo shrinkingIo(
+            [shrinking](const QString &) { return std::unique_ptr<FileDevice>(shrinking); });
+        const auto accepted = shrinkingIo.readBounded(QStringLiteral("shrinking"), 4);
+        QCOMPARE(accepted.status, FileIo::Status::Ok);
+        QCOMPARE(QByteArray(accepted.bytes.data(), accepted.bytes.size()), QByteArray("abc"));
+    }
+
+    void successful_read_owner_wipes_on_final_release() {
+        std::atomic<int> wipes{0};
+        std::atomic<int> nonzero{0};
+        WipeReset reset;
+        SecureByteBuffer::setWipeObserverForTests([&](QByteArrayView bytes) {
+            if (bytes.size() == 4)
+                wipes.fetch_add(1, std::memory_order_release);
+            if (std::any_of(bytes.begin(), bytes.end(), [](char byte) { return byte != '\0'; }))
+                nonzero.fetch_add(1, std::memory_order_release);
+        });
+        {
+            auto *reader = new ScriptedDevice;
+            reader->source = QByteArray("mark");
+            FileIo io([reader](const QString &) { return std::unique_ptr<FileDevice>(reader); });
+            const auto result = io.readBounded(QStringLiteral("selected"), 4);
+            QCOMPARE(result.status, FileIo::Status::Ok);
+            QCOMPARE(QByteArray(result.bytes.data(), result.bytes.size()), QByteArray("mark"));
+        }
+        QCOMPARE(wipes.load(std::memory_order_acquire), 1);
+        QCOMPARE(nonzero.load(std::memory_order_acquire), 0);
+    }
+
     void read_and_write_failures_are_typed() {
         auto *reader = new ScriptedDevice;
         reader->source = QByteArray("abcd");
         reader->failReadAfter = 0;
         FileIo readIo([reader](const QString &) { return std::unique_ptr<FileDevice>(reader); });
-        QCOMPARE(readIo.readBounded(QStringLiteral("ignored"), 4).status, FileIo::Status::ReadFailed);
+        const auto readFailure = readIo.readBounded(QStringLiteral("ignored"), 4);
+        QCOMPARE(readFailure.status, FileIo::Status::ReadFailed);
+        QVERIFY(readFailure.bytes.isEmpty());
 
         for (qint64 result : {qint64(0), qint64(2), qint64(-1)}) {
             auto *writer = new ScriptedDevice;
@@ -108,7 +163,9 @@ private slots:
         reader->source = QByteArray("abc");
         reader->closeResult = false;
         FileIo readIo([reader](const QString &) { return std::unique_ptr<FileDevice>(reader); });
-        QCOMPARE(readIo.readBounded(QStringLiteral("chosen"), 4).status, FileIo::Status::ReadFailed);
+        const auto closeFailure = readIo.readBounded(QStringLiteral("chosen"), 4);
+        QCOMPARE(closeFailure.status, FileIo::Status::ReadFailed);
+        QVERIFY(closeFailure.bytes.isEmpty());
 
         auto *writer = new ScriptedDevice;
         writer->closeResult = false;

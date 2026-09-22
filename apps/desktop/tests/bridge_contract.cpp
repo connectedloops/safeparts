@@ -1,5 +1,6 @@
 #include "bridge.rs.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <fstream>
@@ -23,6 +24,10 @@ std::string fixture(const char *relativePath) {
     std::ostringstream contents;
     contents << input.rdbuf();
     return contents.str();
+}
+
+void wipe(rust::Vec<std::uint8_t> &value) {
+    std::fill(value.begin(), value.end(), std::uint8_t{0});
 }
 } // namespace
 
@@ -232,8 +237,91 @@ int main() {
         }
     }
 
+    const std::string binarySecret("\0\xff\xfe\r\nCXX-binary", 15);
+    const std::string binaryPassphrase = "synthetic CXX binary passphrase";
+    for (ShareEncoding encoding : encodings) {
+        auto binaryOperation = new_operation();
+        const auto binaryCreated = binaryOperation->create_with_passphrase(
+            11, bytes(binarySecret), 2, 3, encoding, bytes(binaryPassphrase));
+        auto binaryFirst = binaryOperation->encode_share(11, 0);
+        auto binaryFirstAgain = binaryOperation->encode_share(11, 0);
+        auto binarySecond = binaryOperation->encode_share(11, 1);
+        if (binaryCreated.status != Status::Ok || binaryFirst.status != Status::Ok
+            || stringFrom(binaryFirst.bytes) != stringFrom(binaryFirstAgain.bytes)) {
+            std::cerr << "stable protected binary create failed\n";
+            return 15;
+        }
+        binaryOperation->reset(12);
+        binaryOperation->add_recovery(
+            12, {binaryFirst.bytes.data(), binaryFirst.bytes.size()}, ShareEncoding::Auto);
+        const auto binaryReady = binaryOperation->add_recovery(
+            12, {binarySecond.bytes.data(), binarySecond.bytes.size()}, ShareEncoding::Auto);
+        auto binaryRecovered = binaryOperation->recover_bytes_with_passphrase(
+            12, bytes(binaryPassphrase));
+        auto binaryAccessor = binaryOperation->recovered_bytes(12);
+        auto binaryText = binaryOperation->recovered_text(12);
+        if (binaryReady.status != Status::PassphraseRequired
+            || binaryRecovered.status != Status::Ok
+            || stringFrom(binaryRecovered.bytes) != binarySecret
+            || binaryAccessor.status != Status::Ok
+            || stringFrom(binaryAccessor.bytes) != binarySecret
+            || binaryText.status != Status::InvalidUtf8 || !binaryText.bytes.empty()) {
+            std::cerr << "exact protected binary recovery failed\n";
+            return 16;
+        }
+        wipe(binaryFirst.bytes);
+        wipe(binaryFirstAgain.bytes);
+        wipe(binarySecond.bytes);
+        wipe(binaryRecovered.bytes);
+        wipe(binaryAccessor.bytes);
+        destroy_operation(std::move(binaryOperation));
+    }
+
+    // Generated once through public split_secret(b"", 1, 1, None) and Base64url encoding.
+    const std::string emptyCompatible =
+        "U01OMQIAAQEBFH3mxqWB2Xj8LRQg38V3fwAAACCvE0m59fmhpqBATeo23MlJm8slya3BErfMmpPK5B8yYg";
+    auto emptyOperation = new_operation();
+    const auto emptyReady = emptyOperation->add_recovery(
+        13, bytes(emptyCompatible), ShareEncoding::Base64url);
+    auto emptyRecovered = emptyOperation->recover_bytes_with_passphrase(13, bytes(""));
+    auto emptyAccessor = emptyOperation->recovered_bytes(13);
+    auto emptyText = emptyOperation->recovered_text(13);
+    if (emptyReady.status != Status::Ok || emptyRecovered.status != Status::Ok
+        || !emptyRecovered.bytes.empty() || emptyAccessor.status != Status::Ok
+        || !emptyAccessor.bytes.empty() || emptyText.status != Status::Ok
+        || !emptyText.bytes.empty()) {
+        std::cerr << "valid empty recovery presence failed\n";
+        return 17;
+    }
+    destroy_operation(std::move(emptyOperation));
+
+    const std::array<std::string, 2> exactByteForms = {
+        std::string("\xef\xbb\xbf" "BOM\r\nNUL\0tail\n", 17),
+        std::string("NFC \xc3\xa9 / NFD e\xcc\x81\r\n"),
+    };
+    for (const std::string &form : exactByteForms) {
+        auto formOperation = new_operation();
+        if (formOperation->create(14, bytes(form), 1, 1, ShareEncoding::Base64url).status
+            != Status::Ok) {
+            std::cerr << "exact byte-form create failed\n";
+            return 18;
+        }
+        auto formShare = formOperation->encode_share(14, 0);
+        formOperation->reset(15);
+        formOperation->add_recovery(
+            15, {formShare.bytes.data(), formShare.bytes.size()}, ShareEncoding::Auto);
+        auto formRecovered = formOperation->recover_bytes_with_passphrase(15, bytes(""));
+        if (formRecovered.status != Status::Ok || stringFrom(formRecovered.bytes) != form) {
+            std::cerr << "BOM/CRLF/NUL/normalization fidelity failed\n";
+            return 19;
+        }
+        wipe(formShare.bytes);
+        wipe(formRecovered.bytes);
+        destroy_operation(std::move(formOperation));
+    }
+
     destroy_operation(std::move(other));
     destroy_operation(std::move(operation));
-    std::cout << "CXX_DESKTOP_BOUNDARY_OK shares=3 threshold=2 encodings=4 released_fixtures=12 surface_fixtures=12 auto=yes handled_errors=yes explicit_release=yes\n";
+    std::cout << "CXX_DESKTOP_BOUNDARY_OK shares=3 threshold=2 encodings=4 released_fixtures=12 surface_fixtures=12 binary=yes empty=yes byte_forms=yes auto=yes handled_errors=yes explicit_release=yes\n";
     return 0;
 }
