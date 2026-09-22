@@ -872,3 +872,85 @@ fn released_protected_fixture_recovers_exact_binary_and_metadata() {
         }
     }
 }
+
+#[test]
+fn byte_creation_round_trips_binary_in_every_encoding_with_and_without_protection() {
+    let secret = b"\0\xff\xfe\r\nexact-binary";
+    for encoding in [
+        ShareEncoding::Base64url,
+        ShareEncoding::Base58check,
+        ShareEncoding::MnemoWords,
+        ShareEncoding::MnemoBip39,
+    ] {
+        for passphrase in [&b""[..], &b"exact passphrase"[..]] {
+            let mut operation = new_operation();
+            let created = operation.create_with_passphrase(1, secret, 2, 3, encoding, passphrase);
+            assert!(created.status == Status::Ok);
+            let first = operation.encode_share(1, 0);
+            let first_again = operation.encode_share(1, 0);
+            let second = operation.encode_share(1, 1);
+            assert_eq!(first.bytes, first_again.bytes);
+            operation.reset(2);
+            operation.add_recovery(2, &first.bytes, ShareEncoding::Auto);
+            let inspected = operation.add_recovery(2, &second.bytes, ShareEncoding::Auto);
+            assert!(matches!(
+                inspected.status,
+                Status::Ok | Status::PassphraseRequired
+            ));
+            let recovered = operation.recover_bytes_with_passphrase(2, passphrase);
+            assert!(recovered.status == Status::Ok);
+            assert_eq!(recovered.bytes, secret);
+            assert_eq!(operation.recovered_bytes(2).bytes, secret);
+            assert!(operation.recovered_text(2).status == Status::InvalidUtf8);
+        }
+    }
+}
+
+#[test]
+fn valid_empty_legacy_recovery_is_present_and_failed_retry_clears_it() {
+    let packets = match split_secret(b"", 1, 1, None) {
+        Ok(packets) => packets,
+        Err(error) => panic!("synthetic empty legacy packet failed: {error}"),
+    };
+    let encoded = match encode_packet(&packets[0], Encoding::Base64url) {
+        Ok(encoded) => encoded,
+        Err(error) => panic!("empty fixture encoding failed: {error}"),
+    };
+    let mut operation = new_operation();
+    assert!(
+        operation
+            .add_recovery(1, encoded.as_bytes(), ShareEncoding::Auto)
+            .status
+            == Status::Ok
+    );
+    let recovered = operation.recover_bytes_with_passphrase(1, b"");
+    assert!(recovered.status == Status::Ok);
+    assert!(recovered.bytes.is_empty());
+    assert!(operation.recovered_bytes(1).status == Status::Ok);
+    assert!(operation.recovered_text(1).status == Status::Ok);
+
+    operation.add_recovery(2, b"malformed", ShareEncoding::Auto);
+    assert!(operation.recovered_bytes(2).status == Status::NotEnoughShares);
+}
+
+#[test]
+fn byte_recovery_preserves_utf8_byte_forms_exactly() {
+    for secret in [
+        &b"\xef\xbb\xbfBOM\r\nNUL\0tail\n"[..],
+        "NFC é / NFD e\u{301}\n".as_bytes(),
+    ] {
+        let packets = match split_secret(secret, 1, 1, None) {
+            Ok(packets) => packets,
+            Err(error) => panic!("synthetic exact-byte packet failed: {error}"),
+        };
+        let encoded = match encode_packet(&packets[0], Encoding::MnemoWords) {
+            Ok(encoded) => encoded,
+            Err(error) => panic!("exact-byte fixture encoding failed: {error}"),
+        };
+        let mut operation = new_operation();
+        operation.add_recovery(1, encoded.as_bytes(), ShareEncoding::Auto);
+        let recovered = operation.recover_bytes_with_passphrase(1, b"");
+        assert_eq!(recovered.bytes, secret);
+        assert_eq!(operation.recovered_bytes(1).bytes, secret);
+    }
+}

@@ -15,7 +15,7 @@ Owns the generated CXX seam between the experimental Qt desktop app and `safepar
 
 - Pin the CXX family to `1.0.195`; do not add `build.rs` or handwritten unsafe code.
 - Keep `src/bridge.rs` declarations-only and pinned by the policy guard. Keep operation logic under `#![forbid(unsafe_code)]`.
-- Rust owns share packets, retained recovery input, and authoritative recovered bytes. CXX values are bounded copies with explicit owners. The generated boundary exposes explicit exact-byte recovery for compatibility tests; the Qt text workflow uses the UTF-8-gated recovery entry.
+- Rust owns share packets, retained recovery input, and authoritative recovered bytes. CXX values are bounded copies with explicit owners. Secret creation is byte-oriented; Qt separately enforces its text-entry UTF-8/LF contract. Recovered presence is explicit, so valid empty legacy recovery is distinct from absent or failed output. The generated boundary exposes fresh exact-byte recovery access without paths or packet layout.
 - Catch unwinds at every CXX operation entry and return content-free typed statuses. Never log secret or Recovery share content.
 - Delegate packet grammar, version-preserving Auto/manual encoding detection, validation, interpolation, and integrity checks to `safeparts_core`; expose only bounded encoding/protection/count/status metadata.
 

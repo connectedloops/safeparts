@@ -40,6 +40,7 @@ pub struct Operation {
     recovery_encoding: Option<CoreEncoding>,
     recovery_version: Option<PacketVersion>,
     recovered: Zeroizing<Vec<u8>>,
+    has_recovered: bool,
     inspection: OperationOutput,
 }
 
@@ -53,6 +54,7 @@ pub fn new_operation() -> Box<Operation> {
         recovery_encoding: None,
         recovery_version: None,
         recovered: Zeroizing::new(Vec::new()),
+        has_recovered: false,
         inspection: output(0, Status::NotEnoughShares),
     })
 }
@@ -138,9 +140,6 @@ impl Operation {
         };
         if secret.is_empty() {
             return output(generation, Status::EmptySecret);
-        }
-        if str::from_utf8(secret).is_err() {
-            return output(generation, Status::InvalidUtf8);
         }
         if secret.len() > MAX_SECRET_BYTES {
             return output(generation, Status::SecretTooLarge);
@@ -483,6 +482,7 @@ impl Operation {
         }
 
         self.recovered = recovered;
+        self.has_recovered = true;
         BytesOutput {
             generation,
             status: Status::Ok,
@@ -490,12 +490,10 @@ impl Operation {
         }
     }
 
-    pub fn recovered_text(&mut self, generation: u64) -> BytesOutput {
+    pub fn recovered_bytes(&mut self, generation: u64) -> BytesOutput {
         match catch_unwind(AssertUnwindSafe(|| {
-            if self.recovered.is_empty() {
+            if !self.has_recovered {
                 bytes_output(generation, Status::NotEnoughShares)
-            } else if str::from_utf8(&self.recovered).is_err() {
-                bytes_output(generation, Status::InvalidUtf8)
             } else {
                 BytesOutput {
                     generation,
@@ -506,6 +504,15 @@ impl Operation {
         })) {
             Ok(result) => result,
             Err(_) => self.panic_bytes(generation),
+        }
+    }
+
+    pub fn recovered_text(&mut self, generation: u64) -> BytesOutput {
+        let output = self.recovered_bytes(generation);
+        if output.status == Status::Ok && str::from_utf8(&output.bytes).is_err() {
+            bytes_output(generation, Status::InvalidUtf8)
+        } else {
+            output
         }
     }
 
@@ -657,6 +664,7 @@ impl Operation {
     fn clear_recovered(&mut self) {
         self.recovered.zeroize();
         self.recovered.clear();
+        self.has_recovered = false;
     }
 
     fn clear_all(&mut self) {

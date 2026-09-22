@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/../../.."
 package=crates/safeparts_desktop_bridge
 bridge="$package/src/bridge.rs"
-expected_bridge_sha='439b56ac6bd45fffc3422675e0362ed03b8e0fc5f3970c4efc19d3e0e6578159'
+expected_bridge_sha='bd98160b4e90352034b130189f5b0e58003e20c49a01a6498909fbd620b84b1c'
 expected_sources="$package/src/bridge.rs
 $package/src/lib.rs
 $package/src/operation.rs
