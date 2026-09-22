@@ -223,6 +223,11 @@ int main() {
                 std::cerr << "protected released fixture CXX contract failed\n";
                 return 13;
             }
+            const auto text = protectedOperation->recovered_text(10);
+            if (text.status != Status::InvalidUtf8 || !text.bytes.empty()) {
+                std::cerr << "binary recovery leaked through text accessor\n";
+                return 14;
+            }
             destroy_operation(std::move(protectedOperation));
         }
     }

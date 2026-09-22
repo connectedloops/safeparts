@@ -495,6 +495,8 @@ impl Operation {
         match catch_unwind(AssertUnwindSafe(|| {
             if self.recovered.is_empty() {
                 bytes_output(generation, Status::NotEnoughShares)
+            } else if str::from_utf8(&self.recovered).is_err() {
+                bytes_output(generation, Status::InvalidUtf8)
             } else {
                 BytesOutput {
                     generation,

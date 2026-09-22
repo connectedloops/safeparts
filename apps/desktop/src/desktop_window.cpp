@@ -836,11 +836,16 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
         createStatus_->setText(statusText(status));
     } else if (pending_ == Pending::Inspect) {
         Q_UNUSED(batchCount);
-        recoveryProtected_ = protectedInput;
-        recoveryPassphrasePanel_->setVisible(protectedInput);
-        if (!protectedInput && recoveryPassphrase_->exactUtf8Size() != 0) {
-            const QSignalBlocker blocker(recoveryPassphrase_);
-            recoveryPassphrase_->clearExact();
+        const bool validInspection = status == statusCode(Status::Ok)
+                                     || status == statusCode(Status::NotEnoughShares)
+                                     || status == statusCode(Status::PassphraseRequired);
+        if (validInspection) {
+            recoveryProtected_ = protectedInput;
+            recoveryPassphrasePanel_->setVisible(protectedInput);
+            if (!protectedInput && recoveryPassphrase_->exactUtf8Size() != 0) {
+                const QSignalBlocker blocker(recoveryPassphrase_);
+                recoveryPassphrase_->clearExact();
+            }
         }
         if (encoding != 0) {
             recoveryDetectedFormat_->setText(
@@ -866,9 +871,11 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
             recoverButton_->setEnabled(false);
             recoveryStatus_->setText(QStringLiteral("Share content is required."));
         } else {
-            const bool passphraseReady = !protectedInput || recoveryPassphrase_->exactUtf8Size() != 0;
+            const bool passphraseReady = !recoveryProtected_
+                                         || recoveryPassphrase_->exactUtf8Size() != 0;
             setRecoveryStatus(status, threshold, suppliedCount,
-                              ready || (protectedInput && passphraseReady && suppliedCount >= threshold));
+                              ready || (validInspection && recoveryProtected_ && passphraseReady
+                                        && suppliedCount >= threshold));
         }
     }
     pending_ = Pending::None;

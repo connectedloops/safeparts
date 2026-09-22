@@ -191,7 +191,10 @@ class DesktopActions final : public QObject {
 private slots:
     void create_copy_recover_preserves_exact_utf8_through_user_actions();
     void text_entry_preserves_content_and_bounds_typing_and_input_methods();
+    void masked_passphrase_admission_and_disclosure_are_bounded();
     void protected_create_and_recovery_require_exact_confirmed_passphrase();
+    void passphrase_edits_invalidate_outputs_and_lifecycle_clears_controls();
+    void in_flight_passphrase_edits_reject_stale_protected_results();
     void duplicate_blocks_and_correctable_input_is_preserved();
     void malformed_and_mixed_inputs_block_without_filtering();
     void maximum_valid_workload_remains_bounded_and_resettable();
@@ -203,6 +206,7 @@ private slots:
     void readiness_uses_distinct_shares_not_empty_placeholders();
     void released_v1_v2_fixtures_inspect_through_qt_auto();
     void protected_fixtures_are_safe_and_interoperate_through_qt();
+    void protected_inspection_errors_preserve_passphrase_until_valid_unprotected_replacement();
     void unsupported_version_and_kdf_are_distinct_from_corruption();
     void empty_recovery_field_precedence_survives_encoding_inspection();
     void created_shares_keep_source_and_use_compact_native_layout();
@@ -240,6 +244,38 @@ void DesktopActions::create_copy_recover_preserves_exact_utf8_through_user_actio
     QApplication::clipboard()->clear();
     QTest::mouseClick(required<QPushButton>(&window, "copyRecoveredButton"), Qt::LeftButton);
     QTRY_COMPARE_WITH_TIMEOUT(QApplication::clipboard()->text(), exactText(), 10'000);
+}
+
+void DesktopActions::masked_passphrase_admission_and_disclosure_are_bounded() {
+    ExactTextEdit editor(nullptr, 1'048'576, true, false);
+    editor.show();
+    const QString maximum = QStringLiteral(" \r\ne\u0301\r")
+                                + QString(1'048'569, QLatin1Char('p'));
+    QCOMPARE(maximum.toUtf8().size(), 1'048'576);
+    replaceExact(&editor, maximum);
+    QCOMPARE(editor.exactUtf8(), maximum.toUtf8());
+    QCOMPARE(editor.toPlainText(), QString(maximum.size(), QChar(0x2022)));
+    QVERIFY(!editor.toPlainText().contains(QStringLiteral("e")));
+    QVERIFY(!editor.isUndoRedoEnabled());
+
+    QTest::keyClicks(&editor, QStringLiteral("x"));
+    QCOMPARE(editor.exactUtf8(), maximum.toUtf8());
+    QInputMethodEvent inputMethod;
+    inputMethod.setCommitString(QStringLiteral("😀"));
+    QApplication::sendEvent(&editor, &inputMethod);
+    QCOMPARE(editor.exactUtf8(), maximum.toUtf8());
+    QApplication::clipboard()->setText(QStringLiteral("clipboard sentinel"));
+    editor.selectAll();
+    QTest::keySequence(&editor, QKeySequence::Copy);
+    QTest::keySequence(&editor, QKeySequence::Cut);
+    QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("clipboard sentinel"));
+    QCOMPARE(editor.exactUtf8(), maximum.toUtf8());
+    QTest::keySequence(&editor, QKeySequence::Undo);
+    QCOMPARE(editor.exactUtf8(), maximum.toUtf8());
+
+    QContextMenuEvent context(QContextMenuEvent::Keyboard, QPoint(), editor.mapToGlobal(QPoint()));
+    QApplication::sendEvent(&editor, &context);
+    QVERIFY(QApplication::activePopupWidget() == nullptr);
 }
 
 void DesktopActions::protected_create_and_recovery_require_exact_confirmed_passphrase() {
@@ -285,6 +321,85 @@ void DesktopActions::protected_create_and_recovery_require_exact_confirmed_passp
     QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
     QCOMPARE(required<QPlainTextEdit>(&window, "recoveredText")->toPlainText(),
              QStringLiteral("synthetic protected Qt secret"));
+}
+
+void DesktopActions::passphrase_edits_invalidate_outputs_and_lifecycle_clears_controls() {
+    DesktopWindow window;
+    window.show();
+    pasteIntoCreate(window, QStringLiteral("passphrase output lifecycle"));
+    required<QCheckBox>(&window, "protectWithPassphrase")->setChecked(true);
+    replaceExact(required<ExactTextEdit>(&window, "createPassphrase"), QStringLiteral("first"));
+    replaceExact(required<ExactTextEdit>(&window, "confirmPassphrase"), QStringLiteral("first"));
+    QVERIFY(!createAndCopy(window, 1).isEmpty());
+    QTest::keyClicks(required<ExactTextEdit>(&window, "createPassphrase"), QStringLiteral("!"));
+    QVERIFY(!required<QWidget>(&window, "createdResult")->isVisible());
+
+    chooseRecover(window);
+    const QStringList shares = fixtureText(QStringLiteral(
+        "crates/safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/base64url.txt"))
+                                   .split(QRegularExpression(QStringLiteral("[\\r\\n]+")),
+                                          Qt::SkipEmptyParts);
+    setRecoveryField(window, 1, shares.at(0));
+    setRecoveryField(window, 2, shares.at(1));
+    replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"),
+                 QStringLiteral("issue-142 synthetic interoperability passphrase"));
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
+    QTest::keyClicks(required<ExactTextEdit>(&window, "recoveryPassphrase"), QStringLiteral("!"));
+    QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
+
+    QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryPassphrase")->exactUtf8(), QByteArray());
+    auto *tabs = required<QTabBar>(&window, "modeSelector");
+    QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier, tabs->tabRect(0).center());
+    QCOMPARE(required<ExactTextEdit>(&window, "createPassphrase")->exactUtf8(), QByteArray());
+    QCOMPARE(required<ExactTextEdit>(&window, "confirmPassphrase")->exactUtf8(), QByteArray());
+    replaceExact(required<ExactTextEdit>(&window, "createPassphrase"), QStringLiteral("close"));
+    window.close();
+    QCOMPARE(required<ExactTextEdit>(&window, "createPassphrase")->exactUtf8(), QByteArray());
+}
+
+void DesktopActions::in_flight_passphrase_edits_reject_stale_protected_results() {
+    DesktopWindow createWindow;
+    createWindow.show();
+    pasteIntoCreate(createWindow, QString(500'000, QLatin1Char('k')));
+    required<QCheckBox>(&createWindow, "protectWithPassphrase")->setChecked(true);
+    replaceExact(required<ExactTextEdit>(&createWindow, "createPassphrase"), QStringLiteral("argon first"));
+    replaceExact(required<ExactTextEdit>(&createWindow, "confirmPassphrase"), QStringLiteral("argon first"));
+    QTest::mouseClick(required<QPushButton>(&createWindow, "createButton"), Qt::LeftButton);
+    QTest::keyClicks(required<ExactTextEdit>(&createWindow, "createPassphrase"), QStringLiteral("!"));
+    QTest::qWait(1'000);
+    QVERIFY(!required<QWidget>(&createWindow, "createdResult")->isVisible());
+    replaceExact(required<ExactTextEdit>(&createWindow, "confirmPassphrase"),
+                 QStringLiteral("argon first!"));
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&createWindow, "createButton")->isEnabled(),
+                             30'000);
+    QTest::mouseClick(required<QPushButton>(&createWindow, "createButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&createWindow, "createdResult")->isVisible(), 30'000);
+
+    DesktopWindow recoverWindow;
+    recoverWindow.show();
+    chooseRecover(recoverWindow);
+    const QStringList shares = fixtureText(QStringLiteral(
+        "crates/safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/base64url.txt"))
+                                   .split(QRegularExpression(QStringLiteral("[\\r\\n]+")),
+                                          Qt::SkipEmptyParts);
+    setRecoveryField(recoverWindow, 1, shares.at(0));
+    setRecoveryField(recoverWindow, 2, shares.at(1));
+    auto *passphrase = required<ExactTextEdit>(&recoverWindow, "recoveryPassphrase");
+    replaceExact(passphrase, QStringLiteral("wrong passphrase"));
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&recoverWindow, "recoverButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&recoverWindow, "recoverButton"), Qt::LeftButton);
+    QTest::keyClicks(passphrase, QStringLiteral("!"));
+    QTest::qWait(1'000);
+    QVERIFY(!required<QWidget>(&recoverWindow, "recoveryResult")->isVisible());
+    QVERIFY(!required<QLabel>(&recoverWindow, "recoveryStatus")->text().contains(
+        QStringLiteral("may be incorrect")));
+    replaceExact(passphrase, QStringLiteral("issue-142 synthetic interoperability passphrase"));
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&recoverWindow, "recoverButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&recoverWindow, "recoverButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&recoverWindow, "recoveryResult")->isVisible(), 10'000);
 }
 
 void DesktopActions::text_entry_preserves_content_and_bounds_typing_and_input_methods() {
@@ -760,6 +875,46 @@ void DesktopActions::protected_fixtures_are_safe_and_interoperate_through_qt() {
     }
 }
 
+void DesktopActions::protected_inspection_errors_preserve_passphrase_until_valid_unprotected_replacement() {
+    const QString protectedText = fixtureText(QStringLiteral(
+        "crates/safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/base64url.txt"));
+    const QStringList protectedShares = protectedText.split(
+        QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
+    QCOMPARE(protectedShares.size(), 3);
+
+    DesktopWindow window;
+    window.show();
+    chooseRecover(window);
+    setRecoveryField(window, 1, protectedShares.at(0));
+    setRecoveryField(window, 2, protectedShares.at(1));
+    auto *passphrase = required<ExactTextEdit>(&window, "recoveryPassphrase");
+    replaceExact(passphrase, QStringLiteral("issue-142 synthetic interoperability passphrase"));
+    const QByteArray expectedPassphrase = passphrase->exactUtf8();
+
+    const QString malformed = protectedShares.at(0) + QStringLiteral("!");
+    setRecoveryField(window, 1, malformed);
+    QVERIFY(required<QWidget>(&window, "recoveryPassphrasePanel")->isVisible());
+    QCOMPARE(passphrase->exactUtf8(), expectedPassphrase);
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), malformed.toUtf8());
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare2")->exactUtf8(),
+             protectedShares.at(1).toUtf8());
+
+    setRecoveryField(window, 1, protectedShares.at(0));
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
+
+    const QString unprotectedText = fixtureText(QStringLiteral(
+        "crates/safeparts_core/tests/fixtures/surface_interoperability/cli/base64url.txt"));
+    const QStringList unprotectedShares = unprotectedText.split(
+        QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
+    setRecoveryField(window, 1, unprotectedShares.at(0));
+    setRecoveryField(window, 2, unprotectedShares.at(1));
+    QTRY_VERIFY_WITH_TIMEOUT(!required<QWidget>(&window, "recoveryPassphrasePanel")->isVisible(),
+                             10'000);
+    QCOMPARE(passphrase->exactUtf8(), QByteArray());
+}
+
 void DesktopActions::unsupported_version_and_kdf_are_distinct_from_corruption() {
     const QString fixtureRoot = QStringLiteral(
         "crates/safeparts_core/tests/fixtures/share_compatibility/");
@@ -1045,6 +1200,15 @@ void DesktopActions::secure_queued_buffers_wipe_on_final_release() {
         QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
         QTRY_VERIFY_WITH_TIMEOUT(observation->count.load(std::memory_order_acquire) >= 2, 10'000);
 
+        QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+        pasteIntoCreate(window, QStringLiteral("queued protected create input"));
+        required<QCheckBox>(&window, "protectWithPassphrase")->setChecked(true);
+        replaceExact(required<ExactTextEdit>(&window, "createPassphrase"), QStringLiteral("wipe passphrase"));
+        replaceExact(required<ExactTextEdit>(&window, "confirmPassphrase"), QStringLiteral("wipe passphrase"));
+        QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
+        QTRY_VERIFY_WITH_TIMEOUT(observation->count.load(std::memory_order_acquire) >= 5, 10'000);
+
         QTest::mouseClick(required<QPushButton>(&window, "copyShare1"), Qt::LeftButton);
         QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
         QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
@@ -1053,7 +1217,21 @@ void DesktopActions::secure_queued_buffers_wipe_on_final_release() {
         chooseRecover(window);
         pasteRecovery(window, QStringLiteral("malformed handled recovery input"));
         QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("could not be decoded")));
-        QTRY_VERIFY_WITH_TIMEOUT(observation->count.load(std::memory_order_acquire) >= 4, 10'000);
+        QTRY_VERIFY_WITH_TIMEOUT(observation->count.load(std::memory_order_acquire) >= 7, 10'000);
+
+        const QStringList protectedShares = fixtureText(QStringLiteral(
+            "crates/safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/base64url.txt"))
+                                                .split(QRegularExpression(QStringLiteral("[\\r\\n]+")),
+                                                       Qt::SkipEmptyParts);
+        setRecoveryField(window, 1, protectedShares.at(0));
+        setRecoveryField(window, 2, protectedShares.at(1));
+        replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"),
+                     QStringLiteral("issue-142 synthetic interoperability passphrase"));
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(),
+                                 10'000);
+        QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
+        QTRY_VERIFY_WITH_TIMEOUT(observation->count.load(std::memory_order_acquire) >= 10, 10'000);
     }
 
     const int beforeClose = observation->count.load(std::memory_order_acquire);

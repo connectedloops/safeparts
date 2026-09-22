@@ -830,6 +830,9 @@ fn released_protected_fixture_recovers_exact_binary_and_metadata() {
             let recovered = op.recover_bytes_with_passphrase(90, PASS);
             assert!(recovered.status == Status::Ok);
             assert_eq!(recovered.bytes, EXPECTED);
+            let text = op.recovered_text(91);
+            assert!(text.status == Status::InvalidUtf8);
+            assert!(text.bytes.is_empty());
         }
     }
 }
