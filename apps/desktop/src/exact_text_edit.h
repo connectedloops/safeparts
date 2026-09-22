@@ -9,7 +9,9 @@ class ExactTextEdit final : public QPlainTextEdit {
     Q_OBJECT
 
 public:
-    explicit ExactTextEdit(QWidget *parent = nullptr, qsizetype maximumUtf8Bytes = 1'048'576);
+    explicit ExactTextEdit(QWidget *parent = nullptr, qsizetype maximumUtf8Bytes = 1'048'576,
+                           bool masked = false, bool normalizeLineEndings = true);
+    ~ExactTextEdit() override;
     QByteArray exactUtf8() const;
     qsizetype exactUtf8Size() const;
     void clearExact();
@@ -34,4 +36,6 @@ private:
     QString exact_;
     qsizetype exactUtf8Size_ = 0;
     qsizetype maximumUtf8Bytes_ = 0;
+    bool masked_ = false;
+    bool normalizeLineEndings_ = true;
 };

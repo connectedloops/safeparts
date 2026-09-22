@@ -651,6 +651,42 @@ fn protected_operation_preserves_exact_passphrase_and_safe_failures_in_all_encod
 }
 
 #[test]
+fn passphrase_utf8_and_inclusive_byte_boundary_are_enforced_publicly() {
+    let invalid_utf8 = [0xff];
+    let mut invalid = new_operation();
+    assert!(
+        invalid
+            .create_with_passphrase(
+                1,
+                b"synthetic invalid utf8",
+                1,
+                1,
+                ShareEncoding::Base64url,
+                &invalid_utf8,
+            )
+            .status
+            == Status::InvalidUtf8
+    );
+    assert!(invalid.recover_with_passphrase(1, &invalid_utf8).status == Status::InvalidUtf8);
+
+    let maximum = vec![b'x'; 1_048_576];
+    let mut boundary = new_operation();
+    assert!(
+        boundary
+            .create_with_passphrase(
+                2,
+                b"synthetic exact passphrase boundary",
+                1,
+                1,
+                ShareEncoding::Base64url,
+                &maximum,
+            )
+            .status
+            == Status::Ok
+    );
+}
+
+#[test]
 fn passphrases_over_the_inclusive_limit_are_rejected() {
     let too_large = vec![b'x'; 1_048_577];
     let mut operation = new_operation();

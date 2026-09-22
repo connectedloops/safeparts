@@ -51,12 +51,18 @@ std::optional<qsizetype> utf8Length(QStringView text, qsizetype maximumBytes) {
 }
 } // namespace
 
-ExactTextEdit::ExactTextEdit(QWidget *parent, qsizetype maximumUtf8Bytes)
-    : QPlainTextEdit(parent), maximumUtf8Bytes_(maximumUtf8Bytes) {
+ExactTextEdit::ExactTextEdit(QWidget *parent, qsizetype maximumUtf8Bytes, bool masked,
+                             bool normalizeLineEndings)
+    : QPlainTextEdit(parent), maximumUtf8Bytes_(maximumUtf8Bytes), masked_(masked),
+      normalizeLineEndings_(normalizeLineEndings) {
     Q_ASSERT(maximumUtf8Bytes_ > 0);
     setUndoRedoEnabled(false);
     setAcceptDrops(false);
     setTabChangesFocus(true);
+}
+
+ExactTextEdit::~ExactTextEdit() {
+    exact_.fill(u'\0');
 }
 
 QByteArray ExactTextEdit::exactUtf8() const {
@@ -72,6 +78,7 @@ void ExactTextEdit::clearExact() {
         QPlainTextEdit::clear();
         return;
     }
+    exact_.fill(u'\0');
     exact_.clear();
     exactUtf8Size_ = 0;
     renderAt(0);
@@ -85,12 +92,13 @@ void ExactTextEdit::keyPressEvent(QKeyEvent *event) {
         return;
     }
     if (event->matches(QKeySequence::Copy)) {
-        copySelection();
+        if (!masked_)
+            copySelection();
         event->accept();
         return;
     }
     if (event->matches(QKeySequence::Cut)) {
-        if (textCursor().hasSelection()) {
+        if (!masked_ && textCursor().hasSelection()) {
             copySelection();
             removeSelectionOrCharacter(false);
         }
@@ -166,6 +174,10 @@ void ExactTextEdit::insertFromMimeData(const QMimeData *source) {
 }
 
 void ExactTextEdit::contextMenuEvent(QContextMenuEvent *event) {
+    if (masked_) {
+        event->accept();
+        return;
+    }
     QMenu menu(this);
     QAction *cut = menu.addAction(tr("Cut"), this, [this] {
         copySelection();
@@ -197,7 +209,7 @@ void ExactTextEdit::pasteFromClipboard() {
 }
 
 bool ExactTextEdit::insertExact(const QString &text) {
-    const QString admitted = withLfLineEndings(text);
+    const QString admitted = normalizeLineEndings_ ? withLfLineEndings(text) : text;
     const QTextCursor cursor = textCursor();
     const int start = cursor.selectionStart();
     const int end = cursor.selectionEnd();
@@ -251,13 +263,15 @@ void ExactTextEdit::removeSelectionOrCharacter(bool backwards) {
 
 void ExactTextEdit::renderAt(int position) {
     const QSignalBlocker blocker(this);
-    QPlainTextEdit::setPlainText(exact_);
+    QPlainTextEdit::setPlainText(masked_ ? QString(exact_.size(), QChar(0x2022)) : exact_);
     QTextCursor cursor = textCursor();
     cursor.setPosition(qBound(0, position, document()->characterCount() - 1));
     setTextCursor(cursor);
 }
 
 void ExactTextEdit::copySelection() const {
+    if (masked_)
+        return;
     const QTextCursor cursor = textCursor();
     if (!cursor.hasSelection())
         return;

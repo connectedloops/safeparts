@@ -148,6 +148,9 @@ impl Operation {
         if passphrase.len() > MAX_PASSPHRASE_BYTES {
             return output(generation, Status::PassphraseTooLarge);
         }
+        if std::str::from_utf8(passphrase).is_err() {
+            return output(generation, Status::InvalidUtf8);
+        }
         if threshold == 0 || share_count == 0 || threshold > share_count {
             return output(generation, Status::InvalidThreshold);
         }
@@ -431,6 +434,9 @@ impl Operation {
     fn recover_inner(&mut self, generation: u64, passphrase: &[u8]) -> BytesOutput {
         if passphrase.len() > MAX_PASSPHRASE_BYTES {
             return bytes_output(generation, Status::PassphraseTooLarge);
+        }
+        if std::str::from_utf8(passphrase).is_err() {
+            return bytes_output(generation, Status::InvalidUtf8);
         }
         let protected = self.inspection.passphrase_protected;
         if self.recovery_packets.len() < usize::from(self.inspection.threshold) {

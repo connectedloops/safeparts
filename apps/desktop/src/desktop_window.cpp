@@ -14,7 +14,6 @@
 #include <QIcon>
 #include <QKeyEvent>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QMouseEvent>
@@ -406,15 +405,15 @@ QWidget *DesktopWindow::buildCreatePage() {
     auto *passphraseLayout = new QGridLayout(createPassphrasePanel_);
     passphraseLayout->setContentsMargins(0, 0, 0, 0);
     auto *passphraseLabel = label(QStringLiteral("Passphrase"));
-    createPassphrase_ = new QLineEdit;
+    createPassphrase_ = new ExactTextEdit(nullptr, kMaximumPassphraseBytes, true, false);
     createPassphrase_->setObjectName(QStringLiteral("createPassphrase"));
-    createPassphrase_->setAccessibleName(QStringLiteral("Passphrase"));
-    createPassphrase_->setEchoMode(QLineEdit::Password);
+    createPassphrase_->setAccessibleName(QStringLiteral("Passphrase input (contents hidden)"));
+    createPassphrase_->setFixedHeight(40);
     auto *confirmationLabel = label(QStringLiteral("Confirm passphrase"));
-    confirmPassphrase_ = new QLineEdit;
+    confirmPassphrase_ = new ExactTextEdit(nullptr, kMaximumPassphraseBytes, true, false);
     confirmPassphrase_->setObjectName(QStringLiteral("confirmPassphrase"));
-    confirmPassphrase_->setAccessibleName(QStringLiteral("Confirm passphrase"));
-    confirmPassphrase_->setEchoMode(QLineEdit::Password);
+    confirmPassphrase_->setAccessibleName(QStringLiteral("Passphrase confirmation (contents hidden)"));
+    confirmPassphrase_->setFixedHeight(40);
     passphraseLabel->setBuddy(createPassphrase_);
     confirmationLabel->setBuddy(confirmPassphrase_);
     passphraseLayout->addWidget(passphraseLabel, 0, 0);
@@ -426,13 +425,13 @@ QWidget *DesktopWindow::buildCreatePage() {
     connect(protectWithPassphrase_, &QCheckBox::toggled, this, [this](bool enabled) {
         createPassphrasePanel_->setVisible(enabled);
         if (!enabled) {
-            createPassphrase_->clear();
-            confirmPassphrase_->clear();
+            createPassphrase_->clearExact();
+            confirmPassphrase_->clearExact();
         }
         createInputChanged();
     });
-    connect(createPassphrase_, &QLineEdit::textChanged, this, &DesktopWindow::createInputChanged);
-    connect(confirmPassphrase_, &QLineEdit::textChanged, this, &DesktopWindow::createInputChanged);
+    connect(createPassphrase_, &ExactTextEdit::exactTextChanged, this, &DesktopWindow::createInputChanged);
+    connect(confirmPassphrase_, &ExactTextEdit::exactTextChanged, this, &DesktopWindow::createInputChanged);
     connect(additionalOptions, &QToolButton::toggled, this,
             [additionalOptions, additionalOptionsPanel](bool shown) {
                 additionalOptions->setArrowType(shown ? Qt::DownArrow : Qt::RightArrow);
@@ -549,16 +548,16 @@ QWidget *DesktopWindow::buildRecoverPage() {
     auto *recoveryPassphraseLayout = new QHBoxLayout(recoveryPassphrasePanel_);
     recoveryPassphraseLayout->setContentsMargins(0, 0, 0, 0);
     auto *recoveryPassphraseLabel = label(QStringLiteral("Passphrase"));
-    recoveryPassphrase_ = new QLineEdit;
+    recoveryPassphrase_ = new ExactTextEdit(nullptr, kMaximumPassphraseBytes, true, false);
     recoveryPassphrase_->setObjectName(QStringLiteral("recoveryPassphrase"));
-    recoveryPassphrase_->setAccessibleName(QStringLiteral("Passphrase"));
-    recoveryPassphrase_->setEchoMode(QLineEdit::Password);
+    recoveryPassphrase_->setAccessibleName(QStringLiteral("Passphrase input (contents hidden)"));
+    recoveryPassphrase_->setFixedHeight(40);
     recoveryPassphraseLabel->setBuddy(recoveryPassphrase_);
     recoveryPassphraseLayout->addWidget(recoveryPassphraseLabel);
     recoveryPassphraseLayout->addWidget(recoveryPassphrase_, 1);
     recoveryPassphrasePanel_->hide();
     groupLayout->addWidget(recoveryPassphrasePanel_);
-    connect(recoveryPassphrase_, &QLineEdit::textChanged, this, &DesktopWindow::recoveryInputChanged);
+    connect(recoveryPassphrase_, &ExactTextEdit::exactTextChanged, this, &DesktopWindow::recoveryInputChanged);
 
     recoveryStatus_ = label(QStringLiteral("Share content is required."), true);
     recoveryStatus_->setObjectName(QStringLiteral("recoveryStatus"));
@@ -622,8 +621,8 @@ void DesktopWindow::startOver() {
 }
 
 void DesktopWindow::createShares() {
-    QByteArray passphraseBytes = createPassphrase_->text().toUtf8();
-    QByteArray confirmationBytes = confirmPassphrase_->text().toUtf8();
+    QByteArray passphraseBytes = createPassphrase_->exactUtf8();
+    QByteArray confirmationBytes = confirmPassphrase_->exactUtf8();
     if (protectWithPassphrase_->isChecked()
         && (passphraseBytes.isEmpty() || passphraseBytes != confirmationBytes)) {
         createStatus_->setText(QStringLiteral("Enter and confirm the same nonempty passphrase."));
@@ -794,7 +793,7 @@ void DesktopWindow::synchronizeRecoveryFields() {
 }
 
 void DesktopWindow::recover() {
-    QByteArray passphraseBytes = recoveryPassphrase_->text().toUtf8();
+    QByteArray passphraseBytes = recoveryPassphrase_->exactUtf8();
     if (recoveryProtected_ && passphraseBytes.isEmpty()) {
         recoveryStatus_->setText(QStringLiteral("Enter the passphrase required by these Recovery shares."));
         passphraseBytes.fill(0);
@@ -839,6 +838,10 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
         Q_UNUSED(batchCount);
         recoveryProtected_ = protectedInput;
         recoveryPassphrasePanel_->setVisible(protectedInput);
+        if (!protectedInput && recoveryPassphrase_->exactUtf8Size() != 0) {
+            const QSignalBlocker blocker(recoveryPassphrase_);
+            recoveryPassphrase_->clearExact();
+        }
         if (encoding != 0) {
             recoveryDetectedFormat_->setText(
                 QStringLiteral("%1: %2")
@@ -863,7 +866,7 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
             recoverButton_->setEnabled(false);
             recoveryStatus_->setText(QStringLiteral("Share content is required."));
         } else {
-            const bool passphraseReady = !protectedInput || !recoveryPassphrase_->text().isEmpty();
+            const bool passphraseReady = !protectedInput || recoveryPassphrase_->exactUtf8Size() != 0;
             setRecoveryStatus(status, threshold, suppliedCount,
                               ready || (protectedInput && passphraseReady && suppliedCount >= threshold));
         }
@@ -949,8 +952,8 @@ void DesktopWindow::clearVisibleState() {
         shareCount_->setValue(3);
     if (protectWithPassphrase_ != nullptr) {
         protectWithPassphrase_->setChecked(false);
-        createPassphrase_->clear();
-        confirmPassphrase_->clear();
+        createPassphrase_->clearExact();
+        confirmPassphrase_->clearExact();
     }
     if (createEncoding_ != nullptr) {
         createEncoding_->blockSignals(true);
@@ -974,7 +977,7 @@ void DesktopWindow::clearVisibleState() {
         recoveryCount_->setText(QStringLiteral("0 of 2 Recovery shares entered"));
     recoveryProtected_ = false;
     if (recoveryPassphrase_ != nullptr)
-        recoveryPassphrase_->clear();
+        recoveryPassphrase_->clearExact();
     if (recoveryPassphrasePanel_ != nullptr)
         recoveryPassphrasePanel_->hide();
     if (recoveryStatus_ != nullptr)

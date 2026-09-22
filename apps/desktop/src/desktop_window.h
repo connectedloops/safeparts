@@ -10,7 +10,6 @@ class ExactTextEdit;
 class QCheckBox;
 class QComboBox;
 class QLabel;
-class QLineEdit;
 class QPlainTextEdit;
 class QPushButton;
 class QSpinBox;
@@ -105,8 +104,8 @@ private:
     QComboBox *createEncoding_ = nullptr;
     QCheckBox *protectWithPassphrase_ = nullptr;
     QWidget *createPassphrasePanel_ = nullptr;
-    QLineEdit *createPassphrase_ = nullptr;
-    QLineEdit *confirmPassphrase_ = nullptr;
+    ExactTextEdit *createPassphrase_ = nullptr;
+    ExactTextEdit *confirmPassphrase_ = nullptr;
     QPushButton *createButton_ = nullptr;
     QLabel *createStatus_ = nullptr;
     QWidget *createdResult_ = nullptr;
@@ -126,7 +125,7 @@ private:
     QLabel *recoveryCount_ = nullptr;
     QLabel *recoveryStatus_ = nullptr;
     QWidget *recoveryPassphrasePanel_ = nullptr;
-    QLineEdit *recoveryPassphrase_ = nullptr;
+    ExactTextEdit *recoveryPassphrase_ = nullptr;
     bool recoveryProtected_ = false;
     QPushButton *addRecoveryButton_ = nullptr;
     QPushButton *recoverButton_ = nullptr;

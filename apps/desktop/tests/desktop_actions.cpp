@@ -14,7 +14,6 @@
 #include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -88,6 +87,13 @@ void triggerContextAction(ExactTextEdit *editor, const QString &objectName) {
     QApplication::sendEvent(editor, &event);
     menuTimer.stop();
     QVERIFY2(triggered, qPrintable(QStringLiteral("missing context action %1").arg(objectName)));
+}
+
+void replaceExact(ExactTextEdit *editor, const QString &text) {
+    editor->clearExact();
+    QApplication::clipboard()->setText(text);
+    editor->setFocus();
+    QTest::keySequence(editor, QKeySequence::Paste);
 }
 
 void pasteIntoCreate(DesktopWindow &window, const QString &text) {
@@ -240,13 +246,16 @@ void DesktopActions::protected_create_and_recovery_require_exact_confirmed_passp
     window.show();
     pasteIntoCreate(window, QStringLiteral("synthetic protected Qt secret"));
     required<QCheckBox>(&window, "protectWithPassphrase")->setChecked(true);
-    required<QLineEdit>(&window, "createPassphrase")->setText(QStringLiteral("  cafe\u0301 🔐  "));
-    required<QLineEdit>(&window, "confirmPassphrase")->setText(QStringLiteral("different"));
+    replaceExact(required<ExactTextEdit>(&window, "createPassphrase"),
+                 QStringLiteral("  cafe\u0301 🔐  "));
+    replaceExact(required<ExactTextEdit>(&window, "confirmPassphrase"),
+                 QStringLiteral("different"));
     QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
     QCOMPARE(required<QLabel>(&window, "createStatus")->text(),
              QStringLiteral("Enter and confirm the same nonempty passphrase."));
 
-    required<QLineEdit>(&window, "confirmPassphrase")->setText(QStringLiteral("  cafe\u0301 🔐  "));
+    replaceExact(required<ExactTextEdit>(&window, "confirmPassphrase"),
+                 QStringLiteral("  cafe\u0301 🔐  "));
     const QString first = createAndCopy(window, 1);
     const QString second = createAndCopy(window, 2);
     QVERIFY(!first.isEmpty());
@@ -257,7 +266,8 @@ void DesktopActions::protected_create_and_recovery_require_exact_confirmed_passp
     pasteRecovery(window, second);
     QVERIFY(required<QWidget>(&window, "recoveryPassphrasePanel")->isVisible());
     QVERIFY(!required<QPushButton>(&window, "recoverButton")->isEnabled());
-    required<QLineEdit>(&window, "recoveryPassphrase")->setText(QStringLiteral("wrong"));
+    replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"),
+                 QStringLiteral("wrong"));
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
     QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")
@@ -267,7 +277,8 @@ void DesktopActions::protected_create_and_recovery_require_exact_confirmed_passp
     QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
     QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), first.toUtf8());
 
-    required<QLineEdit>(&window, "recoveryPassphrase")->setText(QStringLiteral("  cafe\u0301 🔐  "));
+    replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"),
+                 QStringLiteral("  cafe\u0301 🔐  "));
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
     QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
