@@ -189,9 +189,9 @@ fn js_recovery_error(error: CoreError) -> JsValue {
         | CoreError::TooManyShares { .. } => "inconsistent_shares",
         CoreError::PassphraseRequired => "passphrase_required",
         CoreError::DecryptFailed => "decryption_failed",
-        CoreError::UnsupportedPacketFlags { .. } | CoreError::UnsupportedCryptoParams { .. } => {
-            "unsupported_parameters"
-        }
+        CoreError::UnsupportedPacketVersion { .. }
+        | CoreError::UnsupportedPacketFlags { .. }
+        | CoreError::UnsupportedCryptoParams { .. } => "unsupported_parameters",
         CoreError::EmptyShareInput
         | CoreError::InvalidKAndN { .. }
         | CoreError::InvalidX
