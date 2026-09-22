@@ -174,9 +174,17 @@ void pasteRecovery(DesktopWindow &window, const QString &share) {
     setRecoveryField(window, editors.indexOf(*found) + 1, share);
 }
 
+constexpr qsizetype kQueuedCreatePassphraseSize = 37;
+constexpr qsizetype kQueuedRecoveryPassphraseSize = 47;
+static_assert(kQueuedCreatePassphraseSize != sizeof("queued protected create input") - 1);
+static_assert(kQueuedRecoveryPassphraseSize
+              != sizeof("synthetic protected desktop interoperability") - 1);
+
 struct WipeObservation final {
     std::atomic<int> count{0};
     std::atomic<int> nonzero{0};
+    std::atomic<int> queuedCreatePassphrases{0};
+    std::atomic<int> queuedRecoveryPassphrases{0};
 };
 
 class WipeObserverReset final {
@@ -258,6 +266,19 @@ void DesktopActions::masked_passphrase_admission_and_disclosure_are_bounded() {
     QVERIFY(!editor.toPlainText().contains(QStringLiteral("e")));
     QVERIFY(!editor.isUndoRedoEnabled());
 
+    QSignalSpy rejection(&editor, &ExactTextEdit::inputRejected);
+    QTextCursor replacement = editor.textCursor();
+    replacement.setPosition(maximum.size() - 1);
+    replacement.setPosition(maximum.size(), QTextCursor::KeepAnchor);
+    editor.setTextCursor(replacement);
+    QApplication::clipboard()->setText(QStringLiteral("xx"));
+    QTest::keySequence(&editor, QKeySequence::Paste);
+    QCOMPARE(editor.exactUtf8(), maximum.toUtf8());
+    QCOMPARE(rejection.count(), 1);
+    QCOMPARE(rejection.takeFirst().at(0).toInt(),
+             static_cast<int>(ClipboardRead::Status::TooLarge));
+
+    editor.moveCursor(QTextCursor::End);
     QTest::keyClicks(&editor, QStringLiteral("x"));
     QCOMPARE(editor.exactUtf8(), maximum.toUtf8());
     QInputMethodEvent inputMethod;
@@ -1182,6 +1203,10 @@ void DesktopActions::secure_queued_buffers_wipe_on_final_release() {
     SecureByteBuffer::setWipeObserverForTests([observation](QByteArrayView bytes) {
         if (std::any_of(bytes.begin(), bytes.end(), [](char byte) { return byte != '\0'; }))
             observation->nonzero.fetch_add(1, std::memory_order_relaxed);
+        if (bytes.size() == kQueuedCreatePassphraseSize)
+            observation->queuedCreatePassphrases.fetch_add(1, std::memory_order_release);
+        if (bytes.size() == kQueuedRecoveryPassphraseSize)
+            observation->queuedRecoveryPassphrases.fetch_add(1, std::memory_order_release);
         observation->count.fetch_add(1, std::memory_order_release);
     });
 
@@ -1203,11 +1228,15 @@ void DesktopActions::secure_queued_buffers_wipe_on_final_release() {
         QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
         pasteIntoCreate(window, QStringLiteral("queued protected create input"));
         required<QCheckBox>(&window, "protectWithPassphrase")->setChecked(true);
-        replaceExact(required<ExactTextEdit>(&window, "createPassphrase"), QStringLiteral("wipe passphrase"));
-        replaceExact(required<ExactTextEdit>(&window, "confirmPassphrase"), QStringLiteral("wipe passphrase"));
+        const QString createPassphrase(kQueuedCreatePassphraseSize, QLatin1Char('p'));
+        replaceExact(required<ExactTextEdit>(&window, "createPassphrase"), createPassphrase);
+        replaceExact(required<ExactTextEdit>(&window, "confirmPassphrase"), createPassphrase);
         QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
         QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
-        QTRY_VERIFY_WITH_TIMEOUT(observation->count.load(std::memory_order_acquire) >= 5, 10'000);
+        QTRY_VERIFY_WITH_TIMEOUT(observation->queuedCreatePassphrases.load(
+                                     std::memory_order_acquire)
+                                     >= 1,
+                                 10'000);
 
         QTest::mouseClick(required<QPushButton>(&window, "copyShare1"), Qt::LeftButton);
         QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
@@ -1231,7 +1260,10 @@ void DesktopActions::secure_queued_buffers_wipe_on_final_release() {
                                  10'000);
         QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
         QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
-        QTRY_VERIFY_WITH_TIMEOUT(observation->count.load(std::memory_order_acquire) >= 10, 10'000);
+        QTRY_VERIFY_WITH_TIMEOUT(observation->queuedRecoveryPassphrases.load(
+                                     std::memory_order_acquire)
+                                     >= 1,
+                                 10'000);
     }
 
     const int beforeClose = observation->count.load(std::memory_order_acquire);
