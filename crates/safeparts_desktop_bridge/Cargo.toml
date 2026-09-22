@@ -13,6 +13,9 @@ cxx = "=1.0.195"
 safeparts_core = { path = "../safeparts_core" }
 zeroize = "1.8.2"
 
+[dev-dependencies]
+base64 = "0.22"
+
 [build-dependencies]
 cxx-build = "=1.0.195"
 

@@ -46,6 +46,16 @@ QString fixtureText(const QString &relativePath) {
     return QString::fromUtf8(file.readAll());
 }
 
+QString mutateBase64Packet(const QString &share, qsizetype offset, const QByteArray &replacement) {
+    QByteArray packet = QByteArray::fromBase64(share.trimmed().toLatin1(),
+                                               QByteArray::Base64UrlEncoding);
+    if (offset < 0 || offset + replacement.size() > packet.size())
+        return {};
+    std::copy(replacement.cbegin(), replacement.cend(), packet.begin() + offset);
+    return QString::fromLatin1(
+        packet.toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
+}
+
 template <typename T>
 T *required(QObject *root, const char *name) {
     T *value = root->findChild<T *>(QString::fromLatin1(name));
@@ -181,11 +191,13 @@ private slots:
     void recovery_worker_retains_the_complete_visible_set_after_a_middle_error();
     void all_share_formats_round_trip_with_auto_and_manual_selection();
     void auto_detection_expands_to_the_required_threshold();
+    void readiness_uses_distinct_shares_not_empty_placeholders();
     void released_v1_v2_fixtures_inspect_through_qt_auto();
+    void unsupported_version_and_kdf_are_distinct_from_corruption();
     void empty_recovery_field_precedence_survives_encoding_inspection();
     void created_shares_keep_source_and_use_compact_native_layout();
     void generated_shares_show_authoritative_text_and_clear_stale_previews();
-    void generated_share_presentation_fails_all_or_none_at_budget();
+    void maximum_words_split_keeps_every_share_exportable();
     void secure_queued_buffers_wipe_on_final_release();
     void ordinary_create_edits_reject_stale_success_and_error_results();
     void start_over_rejects_stale_success_and_error_results();
@@ -509,14 +521,12 @@ void DesktopActions::all_share_formats_round_trip_with_auto_and_manual_selection
         setRecoveryField(window, 1, first);
         QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "detectedRecoveryEncoding")->text(),
                                   QStringLiteral("Detected: %1").arg(name), 10'000);
-        if (encoding == 3) {
-            auto *manual = required<QComboBox>(&window, "recoveryEncoding");
-            manual->setCurrentIndex(manual->findData(encoding));
-            QTRY_VERIFY_WITH_TIMEOUT(!required<QLabel>(&window, "recoveryStatus")
-                                          ->text()
-                                          .contains(QStringLiteral("Checking")),
-                                      10'000);
-        }
+        auto *manual = required<QComboBox>(&window, "recoveryEncoding");
+        manual->setCurrentIndex(manual->findData(encoding));
+        QTRY_VERIFY_WITH_TIMEOUT(!required<QLabel>(&window, "recoveryStatus")
+                                      ->text()
+                                      .contains(QStringLiteral("Checking")),
+                                  10'000);
         setRecoveryField(window, 2, second);
         QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(),
                                  10'000);
@@ -540,6 +550,55 @@ void DesktopActions::auto_detection_expands_to_the_required_threshold() {
     QVERIFY(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("1 of 3"))
             || required<QLabel>(&window, "recoveryStatus")->text()
                    .contains(QStringLiteral("Share content")));
+}
+
+void DesktopActions::readiness_uses_distinct_shares_not_empty_placeholders() {
+    const auto waitUntilReady = [](DesktopWindow &window) {
+        return QTest::qWaitFor(
+            [&window] { return required<QPushButton>(&window, "recoverButton")->isEnabled(); },
+            10'000);
+    };
+
+    {
+        DesktopWindow window;
+        window.show();
+        required<QSpinBox>(&window, "thresholdInput")->setValue(1);
+        pasteIntoCreate(window, QStringLiteral("one of three readiness"));
+        const QString share = createAndCopy(window, 2);
+        chooseRecover(window);
+        setRecoveryField(window, 1, share);
+        QVERIFY2(waitUntilReady(window),
+                 qPrintable(required<QLabel>(&window, "recoveryStatus")->text()));
+        QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare2")->exactUtf8(), QByteArray());
+        QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(),
+                                 10'000);
+    }
+
+    {
+        DesktopWindow window;
+        window.show();
+        required<QSpinBox>(&window, "shareCountInput")->setValue(5);
+        pasteIntoCreate(window, QStringLiteral("reordered non-leading subset"));
+        QString third = createAndCopy(window, 3);
+        QString fifth = createAndCopy(window, 5);
+        const qsizetype thirdWrap = third.indexOf(QLatin1Char(' '), third.size() / 2);
+        const qsizetype fifthWrap = fifth.indexOf(QLatin1Char(' '), fifth.size() / 2);
+        QVERIFY(thirdWrap > 0);
+        QVERIFY(fifthWrap > 0);
+        third.replace(thirdWrap, 1, QStringLiteral("\r\n"));
+        fifth.replace(fifthWrap, 1, QStringLiteral("\r\n"));
+        chooseRecover(window);
+        setRecoveryField(window, 1, fifth + QStringLiteral("\r\n\r\n") + third);
+        QVERIFY2(waitUntilReady(window),
+                 qPrintable(required<QLabel>(&window, "recoveryStatus")->text()));
+        QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare2")->exactUtf8(), QByteArray());
+        QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(),
+                                 10'000);
+        QCOMPARE(required<QPlainTextEdit>(&window, "recoveredText")->toPlainText(),
+                 QStringLiteral("reordered non-leading subset"));
+    }
 }
 
 void DesktopActions::released_v1_v2_fixtures_inspect_through_qt_auto() {
@@ -576,6 +635,63 @@ void DesktopActions::released_v1_v2_fixtures_inspect_through_qt_auto() {
                                  10'000);
         QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
     }
+}
+
+void DesktopActions::unsupported_version_and_kdf_are_distinct_from_corruption() {
+    const QString fixtureRoot = QStringLiteral(
+        "crates/safeparts_core/tests/fixtures/share_compatibility/");
+    const QString versionSource = fixtureText(fixtureRoot
+        + QStringLiteral("v2-unprotected/base64url.txt"))
+                                      .split(QRegularExpression(QStringLiteral("[\\r\\n]+")),
+                                             Qt::SkipEmptyParts)
+                                      .first();
+    const QString unsupportedVersion = mutateBase64Packet(versionSource, 4, QByteArray(1, char(99)));
+    QVERIFY(!unsupportedVersion.isEmpty());
+
+    DesktopWindow versionWindow;
+    versionWindow.show();
+    chooseRecover(versionWindow);
+    setRecoveryField(versionWindow, 1, unsupportedVersion);
+    QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&versionWindow, "recoveryStatus")->text(),
+                              QStringLiteral("This Recovery share packet version is not supported."),
+                              10'000);
+    QCOMPARE(required<ExactTextEdit>(&versionWindow, "recoveryShare1")->exactUtf8(),
+             unsupportedVersion.toUtf8());
+    QVERIFY(!required<QPushButton>(&versionWindow, "recoverButton")->isEnabled());
+
+    const QString protectedSource = fixtureText(fixtureRoot
+        + QStringLiteral("v2-passphrase-protected/base64url.txt"))
+                                        .split(QRegularExpression(QStringLiteral("[\\r\\n]+")),
+                                               Qt::SkipEmptyParts)
+                                        .first();
+    const QString unsupportedKdf = mutateBase64Packet(
+        protectedSource, 53, QByteArray::fromHex("ffffffff"));
+    QVERIFY(!unsupportedKdf.isEmpty());
+
+    DesktopWindow kdfWindow;
+    kdfWindow.show();
+    chooseRecover(kdfWindow);
+    setRecoveryField(kdfWindow, 1, unsupportedKdf);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        required<QLabel>(&kdfWindow, "recoveryStatus")->text(),
+        QStringLiteral("These Recovery shares use unsupported protection parameters."), 10'000);
+    QCOMPARE(required<ExactTextEdit>(&kdfWindow, "recoveryShare1")->exactUtf8(),
+             unsupportedKdf.toUtf8());
+    QVERIFY(!required<QPushButton>(&kdfWindow, "recoverButton")->isEnabled());
+
+    const QString protectedShares = fixtureText(
+        fixtureRoot + QStringLiteral("v2-passphrase-protected/base64url.txt"));
+    DesktopWindow protectedWindow;
+    protectedWindow.show();
+    chooseRecover(protectedWindow);
+    setRecoveryField(protectedWindow, 1, protectedShares);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        required<QLabel>(&protectedWindow, "recoveryStatus")->text(),
+        QStringLiteral("These Recovery shares require a passphrase. Passphrase entry is not available yet."),
+        10'000);
+    QCOMPARE(required<QLabel>(&protectedWindow, "detectedRecoveryEncoding")->text(),
+             QStringLiteral("Detected: Base64url"));
+    QVERIFY(!required<QPushButton>(&protectedWindow, "recoverButton")->isEnabled());
 }
 
 void DesktopActions::empty_recovery_field_precedence_survives_encoding_inspection() {
@@ -741,23 +857,45 @@ void DesktopActions::generated_shares_show_authoritative_text_and_clear_stale_pr
         QVERIFY(share->toPlainText().isEmpty());
 }
 
-void DesktopActions::generated_share_presentation_fails_all_or_none_at_budget() {
+void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
     DesktopWindow window;
     window.show();
     required<QSpinBox>(&window, "shareCountInput")->setValue(16);
     const QString maximumSecret(1'048'576, QLatin1Char('b'));
     pasteIntoCreate(window, maximumSecret);
     QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 30'000);
     QTRY_VERIFY_WITH_TIMEOUT(
         required<QLabel>(&window, "createStatus")->text().contains(
-            QStringLiteral("160 MiB presentation budget")),
-        60'000);
-    QVERIFY(!required<QWidget>(&window, "createdShares")->isVisible());
+            QStringLiteral("Copy any share")),
+        30'000);
     QCOMPARE(required<ExactTextEdit>(&window, "secretInput")->exactUtf8(),
              maximumSecret.toUtf8());
-    for (QPlainTextEdit *share : window.findChildren<QPlainTextEdit *>(QRegularExpression(
-             QStringLiteral("generatedShare\\d+"))))
-        QVERIFY(share->toPlainText().isEmpty());
+
+    QString first;
+    QString last;
+    for (int index = 1; index <= 16; ++index) {
+        auto *copy = required<QPushButton>(
+            &window, qPrintable(QStringLiteral("copyShare%1").arg(index)));
+        QVERIFY(copy->isEnabled());
+        QApplication::clipboard()->clear();
+        QTest::mouseClick(copy, Qt::LeftButton);
+        QTRY_COMPARE_WITH_TIMEOUT(
+            required<QLabel>(&window, "createStatus")->text(),
+            QStringLiteral("Share %1 copied.").arg(index), 30'000);
+        const QString copied = QApplication::clipboard()->text();
+        QVERIFY(!copied.isEmpty());
+        QCOMPARE(required<QPlainTextEdit>(
+                     &window, qPrintable(QStringLiteral("generatedShare%1").arg(index)))
+                     ->toPlainText(),
+                 copied);
+        if (index == 1)
+            first = copied;
+        if (index == 16)
+            last = copied;
+    }
+    QVERIFY(first != last);
+    QVERIFY(required<QWidget>(&window, "createdShares")->isVisible());
 }
 
 void DesktopActions::secure_queued_buffers_wipe_on_final_release() {

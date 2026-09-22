@@ -226,7 +226,7 @@ impl Operation {
         if retained > MAX_RETAINED_INPUT_BYTES {
             return self.with_batch_count(output(generation, Status::RetainedInputTooLarge));
         }
-        if !self.recovery_batch_fits_memory(input.len(), token_count) {
+        if !self.recovery_batch_fits_memory(input.len(), token_count, requested_encoding) {
             return self.with_batch_count(output(generation, Status::ResourceLimit));
         }
 
@@ -437,7 +437,12 @@ impl Operation {
         }
     }
 
-    fn recovery_batch_fits_memory(&self, input_len: usize, token_count: usize) -> bool {
+    fn recovery_batch_fits_memory(
+        &self,
+        input_len: usize,
+        token_count: usize,
+        requested_encoding: CoreEncoding,
+    ) -> bool {
         let Some(current_state) = operation_state_bytes(
             &self.created_packets,
             self.created_packets.capacity(),
@@ -468,8 +473,11 @@ impl Operation {
             .checked_add(1)
             .and_then(|count| count.checked_mul(2))
             .and_then(|capacity| capacity.checked_mul(size_of::<Zeroizing<Vec<u8>>>()));
-        let Some(raw_after) = raw_payload_after
-            .and_then(|payload| raw_headers_after.and_then(|headers| payload.checked_add(headers)))
+        let Some(raw_payload_after) = raw_payload_after else {
+            return false;
+        };
+        let Some(raw_after) =
+            raw_headers_after.and_then(|headers| raw_payload_after.checked_add(headers))
         else {
             return false;
         };
@@ -478,9 +486,18 @@ impl Operation {
         else {
             return false;
         };
-        let decoded_state = MAX_ACCEPTED_SHARES
-            .checked_mul(PACKET_WIRE_OVERHEAD)
-            .and_then(|overhead| MAX_LOGICAL_VOLUME.checked_add(overhead))
+        // Before packet metadata is available, the retained text itself is the only
+        // trustworthy upper bound. Compact decoders cannot produce more bytes than
+        // their input (Base64url is tighter); mnemonic decoders are also bounded by
+        // input length. Account that decoded storage before invoking the parser.
+        let decoded_payload_bound =
+            decoded_bytes_upper_bound(raw_payload_after, requested_encoding);
+        let decoded_state = decoded_payload_bound
+            .and_then(|payload| {
+                MAX_ACCEPTED_SHARES
+                    .checked_mul(PACKET_WIRE_OVERHEAD)
+                    .and_then(|overhead| payload.checked_add(overhead))
+            })
             .and_then(|bytes| {
                 MAX_ACCEPTED_SHARES
                     .checked_mul(size_of::<SharePacket>())
@@ -513,6 +530,9 @@ impl Operation {
             .checked_mul(11)
             .and_then(|bits| bits.checked_add(7))
             .map(|bits| bits / 8);
+        let parser_packet_headers =
+            largest_tokens.checked_mul(size_of::<safeparts_core::packet::DecodedSharePacket>());
+        let largest_decoded = decoded_bytes_upper_bound(largest_batch, requested_encoding);
         let workspace = input_len
             .checked_mul(3)
             .and_then(|bytes| {
@@ -522,6 +542,8 @@ impl Operation {
             })
             .and_then(|bytes| parser_refs.and_then(|refs| bytes.checked_add(refs)))
             .and_then(|bytes| decoded_scratch.and_then(|scratch| bytes.checked_add(scratch)))
+            .and_then(|bytes| parser_packet_headers.and_then(|headers| bytes.checked_add(headers)))
+            .and_then(|bytes| largest_decoded.and_then(|decoded| bytes.checked_add(decoded)))
             .and_then(|bytes| bytes.checked_add(PARSER_FIXED_WORKSPACE));
         let Some(workspace) = workspace else {
             return false;
@@ -586,6 +608,20 @@ impl Operation {
 impl Drop for Operation {
     fn drop(&mut self) {
         self.clear_all();
+    }
+}
+
+fn decoded_bytes_upper_bound(encoded_bytes: usize, encoding: CoreEncoding) -> Option<usize> {
+    match encoding {
+        CoreEncoding::Base64url => encoded_bytes
+            .checked_mul(3)
+            .and_then(|bytes| bytes.checked_add(3))
+            .map(|bytes| bytes / 4),
+        CoreEncoding::Auto
+        | CoreEncoding::Base58check
+        | CoreEncoding::MnemoWords
+        | CoreEncoding::MnemoBip39 => Some(encoded_bytes),
+        _ => None,
     }
 }
 
@@ -684,6 +720,7 @@ fn status_from_core(error: &CoreError) -> Status {
         CoreError::TooManyShares { .. } => Status::TooManyShares,
         CoreError::IntegrityCheckFailed | CoreError::DecryptFailed => Status::IntegrityFailure,
         CoreError::PassphraseRequired => Status::PassphraseRequired,
+        CoreError::UnsupportedPacketVersion { .. } => Status::UnsupportedVersion,
         CoreError::UnsupportedCryptoParams { .. } | CoreError::UnsupportedPacketFlags { .. } => {
             Status::UnsupportedParameters
         }

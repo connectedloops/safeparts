@@ -191,7 +191,7 @@ impl SharePacket {
 
                 (PacketVersion::V2, params, offset)
             }
-            _ => return Err(CoreError::InvalidPacket("unsupported version".to_string())),
+            _ => return Err(CoreError::UnsupportedPacketVersion { version }),
         };
 
         let payload_len_bytes: [u8; 4] = bytes[payload_len_offset..payload_len_offset + 4]
@@ -245,7 +245,7 @@ pub fn binary_total_len(bytes: &[u8]) -> CoreResult<usize> {
             }
             offset
         }
-        _ => return Err(CoreError::InvalidPacket("unsupported version".to_string())),
+        _ => return Err(CoreError::UnsupportedPacketVersion { version }),
     };
 
     if bytes.len() < payload_len_offset + PAYLOAD_LEN_FIELD_LEN {
@@ -267,7 +267,7 @@ fn validate_flags(version: u8, flags: u8) -> CoreResult<()> {
     let supported = match version {
         VERSION_V1 => 0,
         VERSION_V2 => FLAG_ENCRYPTED,
-        _ => return Err(CoreError::InvalidPacket("unsupported version".to_string())),
+        _ => return Err(CoreError::UnsupportedPacketVersion { version }),
     };
 
     if flags & !supported != 0 {
@@ -339,6 +339,26 @@ mod tests {
                 "offset {offset} accepted value {value}"
             );
         }
+    }
+
+    #[test]
+    fn binary_decode_reports_unsupported_packet_version() {
+        let pkt = SharePacket {
+            set_id: SetId([7u8; 16]),
+            k: 1,
+            n: 1,
+            x: 1,
+            payload: vec![1, 2, 3],
+            crypto_params: None,
+        };
+        let mut encoded = pkt.encode_binary().unwrap();
+        encoded[4] = 99;
+
+        let err = SharePacket::decode_binary(&encoded).unwrap_err();
+        assert!(matches!(
+            err,
+            CoreError::UnsupportedPacketVersion { version: 99 }
+        ));
     }
 
     #[test]

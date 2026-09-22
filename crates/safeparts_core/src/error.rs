@@ -25,6 +25,9 @@ pub enum CoreError {
     #[error("received more shares than declared: share count {n}, got {m}")]
     TooManyShares { n: u8, m: usize },
 
+    #[error("unsupported packet version {version}")]
+    UnsupportedPacketVersion { version: u8 },
+
     #[error("unsupported packet flags 0x{flags:02x} for version {version}")]
     UnsupportedPacketFlags { version: u8, flags: u8 },
 

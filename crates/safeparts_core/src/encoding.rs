@@ -239,15 +239,16 @@ fn detect_encoding_from_lines(
     nonempty_lines: &[&str],
     full_input: &str,
 ) -> CoreResult<Option<Encoding>> {
-    if decode_share_packets_known(full_input, Encoding::Base64url, MnemonicLineMode::Shares).is_ok()
-    {
-        return Ok(Some(Encoding::Base64url));
+    match decode_share_packets_known(full_input, Encoding::Base64url, MnemonicLineMode::Shares) {
+        Ok(_) => return Ok(Some(Encoding::Base64url)),
+        Err(error) if is_known_unsupported_packet(&error) => return Err(error),
+        Err(_) => {}
     }
 
-    if decode_share_packets_known(full_input, Encoding::Base58check, MnemonicLineMode::Shares)
-        .is_ok()
-    {
-        return Ok(Some(Encoding::Base58check));
+    match decode_share_packets_known(full_input, Encoding::Base58check, MnemonicLineMode::Shares) {
+        Ok(_) => return Ok(Some(Encoding::Base58check)),
+        Err(error) if is_known_unsupported_packet(&error) => return Err(error),
+        Err(_) => {}
     }
 
     let looks_mnemonic = nonempty_lines
@@ -264,6 +265,15 @@ fn detect_encoding_from_lines(
     }
 
     Ok(None)
+}
+
+fn is_known_unsupported_packet(error: &CoreError) -> bool {
+    matches!(
+        error,
+        CoreError::UnsupportedPacketVersion { .. }
+            | CoreError::UnsupportedPacketFlags { .. }
+            | CoreError::UnsupportedCryptoParams { .. }
+    )
 }
 
 fn decode_share_packets_known(
@@ -390,6 +400,7 @@ fn split_mnemonic_blocks(input: &str) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::sss::SetId;
+    use base64::Engine;
 
     fn packet() -> SharePacket {
         SharePacket {
@@ -425,6 +436,19 @@ mod tests {
         let parsed = parse_share_packets(&encoded, Encoding::Auto).unwrap();
         assert_eq!(parsed.encoding, Encoding::Base64url);
         assert_eq!(parsed.packets, vec![packet()]);
+    }
+
+    #[test]
+    fn auto_preserves_known_unsupported_packet_errors() {
+        let mut bytes = packet().encode_binary().unwrap();
+        bytes[4] = 99;
+        let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+
+        let error = parse_share_packets(&encoded, Encoding::Auto).unwrap_err();
+        assert!(matches!(
+            error,
+            CoreError::UnsupportedPacketVersion { version: 99 }
+        ));
     }
 
     #[test]

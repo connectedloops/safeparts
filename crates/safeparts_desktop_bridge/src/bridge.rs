@@ -27,6 +27,7 @@ pub mod ffi {
         UnsupportedParameters = 22,
         MixedEncoding = 23,
         MixedVersion = 24,
+        UnsupportedVersion = 25,
     }
 
     #[repr(u8)]

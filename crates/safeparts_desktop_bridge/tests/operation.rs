@@ -1,3 +1,4 @@
+use base64::Engine;
 use safeparts_core::encoding::{Encoding, encode_packet};
 use safeparts_core::split_secret;
 use safeparts_desktop_bridge::{ShareEncoding, Status, new_operation};
@@ -275,6 +276,32 @@ fn public_operation_rejects_mixed_versions_and_honors_manual_encoding() {
 }
 
 #[test]
+fn public_operation_reports_unsupported_versions_separately() {
+    let packet = split_secret(b"synthetic unsupported version", 1, 1, None)
+        .unwrap_or_else(|error| panic!("synthetic split failed: {error}"));
+    let mut binary = packet[0]
+        .encode_binary()
+        .unwrap_or_else(|error| panic!("synthetic packet encode failed: {error}"));
+    binary[4] = 99;
+    let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(binary);
+    let mut operation = new_operation();
+    let inspected = operation.add_recovery(10, encoded.as_bytes(), ShareEncoding::Base64url);
+    assert!(inspected.status == Status::UnsupportedVersion);
+    assert!(!inspected.ready);
+    assert_eq!(inspected.recovery_batch_count, 1);
+    assert!(operation.recover(10).status == Status::UnsupportedVersion);
+
+    let exact_cxx_fixture = b"U01OMWMAAgMBrHCYZ3AswOEZZ2pD18UoyAAAAE4PXdVG9ykm_tyf_J5-HJ-_0WtdkvNhn-0vZQL6QwI6H7UZR6ES2tASrurEc-tXOUXN_QPIZSMQAQ1BHoHSBc8k5MjGtaOkiHOGApBppcI";
+    let mut exact_operation = new_operation();
+    assert!(
+        exact_operation
+            .add_recovery(11, exact_cxx_fixture, ShareEncoding::Base64url)
+            .status
+            == Status::UnsupportedVersion
+    );
+}
+
+#[test]
 fn public_operation_rejects_reconstructed_non_utf8_without_returning_bytes() {
     let packets = split_secret(&[0xff, 0xfe, 0xfd], 2, 3, None)
         .unwrap_or_else(|error| panic!("synthetic split failed: {error}"));
@@ -290,6 +317,125 @@ fn public_operation_rejects_reconstructed_non_utf8_without_returning_bytes() {
     assert!(rejected.status == Status::InvalidUtf8);
     assert!(rejected.bytes.is_empty());
     assert!(operation.recovered_text(1).status == Status::NotEnoughShares);
+}
+
+#[test]
+fn public_operation_covers_threshold_endpoints_and_reordered_subsets() {
+    for (threshold, share_count) in [(1, 1), (1, 255), (255, 255)] {
+        let mut operation = new_operation();
+        let created = operation.create(20, b"x", threshold, share_count, ShareEncoding::Base64url);
+        assert!(created.status == Status::Ok);
+        assert_eq!(created.threshold, threshold);
+        assert_eq!(created.share_count, u16::from(share_count));
+        assert!(
+            operation
+                .encode_share(20, u16::from(share_count - 1))
+                .status
+                == Status::Ok
+        );
+    }
+
+    let mut created = new_operation();
+    assert!(
+        created
+            .create(
+                21,
+                b"shuffled non-leading subset",
+                3,
+                5,
+                ShareEncoding::MnemoWords
+            )
+            .status
+            == Status::Ok
+    );
+    let fifth = created.encode_share(21, 4);
+    let second = created.encode_share(21, 1);
+    let fourth = created.encode_share(21, 3);
+    let mut recovery = new_operation();
+    for share in [&fifth.bytes, &second.bytes] {
+        assert!(
+            recovery.add_recovery(22, share, ShareEncoding::Auto).status == Status::NotEnoughShares
+        );
+    }
+    let ready = recovery.add_recovery(22, &fourth.bytes, ShareEncoding::Auto);
+    assert!(ready.status == Status::Ok);
+    assert!(ready.ready);
+    assert_eq!(recovery.recover(22).bytes, b"shuffled non-leading subset");
+
+    let mut over_count_source = new_operation();
+    assert!(
+        over_count_source
+            .create(23, b"over count", 1, 2, ShareEncoding::Base64url)
+            .status
+            == Status::Ok
+    );
+    let first = over_count_source.encode_share(23, 0);
+    let mut over_count = new_operation();
+    assert!(
+        over_count
+            .add_recovery(24, &first.bytes, ShareEncoding::Auto)
+            .status
+            == Status::Ok
+    );
+    assert!(
+        over_count
+            .add_recovery(24, &first.bytes, ShareEncoding::Auto)
+            .status
+            == Status::DuplicateShare
+    );
+    assert!(
+        over_count
+            .add_recovery(24, &first.bytes, ShareEncoding::Auto)
+            .status
+            == Status::TooManyShares
+    );
+}
+
+#[test]
+fn public_operation_keeps_maximum_create_exportable_in_every_encoding() {
+    const ENCODINGS: &[ShareEncoding] = &[
+        ShareEncoding::Base64url,
+        ShareEncoding::Base58check,
+        ShareEncoding::MnemoWords,
+        ShareEncoding::MnemoBip39,
+    ];
+    let maximum_secret = vec![b'm'; 1_048_576];
+    for &encoding in ENCODINGS {
+        let mut operation = new_operation();
+        assert!(
+            operation
+                .create(25, &maximum_secret, 2, 16, encoding)
+                .status
+                == Status::Ok
+        );
+        if encoding == ShareEncoding::MnemoWords {
+            for index in 0..16 {
+                let share = operation.encode_share(25, index);
+                assert!(share.status == Status::Ok);
+                assert!(!share.bytes.is_empty());
+                assert!(share.bytes.len() <= 8 * 1_048_576);
+            }
+        }
+    }
+
+    // Exercise both ends of the identity range for every encoder without turning
+    // this correctness test into the exhaustive maximum-workload benchmark owned
+    // by issue 147 (BIP-39 maximum output contains tens of thousands of frames).
+    let representative_secret = vec![b'r'; 1_024];
+    for &encoding in ENCODINGS {
+        let mut operation = new_operation();
+        assert!(
+            operation
+                .create(26, &representative_secret, 2, 16, encoding)
+                .status
+                == Status::Ok
+        );
+        for index in [0, 15] {
+            let share = operation.encode_share(26, index);
+            assert!(share.status == Status::Ok);
+            assert!(!share.bytes.is_empty());
+        }
+    }
 }
 
 #[test]
@@ -313,7 +459,35 @@ fn public_operation_enforces_create_admission_before_core_work() {
 }
 
 #[test]
-fn public_operation_bounds_paste_tokens_and_retained_recovery_input() {
+fn public_operation_preflights_dense_compact_decoder_storage() {
+    const DENSE_BYTES: usize = 8 * 1_048_576;
+    for (encoding, byte) in [
+        (ShareEncoding::Base64url, b'A'),
+        (ShareEncoding::Base58check, b'1'),
+    ] {
+        let mut operation = new_operation();
+        let dense = vec![byte; DENSE_BYTES];
+        let mut retained_count = 0;
+        loop {
+            let result = operation.add_recovery(9, &dense, encoding);
+            if result.status == Status::ResourceLimit {
+                assert_eq!(usize::from(result.recovery_batch_count), retained_count);
+                assert!(retained_count < 20);
+                break;
+            }
+            assert!(result.status == Status::MalformedInput);
+            retained_count += 1;
+            assert_eq!(usize::from(result.recovery_batch_count), retained_count);
+            assert!(
+                retained_count < 20,
+                "resource admission did not precede retained-input limit"
+            );
+        }
+    }
+}
+
+#[test]
+fn public_operation_bounds_paste_tokens_and_recovery_memory() {
     let mut operation = new_operation();
     assert!(operation.create_words(0, &[b'm'; 1_048_576], 2, 16).status == Status::Ok);
     let too_large = vec![b'x'; 16 * 1_048_576 + 1];
@@ -327,12 +501,23 @@ fn public_operation_bounds_paste_tokens_and_retained_recovery_input() {
     assert_eq!(rejected.recovery_batch_count, 0);
 
     let maximum_batch = vec![b'x'; 16 * 1_048_576];
-    for batch_count in 1..=10 {
-        let retained = operation.add_recovery_words(3, &maximum_batch);
-        assert!(retained.status == Status::MalformedInput);
-        assert_eq!(retained.recovery_batch_count, batch_count);
+    let mut retained_count = 0;
+    loop {
+        let result = operation.add_recovery_words(3, &maximum_batch);
+        if result.status == Status::ResourceLimit {
+            assert_eq!(usize::from(result.recovery_batch_count), retained_count);
+            assert!(retained_count < 10);
+            break;
+        }
+        assert!(result.status == Status::MalformedInput);
+        retained_count += 1;
+        assert_eq!(usize::from(result.recovery_batch_count), retained_count);
     }
+
+    // The conservative process budget may reject adversarial recovery text
+    // before the independent 160 MiB retained-input ceiling. Rejection must not
+    // retain the incoming batch.
     let rejected = operation.add_recovery_words(3, &maximum_batch);
-    assert!(rejected.status == Status::RetainedInputTooLarge);
-    assert_eq!(rejected.recovery_batch_count, 10);
+    assert!(rejected.status == Status::ResourceLimit);
+    assert_eq!(usize::from(rejected.recovery_batch_count), retained_count);
 }

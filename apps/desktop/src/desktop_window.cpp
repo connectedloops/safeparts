@@ -30,6 +30,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <limits>
 #include <utility>
 
 namespace {
@@ -37,6 +38,7 @@ constexpr qsizetype kMaximumRecoveryFieldBytes = 8 * 1'048'576;
 constexpr qsizetype kMaximumRetainedRecoveryBytes = 160 * 1'048'576;
 constexpr qsizetype kMaximumGeneratedPresentationBytes = 160 * 1'048'576;
 constexpr qsizetype kGeneratedPresentationExpansion = 4;
+constexpr qsizetype kGeneratedWorstCasePerPacketByte = 16;
 constexpr qsizetype kMaximumRecoveryFields = 255;
 constexpr int kShareClipboardPurpose = 0;
 constexpr int kRecoveredDisplayPurpose = 1;
@@ -770,7 +772,7 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
                              && status != statusCode(Status::NotEnoughShares);
         const bool hasRequiredEmptyField = pendingInspectionGeneration_ == generation
                                            && pendingInspectionHasEmptyFields_;
-        if (hasRequiredEmptyField && !invalid) {
+        if (hasRequiredEmptyField && !invalid && !ready) {
             recoverButton_->setEnabled(false);
             recoveryStatus_->setText(QStringLiteral("Share content is required."));
         } else {
@@ -797,8 +799,7 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
         const qsizetype remaining = kMaximumGeneratedPresentationBytes
                                     - retainedGeneratedPresentationBytes_;
         if (bytes.size() > remaining / kGeneratedPresentationExpansion) {
-            failGeneratedPresentation(
-                QStringLiteral("Recovery shares exceed the 160 MiB presentation budget."));
+            finishLazyGeneratedPresentation();
             return;
         }
         retainedGeneratedPresentationBytes_ += bytes.size() * kGeneratedPresentationExpansion;
@@ -821,6 +822,14 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
         return;
     }
     if (purpose == kShareClipboardPurpose) {
+        if (lazyGeneratedPresentation_
+            && index < static_cast<quint16>(generatedShareDisplays_.size())) {
+            for (QPlainTextEdit *display : std::as_const(generatedShareDisplays_))
+                display->clear();
+            generatedShareDisplays_.at(index)->setPlainText(
+                QString::fromUtf8(bytes.data(), bytes.size()));
+            retainedGeneratedPresentationBytes_ = bytes.size() * kGeneratedPresentationExpansion;
+        }
         if (writeClipboardUtf8(bytes.view()))
             createStatus_->setText(QStringLiteral("Share %1 copied.").arg(index + 1));
     } else if (purpose == kRecoveredDisplayPurpose) {
@@ -980,6 +989,20 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
     createdRows_->show();
     createdResult_->show();
     createdResult_->updateGeometry();
+    const qsizetype secretBytes = secretInput_->exactUtf8Size();
+    const qsizetype shareCountSize = qsizetype(shareCount);
+    const bool presentationEstimateOverflows =
+        shareCountSize > 0
+        && secretBytes > std::numeric_limits<qsizetype>::max() / shareCountSize
+                              / kGeneratedWorstCasePerPacketByte;
+    const qsizetype worstCasePresentation = presentationEstimateOverflows
+                                                ? std::numeric_limits<qsizetype>::max()
+                                                : secretBytes * shareCountSize
+                                                      * kGeneratedWorstCasePerPacketByte;
+    if (worstCasePresentation > kMaximumGeneratedPresentationBytes) {
+        finishLazyGeneratedPresentation();
+        return;
+    }
     createStatus_->setText(QStringLiteral("Loading Recovery shares…"));
     pending_ = Pending::PreviewShares;
     setBusy(true);
@@ -1005,6 +1028,21 @@ void DesktopWindow::clearGeneratedPresentation() {
         copy->setEnabled(false);
     nextGeneratedShare_ = 0;
     retainedGeneratedPresentationBytes_ = 0;
+    lazyGeneratedPresentation_ = false;
+}
+
+void DesktopWindow::finishLazyGeneratedPresentation() {
+    for (QPlainTextEdit *display : std::as_const(generatedShareDisplays_)) {
+        display->clear();
+        display->setPlaceholderText(QStringLiteral("Copy to reveal this Recovery share."));
+    }
+    retainedGeneratedPresentationBytes_ = 0;
+    lazyGeneratedPresentation_ = true;
+    nextGeneratedShare_ = static_cast<quint16>(generatedShareDisplays_.size());
+    pending_ = Pending::None;
+    setBusy(false);
+    createStatus_->setText(
+        QStringLiteral("Shares created in memory. Copy any share to reveal and export it."));
 }
 
 void DesktopWindow::failGeneratedPresentation(const QString &message) {
@@ -1076,6 +1114,8 @@ QString DesktopWindow::statusText(int status) {
         return QStringLiteral("These Recovery shares require a passphrase. Passphrase entry is not available yet.");
     if (status == statusCode(Status::UnsupportedParameters))
         return QStringLiteral("These Recovery shares use unsupported protection parameters.");
+    if (status == statusCode(Status::UnsupportedVersion))
+        return QStringLiteral("This Recovery share packet version is not supported.");
     if (status == statusCode(Status::MixedEncoding))
         return QStringLiteral("Use one Share format for every Recovery share.");
     if (status == statusCode(Status::MixedVersion))

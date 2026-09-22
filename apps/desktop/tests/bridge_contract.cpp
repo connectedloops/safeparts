@@ -59,6 +59,23 @@ int main() {
         return 4;
     }
     operation->remove_recovery_batch(2, 0);
+    const auto unsupportedVersion = operation->add_recovery(
+        2, bytes("U01OMWMAAgMBrHCYZ3AswOEZZ2pD18UoyAAAAE4PXdVG9ykm_tyf_J5-HJ-_0WtdkvNhn-0vZQL6QwI6H7UZR6ES2tASrurEc-tXOUXN_QPIZSMQAQ1BHoHSBc8k5MjGtaOkiHOGApBppcI"), ShareEncoding::Base64url);
+    if (unsupportedVersion.status != Status::UnsupportedVersion || unsupportedVersion.ready) {
+        std::cerr << "unsupported version contract failed status="
+                  << static_cast<int>(unsupportedVersion.status) << "\n";
+        return 5;
+    }
+    operation->remove_recovery_batch(2, 0);
+    const auto unsupportedKdf = operation->add_recovery(
+        2,
+        bytes("U01OMQIBAgMBpiSUH6ekz9GcJdCrKpkGH24eeWogJbvDcCcKN9uxjNWCI05_7Q4hM1NJ4sT_____AAAAAwAAAAEAAABcQjI9PNRa1FImCFhZTcIkA0oXbyY0awhThV4creXuLHGrQzLFlBAFceaWWlXf-sBzo3dqtrw2yJMzauf0sIGStCqQ3gqrLNj2xZV0kuz2E4BpTYiU6TtYpDghmXo"),
+        ShareEncoding::Base64url);
+    if (unsupportedKdf.status != Status::UnsupportedParameters || unsupportedKdf.ready) {
+        std::cerr << "unsupported KDF contract failed\n";
+        return 6;
+    }
+    operation->remove_recovery_batch(2, 0);
     operation->add_recovery(2, {first.bytes.data(), first.bytes.size()},
                             ShareEncoding::MnemoWords);
     const auto duplicate = operation->add_recovery(
