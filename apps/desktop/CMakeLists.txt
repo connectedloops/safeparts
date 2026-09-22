@@ -50,6 +50,8 @@ add_library(desktop-ui STATIC
   src/desktop_window.h
   src/exact_text_edit.cpp
   src/exact_text_edit.h
+  src/file_io.cpp
+  src/file_io.h
   src/rust_worker.cpp
   src/rust_worker.h
   src/secure_byte_buffer.cpp
@@ -82,6 +84,14 @@ if(BUILD_TESTING)
   target_compile_options(desktop-bridge-contract PRIVATE -Wall -Wextra -Wpedantic -Werror)
   target_compile_definitions(desktop-bridge-contract PRIVATE SAFEPARTS_REPO_ROOT="${REPO_ROOT}")
   add_test(NAME desktop-bridge-contract COMMAND desktop-bridge-contract)
+
+  add_executable(desktop-file-io tests/file_io.cpp src/file_io.cpp src/secure_byte_buffer.cpp)
+  set_target_properties(desktop-file-io PROPERTIES NO_SYSTEM_FROM_IMPORTED ON)
+  target_include_directories(desktop-file-io PRIVATE src)
+  target_link_libraries(desktop-file-io PRIVATE Qt6::Test)
+  target_compile_options(desktop-file-io PRIVATE -Wall -Wextra -Wpedantic -Werror
+    -Wno-c++20-attribute-extensions -Wno-variadic-macro-arguments-omitted)
+  add_test(NAME desktop-file-io COMMAND desktop-file-io)
 
   add_executable(desktop-actions tests/desktop_actions.cpp)
   set_target_properties(desktop-actions PROPERTIES NO_SYSTEM_FROM_IMPORTED ON)

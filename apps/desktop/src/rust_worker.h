@@ -19,7 +19,7 @@ public slots:
     void encodeShare(quint64 generation, quint16 index, int purpose);
     void replaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs, int encoding);
     void recover(quint64 generation, SecureByteBuffer passphrase);
-    void recoveredText(quint64 generation);
+    void recoveredBytes(quint64 generation, int purpose);
 
 signals:
     void operationFinished(quint64 generation, int status, quint8 threshold, quint16 shareCount,

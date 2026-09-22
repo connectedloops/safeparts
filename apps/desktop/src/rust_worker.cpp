@@ -68,13 +68,13 @@ void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inp
 }
 
 void RustWorker::recover(quint64 generation, SecureByteBuffer passphrase) {
-    BytesOutput output = operation_->recover_with_passphrase(generation, slice(passphrase));
+    BytesOutput output = operation_->recover_bytes_with_passphrase(generation, slice(passphrase));
     emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), 1, 0);
 }
 
-void RustWorker::recoveredText(quint64 generation) {
-    BytesOutput output = operation_->recovered_text(generation);
-    emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), 2, 0);
+void RustWorker::recoveredBytes(quint64 generation, int purpose) {
+    BytesOutput output = operation_->recovered_bytes(generation);
+    emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), purpose, 0);
 }
 
 void RustWorker::emitOperation(const OperationOutput &output) {

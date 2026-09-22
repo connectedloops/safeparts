@@ -5,6 +5,10 @@
 #include <QList>
 #include <QMainWindow>
 #include <QString>
+#include <QStringList>
+
+#include <functional>
+#include <memory>
 
 class ExactTextEdit;
 class QCheckBox;
@@ -20,13 +24,20 @@ class QTimer;
 class QVBoxLayout;
 class QWidget;
 class RustWorker;
+class FileIo;
 
 class DesktopWindow final : public QMainWindow {
     Q_OBJECT
 
 public:
+    using OpenFileDialog = std::function<QString()>;
+    using OpenFilesDialog = std::function<QStringList()>;
+    using SaveFileDialog = std::function<QString()>;
+
     explicit DesktopWindow(QWidget *parent = nullptr);
     ~DesktopWindow() override;
+    void setFileServicesForTests(std::shared_ptr<FileIo> fileIo, OpenFileDialog openFile,
+                                 OpenFilesDialog openFiles, SaveFileDialog saveFile);
 
 signals:
     void requestReset(quint64 generation);
@@ -35,7 +46,7 @@ signals:
     void requestEncodeShare(quint64 generation, quint16 index, int purpose);
     void requestReplaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs, int encoding);
     void requestRecover(quint64 generation, SecureByteBuffer passphrase);
-    void requestRecoveredText(quint64 generation);
+    void requestRecoveredBytes(quint64 generation, int purpose);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -44,6 +55,9 @@ private slots:
     void switchMode(int index);
     void startOver();
     void createShares();
+    void chooseSecretFile();
+    void useTextSecret();
+    void loadShareFiles();
     void recover();
     void operationFinished(quint64 generation, int status, quint8 threshold, quint16 shareCount,
                            quint16 suppliedCount, quint16 batchCount, int encoding,
@@ -59,8 +73,10 @@ private:
         Inspect,
         InspectReset,
         CopyShare,
+        SaveShare,
         Recover,
-        CopyRecovered
+        CopyRecovered,
+        SaveRecovered
     };
 
     void buildUi();
@@ -99,6 +115,11 @@ private:
     QTabBar *modeSelector_ = nullptr;
     QStackedWidget *pages_ = nullptr;
     ExactTextEdit *secretInput_ = nullptr;
+    QLabel *secretFileMetadata_ = nullptr;
+    QPushButton *chooseSecretFileButton_ = nullptr;
+    QPushButton *useTextSecretButton_ = nullptr;
+    SecureByteBuffer secretFileBytes_;
+    bool usesSecretFile_ = false;
     QSpinBox *threshold_ = nullptr;
     QSpinBox *shareCount_ = nullptr;
     QComboBox *createEncoding_ = nullptr;
@@ -113,6 +134,7 @@ private:
     QLabel *createdTitle_ = nullptr;
     QList<QPlainTextEdit *> generatedShareDisplays_;
     QList<QPushButton *> generatedShareCopyButtons_;
+    QList<QPushButton *> generatedShareSaveButtons_;
     quint16 nextGeneratedShare_ = 0;
     qsizetype retainedGeneratedPresentationBytes_ = 0;
     bool lazyGeneratedPresentation_ = false;
@@ -128,8 +150,16 @@ private:
     ExactTextEdit *recoveryPassphrase_ = nullptr;
     bool recoveryProtected_ = false;
     QPushButton *addRecoveryButton_ = nullptr;
+    QPushButton *loadRecoveryFilesButton_ = nullptr;
     QPushButton *recoverButton_ = nullptr;
     QWidget *recoveryResult_ = nullptr;
     QPlainTextEdit *recoveredDisplay_ = nullptr;
     QPushButton *copyRecovered_ = nullptr;
+    QPushButton *saveRecovered_ = nullptr;
+
+    std::shared_ptr<FileIo> fileIo_;
+    OpenFileDialog openFileDialog_;
+    OpenFilesDialog openFilesDialog_;
+    SaveFileDialog saveFileDialog_;
+    QString pendingDestination_;
 };

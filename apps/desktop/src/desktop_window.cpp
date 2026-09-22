@@ -2,11 +2,14 @@
 
 #include "clipboard.h"
 #include "exact_text_edit.h"
+#include "file_io.h"
 #include "rust_worker.h"
 
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QFontDatabase>
 #include <QFrame>
 #include <QGridLayout>
@@ -25,6 +28,7 @@
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QStringDecoder>
 #include <QTabBar>
 #include <QThread>
 #include <QTimer>
@@ -36,7 +40,7 @@
 
 namespace {
 constexpr qsizetype kMaximumPassphraseBytes = 1'048'576;
-constexpr qsizetype kMaximumRecoveryFieldBytes = 8 * 1'048'576;
+constexpr qsizetype kMaximumRecoveryFieldBytes = 16 * 1'048'576;
 constexpr qsizetype kMaximumRetainedRecoveryBytes = 160 * 1'048'576;
 constexpr qsizetype kMaximumGeneratedPresentationBytes = 160 * 1'048'576;
 constexpr qsizetype kGeneratedPresentationExpansion = 4;
@@ -46,6 +50,10 @@ constexpr int kShareClipboardPurpose = 0;
 constexpr int kRecoveredDisplayPurpose = 1;
 constexpr int kRecoveredClipboardPurpose = 2;
 constexpr int kShareDisplayPurpose = 3;
+constexpr int kShareSavePurpose = 4;
+constexpr int kRecoveredSavePurpose = 5;
+constexpr qsizetype kMaximumSecretBytes = 1'048'576;
+constexpr qsizetype kMaximumShareFileBytes = 16 * 1'048'576;
 
 int statusCode(Status status) {
     return static_cast<int>(static_cast<std::uint8_t>(status));
@@ -229,7 +237,10 @@ QWidget *centeredPage(QWidget *content) {
 }
 } // namespace
 
-DesktopWindow::DesktopWindow(QWidget *parent) : QMainWindow(parent) {
+DesktopWindow::DesktopWindow(QWidget *parent) : QMainWindow(parent), fileIo_(std::make_shared<FileIo>()) {
+    openFileDialog_ = [this] { return QFileDialog::getOpenFileName(this, QStringLiteral("Choose Secret file")); };
+    openFilesDialog_ = [this] { return QFileDialog::getOpenFileNames(this, QStringLiteral("Load Recovery share files")); };
+    saveFileDialog_ = [this] { return QFileDialog::getSaveFileName(this, QStringLiteral("Save exact bytes")); };
     setWindowTitle(QStringLiteral("Safeparts"));
     resize(740, 590);
     setMinimumSize(620, 480);
@@ -243,7 +254,7 @@ DesktopWindow::DesktopWindow(QWidget *parent) : QMainWindow(parent) {
     connect(this, &DesktopWindow::requestReplaceRecovery, worker_, &RustWorker::replaceRecovery,
             Qt::QueuedConnection);
     connect(this, &DesktopWindow::requestRecover, worker_, &RustWorker::recover, Qt::QueuedConnection);
-    connect(this, &DesktopWindow::requestRecoveredText, worker_, &RustWorker::recoveredText, Qt::QueuedConnection);
+    connect(this, &DesktopWindow::requestRecoveredBytes, worker_, &RustWorker::recoveredBytes, Qt::QueuedConnection);
     connect(worker_, &RustWorker::operationFinished, this, &DesktopWindow::operationFinished);
     connect(worker_, &RustWorker::bytesFinished, this, &DesktopWindow::bytesFinished);
     thread_->start();
@@ -269,6 +280,14 @@ DesktopWindow::~DesktopWindow() {
         thread_->quit();
         thread_->wait();
     }
+}
+
+void DesktopWindow::setFileServicesForTests(std::shared_ptr<FileIo> fileIo, OpenFileDialog openFile,
+                                            OpenFilesDialog openFiles, SaveFileDialog saveFile) {
+    fileIo_ = std::move(fileIo);
+    openFileDialog_ = std::move(openFile);
+    openFilesDialog_ = std::move(openFiles);
+    saveFileDialog_ = std::move(saveFile);
 }
 
 void DesktopWindow::buildUi() {
@@ -348,6 +367,20 @@ QWidget *DesktopWindow::buildCreatePage() {
     configureEditor(secretInput_);
     secretLabel->setBuddy(secretInput_);
     groupLayout->addWidget(secretInput_);
+    secretFileMetadata_ = label({}, true);
+    secretFileMetadata_->setObjectName(QStringLiteral("secretFileMetadata"));
+    secretFileMetadata_->hide();
+    groupLayout->addWidget(secretFileMetadata_);
+    auto *sourceActions = new QHBoxLayout;
+    chooseSecretFileButton_ = new QPushButton(QStringLiteral("Choose file…"));
+    chooseSecretFileButton_->setObjectName(QStringLiteral("chooseSecretFileButton"));
+    useTextSecretButton_ = new QPushButton(QStringLiteral("Use text instead"));
+    useTextSecretButton_->setObjectName(QStringLiteral("useTextSecretButton"));
+    useTextSecretButton_->hide();
+    sourceActions->addWidget(chooseSecretFileButton_);
+    sourceActions->addWidget(useTextSecretButton_);
+    sourceActions->addStretch();
+    groupLayout->addLayout(sourceActions);
 
     auto *settings = new QGridLayout;
     settings->setHorizontalSpacing(12);
@@ -472,6 +505,8 @@ QWidget *DesktopWindow::buildCreatePage() {
     entryLayout->addWidget(createdResult_);
 
     connect(createButton_, &QPushButton::clicked, this, &DesktopWindow::createShares);
+    connect(chooseSecretFileButton_, &QPushButton::clicked, this, &DesktopWindow::chooseSecretFile);
+    connect(useTextSecretButton_, &QPushButton::clicked, this, &DesktopWindow::useTextSecret);
     connect(secretInput_, &ExactTextEdit::exactTextChanged, this, &DesktopWindow::createInputChanged);
     connect(secretInput_, &ExactTextEdit::inputRejected, this, [this](int reason) {
         createStatus_->setText(reason == static_cast<int>(ClipboardRead::Status::TooLarge)
@@ -536,6 +571,10 @@ QWidget *DesktopWindow::buildRecoverPage() {
     addRecoveryButton_->setObjectName(QStringLiteral("addRecoveryShareButton"));
     addRecoveryButton_->setFixedHeight(32);
     fieldActions->addWidget(addRecoveryButton_);
+    loadRecoveryFilesButton_ = new QPushButton(QStringLiteral("Load share files…"));
+    loadRecoveryFilesButton_->setObjectName(QStringLiteral("loadRecoveryFilesButton"));
+    loadRecoveryFilesButton_->setFixedHeight(32);
+    fieldActions->addWidget(loadRecoveryFilesButton_);
     fieldActions->addStretch();
     recoveryCount_ = label(QStringLiteral("0 of 2 Recovery shares entered"), true);
     recoveryCount_->setObjectName(QStringLiteral("recoveryCount"));
@@ -586,18 +625,33 @@ QWidget *DesktopWindow::buildRecoverPage() {
     copyRecovered_ = new QPushButton;
     copyRecovered_->setObjectName(QStringLiteral("copyRecoveredButton"));
     configureCopyButton(copyRecovered_, QStringLiteral("Copy recovered Secret"));
-    resultLayout->addWidget(copyRecovered_, 0, Qt::AlignRight);
+    auto *resultActions = new QHBoxLayout;
+    resultActions->addStretch();
+    resultActions->addWidget(copyRecovered_);
+    saveRecovered_ = new QPushButton(QStringLiteral("Save…"));
+    saveRecovered_->setObjectName(QStringLiteral("saveRecoveredButton"));
+    resultActions->addWidget(saveRecovered_);
+    resultLayout->addLayout(resultActions);
     recoveryResult_->hide();
     groupLayout->addWidget(recoveryResult_);
     layout->addWidget(group);
 
     connect(addRecoveryButton_, &QPushButton::clicked, this, &DesktopWindow::addRecoveryField);
+    connect(loadRecoveryFilesButton_, &QPushButton::clicked, this, &DesktopWindow::loadShareFiles);
     connect(recoveryEncoding_, &QComboBox::currentIndexChanged, this,
             &DesktopWindow::recoveryInputChanged);
     connect(recoverButton_, &QPushButton::clicked, this, &DesktopWindow::recover);
     connect(copyRecovered_, &QPushButton::clicked, this, [this] {
         pending_ = Pending::CopyRecovered;
-        emit requestRecoveredText(generation_);
+        emit requestRecoveredBytes(generation_, kRecoveredClipboardPurpose);
+    });
+    connect(saveRecovered_, &QPushButton::clicked, this, [this] {
+        const QString destination = saveFileDialog_();
+        if (destination.isEmpty())
+            return;
+        pendingDestination_ = destination;
+        pending_ = Pending::SaveRecovered;
+        emit requestRecoveredBytes(generation_, kRecoveredSavePurpose);
     });
     return page;
 }
@@ -620,6 +674,105 @@ void DesktopWindow::startOver() {
     queueCurrentReset();
 }
 
+void DesktopWindow::chooseSecretFile() {
+    const QString path = openFileDialog_();
+    if (path.isEmpty())
+        return;
+    const qsizetype logicalMaximum = (16 * 1'048'576) / shareCount_->value();
+    const qsizetype maximum = std::min(kMaximumSecretBytes, logicalMaximum);
+    FileIo::ReadResult result = fileIo_->readBounded(path, maximum);
+    if (result.status != FileIo::Status::Ok) {
+        createStatus_->setText(result.status == FileIo::Status::TooLarge
+                                   ? QStringLiteral("Secret file exceeds the operation limit.")
+                                   : QStringLiteral("Secret file could not be read."));
+        return;
+    }
+    if (result.bytes.isEmpty()) {
+        createStatus_->setText(QStringLiteral("Secret cannot be empty."));
+        return;
+    }
+    secretFileBytes_ = std::move(result.bytes);
+    usesSecretFile_ = true;
+    secretInput_->hide();
+    secretFileMetadata_->setText(QStringLiteral("%1 · %2 bytes")
+                                     .arg(QFileInfo(path).fileName())
+                                     .arg(secretFileBytes_.size()));
+    secretFileMetadata_->show();
+    chooseSecretFileButton_->hide();
+    useTextSecretButton_->show();
+    createInputChanged();
+}
+
+void DesktopWindow::useTextSecret() {
+    if (!usesSecretFile_)
+        return;
+    secretFileBytes_ = {};
+    usesSecretFile_ = false;
+    secretFileMetadata_->clear();
+    secretFileMetadata_->hide();
+    secretInput_->show();
+    chooseSecretFileButton_->show();
+    useTextSecretButton_->hide();
+    createInputChanged();
+}
+
+void DesktopWindow::loadShareFiles() {
+    const QStringList paths = openFilesDialog_();
+    if (paths.isEmpty())
+        return;
+    qsizetype availableEmpty = 0;
+    qsizetype retainedBytes = 0;
+    for (ExactTextEdit *field : std::as_const(recoveryFields_)) {
+        retainedBytes += field->exactUtf8Size();
+        if (field->exactUtf8Size() == 0)
+            ++availableEmpty;
+    }
+    if (paths.size() > availableEmpty + kMaximumRecoveryFields - recoveryFields_.size()) {
+        recoveryStatus_->setText(QStringLiteral("At most 255 Recovery share batches are accepted."));
+        return;
+    }
+    QList<SecureByteBuffer> acquired;
+    for (const QString &path : paths) {
+        FileIo::ReadResult result = fileIo_->readBounded(path, kMaximumShareFileBytes);
+        if (result.status != FileIo::Status::Ok) {
+            recoveryStatus_->setText(result.status == FileIo::Status::TooLarge
+                                         ? QStringLiteral("A Recovery share file exceeds 16 MiB.")
+                                         : QStringLiteral("Recovery share files could not be read."));
+            return;
+        }
+        QStringDecoder decoder(QStringDecoder::Utf8);
+        decoder.decode(result.bytes.view());
+        if (decoder.hasError()) {
+            recoveryStatus_->setText(QStringLiteral("Recovery share files must be valid UTF-8."));
+            return;
+        }
+        if (retainedBytes > kMaximumRetainedRecoveryBytes - result.bytes.size()) {
+            recoveryStatus_->setText(QStringLiteral("Retained Recovery share input exceeds 160 MiB."));
+            return;
+        }
+        retainedBytes += result.bytes.size();
+        acquired.append(std::move(result.bytes));
+    }
+    for (const SecureByteBuffer &bytes : std::as_const(acquired)) {
+        ExactTextEdit *target = nullptr;
+        for (ExactTextEdit *field : std::as_const(recoveryFields_)) {
+            if (field->exactUtf8Size() == 0) {
+                target = field;
+                break;
+            }
+        }
+        if (target == nullptr) {
+            addRecoveryField();
+            target = recoveryFields_.last();
+        }
+        if (!target->setExactUtf8(bytes.view(), true)) {
+            recoveryStatus_->setText(QStringLiteral("Recovery share file could not be retained."));
+            return;
+        }
+    }
+    synchronizeRecoveryFields();
+}
+
 void DesktopWindow::createShares() {
     QByteArray passphraseBytes = createPassphrase_->exactUtf8();
     QByteArray confirmationBytes = confirmPassphrase_->exactUtf8();
@@ -640,7 +793,9 @@ void DesktopWindow::createShares() {
     SecureByteBuffer passphrase = SecureByteBuffer::take(
         protectWithPassphrase_->isChecked() ? std::move(passphraseBytes) : QByteArray());
     passphraseBytes.fill(0);
-    SecureByteBuffer secret = SecureByteBuffer::take(secretInput_->exactUtf8());
+    SecureByteBuffer secret = usesSecretFile_
+                                  ? secretFileBytes_
+                                  : SecureByteBuffer::take(secretInput_->exactUtf8());
     const quint64 requestGeneration = nextGeneration();
     pending_ = Pending::Create;
     setBusy(true);
@@ -681,7 +836,7 @@ void DesktopWindow::addRecoveryField() {
     connect(editor, &ExactTextEdit::exactTextChanged, this, &DesktopWindow::recoveryInputChanged);
     connect(editor, &ExactTextEdit::inputRejected, this, [this](int reason) {
         recoveryStatus_->setText(reason == static_cast<int>(ClipboardRead::Status::TooLarge)
-                                     ? QStringLiteral("A Recovery share cannot exceed the 8 MiB UTF-8 limit.")
+                                     ? QStringLiteral("A Recovery share batch cannot exceed the 16 MiB UTF-8 limit.")
                                      : QStringLiteral("A Recovery share must be valid UTF-8."));
     });
     connect(remove, &QPushButton::clicked, this, [this, editor] { removeRecoveryField(editor); });
@@ -911,12 +1066,13 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
 
     setBusy(false);
     if (status != statusCode(Status::Ok)) {
-        if (purpose == kShareClipboardPurpose) {
+        if (purpose == kShareClipboardPurpose || purpose == kShareSavePurpose) {
             createStatus_->setText(statusText(status));
         } else {
             recoveryStatus_->setText(statusText(status));
             recoverButton_->setEnabled(purpose == kRecoveredDisplayPurpose);
         }
+        pendingDestination_.clear();
         pending_ = Pending::None;
         return;
     }
@@ -931,14 +1087,35 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
         }
         if (writeClipboardUtf8(bytes.view()))
             createStatus_->setText(QStringLiteral("Share %1 copied.").arg(index + 1));
+    } else if (purpose == kShareSavePurpose) {
+        const FileIo::Status result = fileIo_->writeDirect(pendingDestination_, bytes);
+        createStatus_->setText(result == FileIo::Status::Ok
+                                   ? QStringLiteral("Share %1 saved.").arg(index + 1)
+                                   : QStringLiteral("Share could not be saved."));
     } else if (purpose == kRecoveredDisplayPurpose) {
-        recoveredDisplay_->setPlainText(QString::fromUtf8(bytes.data(), bytes.size()));
+        QStringDecoder decoder(QStringDecoder::Utf8);
+        const QString text = decoder.decode(bytes.view());
+        const bool validUtf8 = !decoder.hasError();
+        recoveredDisplay_->setVisible(validUtf8);
+        copyRecovered_->setVisible(validUtf8);
+        if (validUtf8)
+            recoveredDisplay_->setPlainText(text);
+        else
+            recoveredDisplay_->clear();
+        saveRecovered_->show();
         recoveryResult_->show();
         recoverButton_->setEnabled(true);
-        recoveryStatus_->setText(QStringLiteral("Recovered exact UTF-8 secret."));
+        recoveryStatus_->setText(validUtf8 ? QStringLiteral("Recovered exact valid UTF-8 Secret.")
+                                           : QStringLiteral("Recovered binary Secret. Save exact bytes."));
     } else if (purpose == kRecoveredClipboardPurpose && writeClipboardUtf8(bytes.view())) {
-        recoveryStatus_->setText(QStringLiteral("Recovered secret copied."));
+        recoveryStatus_->setText(QStringLiteral("Recovered Secret copied."));
+    } else if (purpose == kRecoveredSavePurpose) {
+        const FileIo::Status result = fileIo_->writeDirect(pendingDestination_, bytes);
+        recoveryStatus_->setText(result == FileIo::Status::Ok
+                                     ? QStringLiteral("Recovered exact bytes saved.")
+                                     : QStringLiteral("Recovered bytes could not be saved."));
     }
+    pendingDestination_.clear();
     pending_ = Pending::None;
 }
 
@@ -953,6 +1130,16 @@ void DesktopWindow::clearVisibleState() {
         recoverySyncTimer_->stop();
     if (secretInput_ != nullptr)
         secretInput_->clearExact();
+    secretFileBytes_ = {};
+    usesSecretFile_ = false;
+    pendingDestination_.clear();
+    if (secretFileMetadata_ != nullptr) {
+        secretFileMetadata_->clear();
+        secretFileMetadata_->hide();
+        secretInput_->show();
+        chooseSecretFileButton_->show();
+        useTextSecretButton_->hide();
+    }
     if (threshold_ != nullptr)
         threshold_->setValue(2);
     if (shareCount_ != nullptr)
@@ -993,8 +1180,12 @@ void DesktopWindow::clearVisibleState() {
         recoverButton_->setEnabled(false);
     if (recoveryResult_ != nullptr)
         recoveryResult_->hide();
-    if (recoveredDisplay_ != nullptr)
+    if (recoveredDisplay_ != nullptr) {
         recoveredDisplay_->clear();
+        recoveredDisplay_->show();
+    }
+    if (copyRecovered_ != nullptr)
+        copyRecovered_->show();
 }
 
 void DesktopWindow::createInputChanged() {
@@ -1027,6 +1218,7 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
     clearGeneratedPresentation();
     generatedShareDisplays_.clear();
     generatedShareCopyButtons_.clear();
+    generatedShareSaveButtons_.clear();
     if (QLayout *oldRows = createdRows_->layout(); oldRows != nullptr) {
         while (QLayoutItem *item = oldRows->takeAt(0)) {
             delete item->widget();
@@ -1087,6 +1279,20 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
         });
         generatedShareCopyButtons_.append(copy);
         rowLayout->addWidget(copy, 0, Qt::AlignTop);
+        auto *save = new QPushButton(QStringLiteral("Save…"));
+        save->setObjectName(QStringLiteral("saveShare%1").arg(index + 1));
+        save->setEnabled(false);
+        connect(save, &QPushButton::clicked, this, [this, index] {
+            const QString destination = saveFileDialog_();
+            if (destination.isEmpty())
+                return;
+            pendingDestination_ = destination;
+            pending_ = Pending::SaveShare;
+            setBusy(true);
+            emit requestEncodeShare(generation_, index, kShareSavePurpose);
+        });
+        generatedShareSaveButtons_.append(save);
+        rowLayout->addWidget(save, 0, Qt::AlignTop);
         rows->addWidget(row);
     }
     rows->addWidget(label(QStringLiteral("%1 of %2 · %3")
@@ -1135,6 +1341,8 @@ void DesktopWindow::clearGeneratedPresentation() {
         display->clear();
     for (QPushButton *copy : std::as_const(generatedShareCopyButtons_))
         copy->setEnabled(false);
+    for (QPushButton *save : std::as_const(generatedShareSaveButtons_))
+        save->setEnabled(false);
     nextGeneratedShare_ = 0;
     retainedGeneratedPresentationBytes_ = 0;
     lazyGeneratedPresentation_ = false;
@@ -1172,6 +1380,8 @@ void DesktopWindow::setBusy(bool busy) {
                                              == static_cast<quint16>(generatedShareDisplays_.size());
     for (QPushButton *copy : std::as_const(generatedShareCopyButtons_))
         copy->setEnabled(generatedSharesReady);
+    for (QPushButton *save : std::as_const(generatedShareSaveButtons_))
+        save->setEnabled(generatedSharesReady);
     if (addRecoveryButton_ != nullptr)
         addRecoveryButton_->setEnabled(!busy && recoveryFields_.size() < kMaximumRecoveryFields);
     for (ExactTextEdit *editor : std::as_const(recoveryFields_)) {

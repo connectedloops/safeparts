@@ -9,6 +9,7 @@
 #include <QMenu>
 #include <QMimeData>
 #include <QSignalBlocker>
+#include <QStringDecoder>
 #include <QStringView>
 #include <QTextCursor>
 
@@ -71,6 +72,23 @@ QByteArray ExactTextEdit::exactUtf8() const {
 
 qsizetype ExactTextEdit::exactUtf8Size() const {
     return exactUtf8Size_;
+}
+
+bool ExactTextEdit::setExactUtf8(QByteArrayView bytes, bool preserveLineEndings) {
+    if (bytes.size() > maximumUtf8Bytes_)
+        return false;
+    QStringDecoder decoder(QStringDecoder::Utf8);
+    QString text = decoder.decode(bytes);
+    if (decoder.hasError())
+        return false;
+    if (normalizeLineEndings_ && !preserveLineEndings)
+        text = withLfLineEndings(std::move(text));
+    exact_.fill(u'\0');
+    exact_ = std::move(text);
+    exactUtf8Size_ = bytes.size();
+    renderAt(exact_.size());
+    emit exactTextChanged();
+    return true;
 }
 
 void ExactTextEdit::clearExact() {

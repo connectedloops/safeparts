@@ -15,6 +15,7 @@ public:
     QByteArray exactUtf8() const;
     qsizetype exactUtf8Size() const;
     void clearExact();
+    bool setExactUtf8(QByteArrayView bytes, bool preserveLineEndings = false);
 
 signals:
     void exactTextChanged();
