@@ -651,6 +651,42 @@ fn protected_operation_preserves_exact_passphrase_and_safe_failures_in_all_encod
 }
 
 #[test]
+fn failed_protected_retry_clears_previously_recovered_text() {
+    const SECRET: &[u8] = b"synthetic stale recovery regression";
+    const PASSPHRASE: &[u8] = b"correct synthetic passphrase";
+
+    let mut operation = new_operation();
+    assert!(
+        operation
+            .create_with_passphrase(1, SECRET, 2, 3, ShareEncoding::Base64url, PASSPHRASE,)
+            .status
+            == Status::Ok
+    );
+    let first = operation.encode_share(1, 0);
+    let second = operation.encode_share(1, 1);
+
+    operation.reset(2);
+    operation.add_recovery(2, &first.bytes, ShareEncoding::Auto);
+    assert!(
+        operation
+            .add_recovery(2, &second.bytes, ShareEncoding::Auto)
+            .status
+            == Status::PassphraseRequired
+    );
+    let recovered = operation.recover_with_passphrase(2, PASSPHRASE);
+    assert!(recovered.status == Status::Ok);
+    assert_eq!(recovered.bytes, SECRET);
+    assert_eq!(operation.recovered_text(2).bytes, SECRET);
+
+    let failed = operation.recover_with_passphrase(3, b"wrong synthetic passphrase");
+    assert!(failed.status == Status::IntegrityFailure);
+    assert!(failed.bytes.is_empty());
+    let stale = operation.recovered_text(3);
+    assert!(stale.status == Status::NotEnoughShares);
+    assert!(stale.bytes.is_empty());
+}
+
+#[test]
 fn passphrase_utf8_and_inclusive_byte_boundary_are_enforced_publicly() {
     let invalid_utf8 = [0xff];
     let mut invalid = new_operation();

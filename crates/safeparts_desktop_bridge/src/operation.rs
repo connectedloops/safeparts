@@ -287,8 +287,7 @@ impl Operation {
         generation: u64,
         requested_encoding: CoreEncoding,
     ) -> OperationOutput {
-        self.recovered.zeroize();
-        self.recovered.clear();
+        self.clear_recovered();
         clear_packets(&mut self.recovery_packets);
         self.recovery_encoding = None;
         self.recovery_version = None;
@@ -441,6 +440,7 @@ impl Operation {
         require_utf8: bool,
     ) -> BytesOutput {
         match catch_unwind(AssertUnwindSafe(|| {
+            self.clear_recovered();
             self.recover_inner(generation, passphrase, require_utf8)
         })) {
             Ok(result) => result,
@@ -482,7 +482,6 @@ impl Operation {
             return bytes_output(generation, Status::InvalidUtf8);
         }
 
-        self.recovered.zeroize();
         self.recovered = recovered;
         BytesOutput {
             generation,
@@ -655,14 +654,18 @@ impl Operation {
         result
     }
 
+    fn clear_recovered(&mut self) {
+        self.recovered.zeroize();
+        self.recovered.clear();
+    }
+
     fn clear_all(&mut self) {
         clear_packets(&mut self.created_packets);
         self.recovery_batches.clear();
         clear_packets(&mut self.recovery_packets);
         self.recovery_encoding = None;
         self.recovery_version = None;
-        self.recovered.zeroize();
-        self.recovered.clear();
+        self.clear_recovered();
     }
 
     fn panic_output(&mut self, generation: u64) -> OperationOutput {
