@@ -97,6 +97,7 @@ private:
     void recoveryInputChanged();
     void synchronizeRecoveryFields();
     void setBusy(bool busy);
+    void clearPendingExport();
     void setRecoveryStatus(int status, quint8 threshold, quint16 suppliedCount, bool ready);
     static QString statusText(int status);
     quint64 nextGeneration();
@@ -162,4 +163,5 @@ private:
     OpenFilesDialog openFilesDialog_;
     SaveFileDialog saveFileDialog_;
     QString pendingDestination_;
+    quint16 pendingShareIndex_ = 0;
 };

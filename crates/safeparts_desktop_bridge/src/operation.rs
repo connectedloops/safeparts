@@ -508,11 +508,21 @@ impl Operation {
     }
 
     pub fn recovered_text(&mut self, generation: u64) -> BytesOutput {
-        let output = self.recovered_bytes(generation);
-        if output.status == Status::Ok && str::from_utf8(&output.bytes).is_err() {
-            bytes_output(generation, Status::InvalidUtf8)
-        } else {
-            output
+        match catch_unwind(AssertUnwindSafe(|| {
+            if !self.has_recovered {
+                bytes_output(generation, Status::NotEnoughShares)
+            } else if str::from_utf8(&self.recovered).is_err() {
+                bytes_output(generation, Status::InvalidUtf8)
+            } else {
+                BytesOutput {
+                    generation,
+                    status: Status::Ok,
+                    bytes: self.recovered.to_vec(),
+                }
+            }
+        })) {
+            Ok(result) => result,
+            Err(_) => self.panic_bytes(generation),
         }
     }
 

@@ -642,15 +642,21 @@ QWidget *DesktopWindow::buildRecoverPage() {
             &DesktopWindow::recoveryInputChanged);
     connect(recoverButton_, &QPushButton::clicked, this, &DesktopWindow::recover);
     connect(copyRecovered_, &QPushButton::clicked, this, [this] {
+        if (pending_ != Pending::None)
+            return;
         pending_ = Pending::CopyRecovered;
+        setBusy(true);
         emit requestRecoveredBytes(generation_, kRecoveredClipboardPurpose);
     });
     connect(saveRecovered_, &QPushButton::clicked, this, [this] {
+        if (pending_ != Pending::None)
+            return;
         const QString destination = saveFileDialog_();
         if (destination.isEmpty())
             return;
         pendingDestination_ = destination;
         pending_ = Pending::SaveRecovered;
+        setBusy(true);
         emit requestRecoveredBytes(generation_, kRecoveredSavePurpose);
     });
     return page;
@@ -691,6 +697,9 @@ void DesktopWindow::chooseSecretFile() {
         createStatus_->setText(QStringLiteral("Secret cannot be empty."));
         return;
     }
+    secretInput_->blockSignals(true);
+    secretInput_->clearExact();
+    secretInput_->blockSignals(false);
     secretFileBytes_ = std::move(result.bytes);
     usesSecretFile_ = true;
     secretInput_->hide();
@@ -740,6 +749,10 @@ void DesktopWindow::loadShareFiles() {
                                          : QStringLiteral("Recovery share files could not be read."));
             return;
         }
+        if (result.bytes.isEmpty()) {
+            recoveryStatus_->setText(QStringLiteral("Recovery share files cannot be empty."));
+            return;
+        }
         QStringDecoder decoder(QStringDecoder::Utf8);
         decoder.decode(result.bytes.view());
         if (decoder.hasError()) {
@@ -770,6 +783,7 @@ void DesktopWindow::loadShareFiles() {
             return;
         }
     }
+    recoverySyncTimer_->stop();
     synchronizeRecoveryFields();
 }
 
@@ -900,6 +914,7 @@ void DesktopWindow::clearRecoveryFields() {
 void DesktopWindow::recoveryInputChanged() {
     if (clearingRecoveryFields_)
         return;
+    clearPendingExport();
     nextGeneration();
     recoverySyncTimer_->start();
     recoveryResult_->hide();
@@ -1064,6 +1079,17 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
         return;
     }
 
+    const Pending expected = purpose == kShareClipboardPurpose   ? Pending::CopyShare
+                             : purpose == kShareSavePurpose      ? Pending::SaveShare
+                             : purpose == kRecoveredDisplayPurpose ? Pending::Recover
+                             : purpose == kRecoveredClipboardPurpose ? Pending::CopyRecovered
+                             : purpose == kRecoveredSavePurpose  ? Pending::SaveRecovered
+                                                                 : Pending::None;
+    if (pending_ != expected
+        || ((purpose == kShareClipboardPurpose || purpose == kShareSavePurpose)
+            && index != pendingShareIndex_))
+        return;
+
     setBusy(false);
     if (status != statusCode(Status::Ok)) {
         if (purpose == kShareClipboardPurpose || purpose == kShareSavePurpose) {
@@ -1072,7 +1098,7 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
             recoveryStatus_->setText(statusText(status));
             recoverButton_->setEnabled(purpose == kRecoveredDisplayPurpose);
         }
-        pendingDestination_.clear();
+        clearPendingExport();
         pending_ = Pending::None;
         return;
     }
@@ -1115,7 +1141,7 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
                                      ? QStringLiteral("Recovered exact bytes saved.")
                                      : QStringLiteral("Recovered bytes could not be saved."));
     }
-    pendingDestination_.clear();
+    clearPendingExport();
     pending_ = Pending::None;
 }
 
@@ -1132,7 +1158,7 @@ void DesktopWindow::clearVisibleState() {
         secretInput_->clearExact();
     secretFileBytes_ = {};
     usesSecretFile_ = false;
-    pendingDestination_.clear();
+    clearPendingExport();
     if (secretFileMetadata_ != nullptr) {
         secretFileMetadata_->clear();
         secretFileMetadata_->hide();
@@ -1189,6 +1215,7 @@ void DesktopWindow::clearVisibleState() {
 }
 
 void DesktopWindow::createInputChanged() {
+    clearPendingExport();
     const bool invalidatesCreatedShares = createdResult_ != nullptr && !createdResult_->isHidden();
     nextGeneration();
     clearGeneratedPresentation();
@@ -1273,7 +1300,10 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
         configureCopyButton(copy, QStringLiteral("Copy Recovery share %1").arg(index + 1));
         copy->setEnabled(false);
         connect(copy, &QPushButton::clicked, this, [this, index] {
+            if (pending_ != Pending::None)
+                return;
             pending_ = Pending::CopyShare;
+            pendingShareIndex_ = index;
             setBusy(true);
             emit requestEncodeShare(generation_, index, kShareClipboardPurpose);
         });
@@ -1283,11 +1313,14 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
         save->setObjectName(QStringLiteral("saveShare%1").arg(index + 1));
         save->setEnabled(false);
         connect(save, &QPushButton::clicked, this, [this, index] {
+            if (pending_ != Pending::None)
+                return;
             const QString destination = saveFileDialog_();
             if (destination.isEmpty())
                 return;
             pendingDestination_ = destination;
             pending_ = Pending::SaveShare;
+            pendingShareIndex_ = index;
             setBusy(true);
             emit requestEncodeShare(generation_, index, kShareSavePurpose);
         });
@@ -1304,7 +1337,8 @@ void DesktopWindow::showCreated(quint8 threshold, quint16 shareCount) {
     createdRows_->show();
     createdResult_->show();
     createdResult_->updateGeometry();
-    const qsizetype secretBytes = secretInput_->exactUtf8Size();
+    const qsizetype secretBytes = usesSecretFile_ ? secretFileBytes_.size()
+                                                   : secretInput_->exactUtf8Size();
     const qsizetype shareCountSize = qsizetype(shareCount);
     const bool presentationEstimateOverflows =
         shareCountSize > 0
@@ -1391,6 +1425,14 @@ void DesktopWindow::setBusy(bool busy) {
     }
     if (recoverButton_ != nullptr && busy)
         recoverButton_->setEnabled(false);
+}
+
+void DesktopWindow::clearPendingExport() {
+    pendingDestination_.clear();
+    pendingShareIndex_ = 0;
+    if (pending_ == Pending::CopyShare || pending_ == Pending::SaveShare
+        || pending_ == Pending::CopyRecovered || pending_ == Pending::SaveRecovered)
+        pending_ = Pending::None;
 }
 
 void DesktopWindow::setRecoveryStatus(int status, quint8 threshold, quint16 suppliedCount, bool ready) {

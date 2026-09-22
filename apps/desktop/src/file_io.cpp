@@ -43,17 +43,24 @@ FileIo::ReadResult FileIo::readBounded(const QString &path, qsizetype inclusiveM
         QByteArray chunk(request, Qt::Uninitialized);
         const qint64 count = device->read(chunk.data(), request);
         if (count < 0) {
+            chunk.fill(0);
+            bytes.fill(0);
             device->close();
             return {Status::ReadFailed, {}};
         }
-        if (count == 0)
+        if (count == 0) {
+            chunk.fill(0);
             break;
+        }
         chunk.resize(static_cast<qsizetype>(count));
         bytes.append(chunk);
+        chunk.fill(0);
     }
     const bool closed = device->close();
-    if (!closed)
+    if (!closed) {
+        bytes.fill(0);
         return {Status::ReadFailed, {}};
+    }
     if (bytes.size() > inclusiveMaximum) {
         bytes.fill(0);
         return {Status::TooLarge, {}};

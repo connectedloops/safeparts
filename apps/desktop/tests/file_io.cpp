@@ -83,6 +83,40 @@ private slots:
                  FileIo::Status::FlushFailed);
     }
 
+    void open_and_close_failures_use_one_device_for_the_exact_path() {
+        for (const bool read : {true, false}) {
+            int factoryCalls = 0;
+            QString observedPath;
+            auto *device = new ScriptedDevice;
+            device->openRead = !read;
+            device->openWrite = read;
+            FileIo io([&](const QString &path) {
+                ++factoryCalls;
+                observedPath = path;
+                return std::unique_ptr<FileDevice>(device);
+            });
+            const auto status = read
+                                    ? io.readBounded(QStringLiteral("chosen/input"), 4).status
+                                    : io.writeDirect(QStringLiteral("chosen/output"), SecureByteBuffer{});
+            QCOMPARE(status, FileIo::Status::OpenFailed);
+            QCOMPARE(factoryCalls, 1);
+            QCOMPARE(observedPath,
+                     read ? QStringLiteral("chosen/input") : QStringLiteral("chosen/output"));
+        }
+
+        auto *reader = new ScriptedDevice;
+        reader->source = QByteArray("abc");
+        reader->closeResult = false;
+        FileIo readIo([reader](const QString &) { return std::unique_ptr<FileDevice>(reader); });
+        QCOMPARE(readIo.readBounded(QStringLiteral("chosen"), 4).status, FileIo::Status::ReadFailed);
+
+        auto *writer = new ScriptedDevice;
+        writer->closeResult = false;
+        FileIo writeIo([writer](const QString &) { return std::unique_ptr<FileDevice>(writer); });
+        QCOMPARE(writeIo.writeDirect(QStringLiteral("chosen"), SecureByteBuffer{}),
+                 FileIo::Status::CloseFailed);
+    }
+
     void production_adapter_reads_and_writes_exact_selected_path() {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
