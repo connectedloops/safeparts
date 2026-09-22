@@ -271,3 +271,32 @@ fn sensitive_output_files_are_owner_only_even_when_overwritten() {
     );
     assert_eq!(fs::read(secret_path).unwrap(), b"synthetic private output");
 }
+
+#[test]
+fn cli_recovers_every_protected_desktop_encoding() {
+    const FIXTURES: &[&str] = &[
+        include_str!(
+            "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/base64url.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/base58check.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/mnemo-words.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/mnemo-bip39.txt"
+        ),
+    ];
+    for fixture in FIXTURES {
+        let shares = fixture.lines().map(str::to_owned).collect::<Vec<_>>();
+        assert_eq!(
+            run_combine(
+                None,
+                &shares,
+                Some("issue-142 synthetic interoperability passphrase")
+            ),
+            b"synthetic protected desktop interoperability"
+        );
+    }
+}

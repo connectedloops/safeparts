@@ -136,3 +136,33 @@ fn recovered_bytes_are_returned_as_a_uint8_array() {
 
     assert!(value.is_instance_of::<Uint8Array>());
 }
+
+#[wasm_bindgen_test]
+fn wasm_recovers_every_protected_desktop_encoding() {
+    const FIXTURES: &[&str] = &[
+        include_str!(
+            "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/base64url.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/base58check.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/mnemo-words.txt"
+        ),
+        include_str!(
+            "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/mnemo-bip39.txt"
+        ),
+    ];
+    for fixture in FIXTURES {
+        assert_eq!(
+            combine_share_input(
+                fixture,
+                "auto",
+                Some("issue-142 synthetic interoperability passphrase".into())
+            )
+            .unwrap()
+            .to_vec(),
+            b"synthetic protected desktop interoperability"
+        );
+    }
+}

@@ -179,3 +179,34 @@ mod tests {
         assert!(error.contains("could not be decoded"));
     }
 }
+
+#[cfg(test)]
+mod protected_desktop_interoperability {
+    use super::*;
+    #[test]
+    fn tui_recovers_every_protected_desktop_encoding() {
+        const FIXTURES: &[&str] = &[
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/base64url.txt"
+            ),
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/base58check.txt"
+            ),
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/mnemo-words.txt"
+            ),
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/mnemo-bip39.txt"
+            ),
+        ];
+        for fixture in FIXTURES {
+            let (_, secret, _) = combine_shares(
+                fixture,
+                Encoding::Auto,
+                Some(b"issue-142 synthetic interoperability passphrase"),
+            )
+            .unwrap();
+            assert_eq!(secret, b"synthetic protected desktop interoperability");
+        }
+    }
+}

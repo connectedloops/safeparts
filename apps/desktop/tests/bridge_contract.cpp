@@ -203,8 +203,32 @@ int main() {
         destroy_operation(std::move(fixtureOperation));
     }
 
+    const std::array<FixtureCase, 4> protectedReleasedFixtures = {{
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/base64url.txt", ShareEncoding::Base64url},
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/base58check.txt", ShareEncoding::Base58check},
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/mnemo-words.txt", ShareEncoding::MnemoWords},
+        {"crates/safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/mnemo-bip39.txt", ShareEncoding::MnemoBip39},
+    }};
+    const std::string releasedPassphrase = "issue-60 synthetic fixture passphrase";
+    const std::string releasedSecret("\xffSafeparts V2 protected synthetic Secret\0\x01\x02\n", 44);
+    for (const FixtureCase &fixtureCase : protectedReleasedFixtures) {
+        const std::string text = fixture(fixtureCase.path);
+        for (ShareEncoding requested : {ShareEncoding::Auto, fixtureCase.encoding}) {
+            auto protectedOperation = new_operation();
+            const auto inspected = protectedOperation->add_recovery(9, bytes(text), requested);
+            const auto recovered = protectedOperation->recover_bytes_with_passphrase(9, bytes(releasedPassphrase));
+            if (inspected.status != Status::PassphraseRequired || !inspected.passphrase_protected
+                || inspected.encoding != fixtureCase.encoding || recovered.status != Status::Ok
+                || stringFrom(recovered.bytes) != releasedSecret) {
+                std::cerr << "protected released fixture CXX contract failed\n";
+                return 13;
+            }
+            destroy_operation(std::move(protectedOperation));
+        }
+    }
+
     destroy_operation(std::move(other));
     destroy_operation(std::move(operation));
-    std::cout << "CXX_DESKTOP_BOUNDARY_OK shares=3 threshold=2 encodings=4 released_fixtures=8 surface_fixtures=12 auto=yes handled_errors=yes explicit_release=yes\n";
+    std::cout << "CXX_DESKTOP_BOUNDARY_OK shares=3 threshold=2 encodings=4 released_fixtures=12 surface_fixtures=12 auto=yes handled_errors=yes explicit_release=yes\n";
     return 0;
 }

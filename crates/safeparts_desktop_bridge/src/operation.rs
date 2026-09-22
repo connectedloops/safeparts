@@ -423,15 +423,37 @@ impl Operation {
     }
 
     pub fn recover_with_passphrase(&mut self, generation: u64, passphrase: &[u8]) -> BytesOutput {
+        self.recover_entry(generation, passphrase, true)
+    }
+
+    pub fn recover_bytes_with_passphrase(
+        &mut self,
+        generation: u64,
+        passphrase: &[u8],
+    ) -> BytesOutput {
+        self.recover_entry(generation, passphrase, false)
+    }
+
+    fn recover_entry(
+        &mut self,
+        generation: u64,
+        passphrase: &[u8],
+        require_utf8: bool,
+    ) -> BytesOutput {
         match catch_unwind(AssertUnwindSafe(|| {
-            self.recover_inner(generation, passphrase)
+            self.recover_inner(generation, passphrase, require_utf8)
         })) {
             Ok(result) => result,
             Err(_) => self.panic_bytes(generation),
         }
     }
 
-    fn recover_inner(&mut self, generation: u64, passphrase: &[u8]) -> BytesOutput {
+    fn recover_inner(
+        &mut self,
+        generation: u64,
+        passphrase: &[u8],
+        require_utf8: bool,
+    ) -> BytesOutput {
         if passphrase.len() > MAX_PASSPHRASE_BYTES {
             return bytes_output(generation, Status::PassphraseTooLarge);
         }
@@ -456,7 +478,7 @@ impl Operation {
         if recovered.len() > MAX_SECRET_BYTES {
             return bytes_output(generation, Status::SecretTooLarge);
         }
-        if str::from_utf8(&recovered).is_err() {
+        if require_utf8 && str::from_utf8(&recovered).is_err() {
             return bytes_output(generation, Status::InvalidUtf8);
         }
 

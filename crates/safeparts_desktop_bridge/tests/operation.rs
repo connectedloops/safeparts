@@ -701,3 +701,135 @@ fn passphrases_over_the_inclusive_limit_are_rejected() {
     assert!(created.status == Status::PassphraseTooLarge);
     assert!(operation.recover_with_passphrase(2, &too_large).status == Status::PassphraseTooLarge);
 }
+
+#[test]
+fn desktop_recovers_every_protected_supported_surface_encoding() {
+    const PASS: &[u8] = b"issue-142 synthetic interoperability passphrase";
+    const FIXTURES: &[(&str, &[u8])] = &[
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/cli/base64url.txt"
+            ),
+            b"synthetic protected CLI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/cli/base58check.txt"
+            ),
+            b"synthetic protected CLI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/cli/mnemo-words.txt"
+            ),
+            b"synthetic protected CLI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/cli/mnemo-bip39.txt"
+            ),
+            b"synthetic protected CLI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/tui/base64url.txt"
+            ),
+            b"synthetic protected TUI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/tui/base58check.txt"
+            ),
+            b"synthetic protected TUI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/tui/mnemo-words.txt"
+            ),
+            b"synthetic protected TUI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/tui/mnemo-bip39.txt"
+            ),
+            b"synthetic protected TUI interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/wasm/base64url.txt"
+            ),
+            b"synthetic protected WASM interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/wasm/base58check.txt"
+            ),
+            b"synthetic protected WASM interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/wasm/mnemo-words.txt"
+            ),
+            b"synthetic protected WASM interoperability",
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/protected_surface_interoperability/wasm/mnemo-bip39.txt"
+            ),
+            b"synthetic protected WASM interoperability",
+        ),
+    ];
+    for &(fixture, expected) in FIXTURES {
+        let mut operation = new_operation();
+        let inspected = operation.add_recovery(80, fixture.as_bytes(), ShareEncoding::Auto);
+        assert!(inspected.status == Status::PassphraseRequired);
+        assert!(inspected.passphrase_protected);
+        let recovered = operation.recover_with_passphrase(80, PASS);
+        assert!(recovered.status == Status::Ok);
+        assert_eq!(recovered.bytes, expected);
+    }
+}
+
+#[test]
+fn released_protected_fixture_recovers_exact_binary_and_metadata() {
+    const PASS: &[u8] = b"issue-60 synthetic fixture passphrase";
+    const EXPECTED: &[u8] = b"\xffSafeparts V2 protected synthetic Secret\0\x01\x02\n";
+    const FIXTURES: &[(&str, ShareEncoding)] = &[
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/base64url.txt"
+            ),
+            ShareEncoding::Base64url,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/base58check.txt"
+            ),
+            ShareEncoding::Base58check,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/mnemo-words.txt"
+            ),
+            ShareEncoding::MnemoWords,
+        ),
+        (
+            include_str!(
+                "../../safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/mnemo-bip39.txt"
+            ),
+            ShareEncoding::MnemoBip39,
+        ),
+    ];
+    for &(fixture, encoding) in FIXTURES {
+        for requested in [ShareEncoding::Auto, encoding] {
+            let mut op = new_operation();
+            let inspected = op.add_recovery(90, fixture.as_bytes(), requested);
+            assert!(inspected.status == Status::PassphraseRequired);
+            assert!(inspected.passphrase_protected);
+            assert!(inspected.encoding == encoding);
+            let recovered = op.recover_bytes_with_passphrase(90, PASS);
+            assert!(recovered.status == Status::Ok);
+            assert_eq!(recovered.bytes, EXPECTED);
+        }
+    }
+}

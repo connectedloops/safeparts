@@ -202,6 +202,7 @@ private slots:
     void auto_detection_expands_to_the_required_threshold();
     void readiness_uses_distinct_shares_not_empty_placeholders();
     void released_v1_v2_fixtures_inspect_through_qt_auto();
+    void protected_fixtures_are_safe_and_interoperate_through_qt();
     void unsupported_version_and_kdf_are_distinct_from_corruption();
     void empty_recovery_field_precedence_survives_encoding_inspection();
     void created_shares_keep_source_and_use_compact_native_layout();
@@ -708,6 +709,54 @@ void DesktopActions::released_v1_v2_fixtures_inspect_through_qt_auto() {
                                      .contains(QStringLiteral("valid UTF-8")),
                                  10'000);
         QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
+    }
+}
+
+void DesktopActions::protected_fixtures_are_safe_and_interoperate_through_qt() {
+    struct FixtureCase { QString file; int encoding; QString expected; };
+    const QList<FixtureCase> released = {
+        {QStringLiteral("base64url.txt"), 1, {}}, {QStringLiteral("base58check.txt"), 2, {}},
+        {QStringLiteral("mnemo-words.txt"), 3, {}}, {QStringLiteral("mnemo-bip39.txt"), 4, {}}};
+    for (const auto &item : released) {
+        for (const int requested : {0, item.encoding}) {
+            DesktopWindow window; window.show(); chooseRecover(window);
+            required<QComboBox>(&window, "recoveryEncoding")->setCurrentIndex(
+                required<QComboBox>(&window, "recoveryEncoding")->findData(requested));
+            const QStringList shares = fixtureText(QStringLiteral("crates/safeparts_core/tests/fixtures/share_compatibility/v2-passphrase-protected/") + item.file)
+                                           .split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
+            setRecoveryField(window, 1, shares.at(0)); setRecoveryField(window, 2, shares.at(1));
+            QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryPassphrasePanel")->isVisible(), 10'000);
+            replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"), QStringLiteral("issue-60 synthetic fixture passphrase"));
+            QApplication::clipboard()->setText(QStringLiteral("sentinel"));
+            QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+            QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+            QTRY_VERIFY_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")->text().contains(QStringLiteral("valid UTF-8")), 10'000);
+            QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
+            QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("sentinel"));
+            QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), shares.at(0).toUtf8());
+            QCOMPARE(required<ExactTextEdit>(&window, "recoveryPassphrase")->exactUtf8(), QByteArray("issue-60 synthetic fixture passphrase"));
+        }
+    }
+
+    const QList<FixtureCase> desktop = {
+        {QStringLiteral("base64url.txt"), 1, QStringLiteral("synthetic protected desktop interoperability")},
+        {QStringLiteral("base58check.txt"), 2, QStringLiteral("synthetic protected desktop interoperability")},
+        {QStringLiteral("mnemo-words.txt"), 3, QStringLiteral("synthetic protected desktop interoperability")},
+        {QStringLiteral("mnemo-bip39.txt"), 4, QStringLiteral("synthetic protected desktop interoperability")}};
+    for (const auto &item : desktop) {
+        for (const int requested : {0, item.encoding}) {
+            DesktopWindow window; window.show(); chooseRecover(window);
+            required<QComboBox>(&window, "recoveryEncoding")->setCurrentIndex(
+                required<QComboBox>(&window, "recoveryEncoding")->findData(requested));
+            const QStringList shares = fixtureText(QStringLiteral("crates/safeparts_core/tests/fixtures/protected_surface_interoperability/desktop/") + item.file)
+                                           .split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
+            setRecoveryField(window, 1, shares.at(0)); setRecoveryField(window, 2, shares.at(1));
+            replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"), QStringLiteral("issue-142 synthetic interoperability passphrase"));
+            QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+            QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+            QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
+            QCOMPARE(required<QPlainTextEdit>(&window, "recoveredText")->toPlainText(), item.expected);
+        }
     }
 }
 

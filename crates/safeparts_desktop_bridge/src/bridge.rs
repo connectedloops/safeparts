@@ -99,6 +99,11 @@ pub mod ffi {
             generation: u64,
             passphrase: &[u8],
         ) -> BytesOutput;
+        fn recover_bytes_with_passphrase(
+            self: &mut Operation,
+            generation: u64,
+            passphrase: &[u8],
+        ) -> BytesOutput;
         fn recovered_text(self: &mut Operation, generation: u64) -> BytesOutput;
     }
 }
