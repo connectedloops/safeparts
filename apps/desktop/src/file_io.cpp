@@ -36,35 +36,31 @@ FileIo::ReadResult FileIo::readBounded(const QString &path, qsizetype inclusiveM
     if (!device || !device->openReadOnly())
         return {Status::OpenFailed, {}};
 
-    QByteArray bytes;
     const qsizetype observedMaximum = inclusiveMaximum + 1;
-    while (bytes.size() < observedMaximum) {
-        const qsizetype request = std::min(kChunkBytes, observedMaximum - bytes.size());
-        QByteArray chunk(request, Qt::Uninitialized);
-        const qint64 count = device->read(chunk.data(), request);
-        if (count < 0) {
-            chunk.fill(0);
+    QByteArray bytes(observedMaximum, Qt::Uninitialized);
+    qsizetype observedBytes = 0;
+    while (observedBytes < observedMaximum) {
+        const qsizetype request = std::min(kChunkBytes, observedMaximum - observedBytes);
+        const qint64 count = device->read(bytes.data() + observedBytes, request);
+        if (count < 0 || count > request) {
             bytes.fill(0);
             device->close();
             return {Status::ReadFailed, {}};
         }
-        if (count == 0) {
-            chunk.fill(0);
+        if (count == 0)
             break;
-        }
-        chunk.resize(static_cast<qsizetype>(count));
-        bytes.append(chunk);
-        chunk.fill(0);
+        observedBytes += static_cast<qsizetype>(count);
     }
     const bool closed = device->close();
     if (!closed) {
         bytes.fill(0);
         return {Status::ReadFailed, {}};
     }
-    if (bytes.size() > inclusiveMaximum) {
+    if (observedBytes > inclusiveMaximum) {
         bytes.fill(0);
         return {Status::TooLarge, {}};
     }
+    bytes.resize(observedBytes);
     return {Status::Ok, SecureByteBuffer::take(std::move(bytes))};
 }
 

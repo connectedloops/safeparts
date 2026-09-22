@@ -9,6 +9,12 @@
 #include <memory>
 #include <utility>
 
+struct ReadTrace final {
+    char *allocation = nullptr;
+    int calls = 0;
+    bool contiguous = true;
+};
+
 class ScriptedDevice final : public FileDevice {
 public:
     QByteArray source;
@@ -19,6 +25,8 @@ public:
     bool closeResult = true;
     qint64 forcedWrite = -2;
     qint64 failReadAfter = -1;
+    qint64 maximumReadSize = -1;
+    std::shared_ptr<ReadTrace> readTrace;
     bool growAfterFirstRead = false;
     bool grew = false;
     QByteArray written;
@@ -26,9 +34,20 @@ public:
     bool openReadOnly() override { return openRead; }
     bool openWriteTruncate() override { return openWrite; }
     qint64 read(char *data, qint64 maximum) override {
+        if (readTrace) {
+            if (readTrace->allocation == nullptr)
+                readTrace->allocation = data - position;
+            readTrace->contiguous = readTrace->contiguous
+                                    && data == readTrace->allocation + position;
+            ++readTrace->calls;
+        }
         if (failReadAfter >= 0 && position >= failReadAfter)
             return -1;
-        const qsizetype count = std::min(static_cast<qsizetype>(maximum), source.size() - position);
+        const qsizetype permitted = maximumReadSize < 0
+                                        ? static_cast<qsizetype>(maximum)
+                                        : std::min(static_cast<qsizetype>(maximum),
+                                                   static_cast<qsizetype>(maximumReadSize));
+        const qsizetype count = std::min(permitted, source.size() - position);
         if (count <= 0)
             return 0;
         std::copy_n(source.constData() + position, count, data);
@@ -83,13 +102,19 @@ private slots:
         QCOMPARE(rejected.status, FileIo::Status::TooLarge);
         QVERIFY(rejected.bytes.isEmpty());
 
+        auto trace = std::make_shared<ReadTrace>();
         auto *shrinking = new ScriptedDevice;
         shrinking->source = QByteArray("abc");
+        shrinking->maximumReadSize = 1;
+        shrinking->readTrace = trace;
         FileIo shrinkingIo(
             [shrinking](const QString &) { return std::unique_ptr<FileDevice>(shrinking); });
         const auto accepted = shrinkingIo.readBounded(QStringLiteral("shrinking"), 4);
         QCOMPARE(accepted.status, FileIo::Status::Ok);
         QCOMPARE(QByteArray(accepted.bytes.data(), accepted.bytes.size()), QByteArray("abc"));
+        QVERIFY(trace->calls > 1);
+        QVERIFY(trace->contiguous);
+        QCOMPARE(accepted.bytes.data(), trace->allocation);
     }
 
     void successful_read_owner_wipes_on_final_release() {
@@ -117,7 +142,8 @@ private slots:
     void read_and_write_failures_are_typed() {
         auto *reader = new ScriptedDevice;
         reader->source = QByteArray("abcd");
-        reader->failReadAfter = 0;
+        reader->maximumReadSize = 2;
+        reader->failReadAfter = 2;
         FileIo readIo([reader](const QString &) { return std::unique_ptr<FileDevice>(reader); });
         const auto readFailure = readIo.readBounded(QStringLiteral("ignored"), 4);
         QCOMPARE(readFailure.status, FileIo::Status::ReadFailed);
