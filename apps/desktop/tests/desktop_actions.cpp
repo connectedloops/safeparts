@@ -1775,6 +1775,11 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
                              .arg(maximumHeartbeatGap)
                       << QStringLiteral("maximum-native-clipboard-ms=%1")
                              .arg(maximumNativeClipboardLatency);
+    auto *revealedBeforeReset = window.findChild<SegmentedShareView *>();
+    QVERIFY(revealedBeforeReset != nullptr);
+    QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+    QCOMPARE(revealedBeforeReset->byteSize(), qsizetype(0));
+    QVERIFY(!required<QWidget>(&window, "createdShares")->isVisible());
 }
 
 void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bounded() {
@@ -1812,8 +1817,19 @@ void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bou
     auto *list = view.findChild<QListView *>();
     QVERIFY(list != nullptr);
     list->setFocus();
+    QTest::keyClick(list, Qt::Key_Home);
+    QTest::keyClick(list, Qt::Key_Right, Qt::ShiftModifier);
+    QCOMPARE(view.selection(), (QPair<qsizetype, qsizetype>(64, 65)));
     QTest::keySequence(list, QKeySequence::SelectAll);
     QCOMPARE(view.selection(), (QPair<qsizetype, qsizetype>(0, view.byteSize())));
+
+    QSignalSpy authoritativeCopy(&view, &SegmentedShareView::copyRequested);
+    view.setSelectionRange(25, 25);
+    view.copySelection();
+    QCOMPARE(authoritativeCopy.count(), 1);
+    QCOMPARE(authoritativeCopy.at(0).at(0).toULongLong(), quint64(7));
+    QCOMPARE(authoritativeCopy.at(0).at(1).toUInt(), uint(15));
+    view.setSelectionRange(10, 110);
 
     QAccessibleInterface *accessible = QAccessible::queryAccessibleInterface(&view);
     QVERIFY(accessible != nullptr);
