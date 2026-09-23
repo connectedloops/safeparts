@@ -25,6 +25,7 @@ class QVBoxLayout;
 class QWidget;
 class RustWorker;
 class FileIo;
+class SegmentedShareView;
 
 class DesktopWindow final : public QMainWindow {
     Q_OBJECT
@@ -47,6 +48,7 @@ signals:
     void requestReplaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs, int encoding);
     void requestRecover(quint64 generation, SecureByteBuffer passphrase);
     void requestRecoveredBytes(quint64 generation, int purpose);
+    void clipboardWriteObserved(qint64 elapsedMilliseconds);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -62,7 +64,8 @@ private slots:
     void operationFinished(quint64 generation, int status, quint8 threshold, quint16 shareCount,
                            quint16 suppliedCount, quint16 batchCount, int encoding,
                            bool protectedInput, bool ready);
-    void bytesFinished(quint64 generation, int status, SecureByteBuffer bytes, int purpose, quint16 index);
+    void bytesFinished(quint64 generation, int status, SecureByteBuffer bytes, int purpose,
+                       quint16 index, bool asciiValidated);
 
 private:
     enum class Pending {
@@ -141,6 +144,7 @@ private:
     qsizetype retainedGeneratedPresentationBytes_ = 0;
     bool lazyGeneratedPresentation_ = false;
     int revealedGeneratedShareIndex_ = -1;
+    SegmentedShareView *revealedGeneratedShare_ = nullptr;
 
     QVBoxLayout *recoveryFieldsLayout_ = nullptr;
     QList<ExactTextEdit *> recoveryFields_;

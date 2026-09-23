@@ -56,6 +56,8 @@ add_library(desktop-ui STATIC
   src/rust_worker.h
   src/secure_byte_buffer.cpp
   src/secure_byte_buffer.h
+  src/segmented_share_view.cpp
+  src/segmented_share_view.h
   "${GENERATED_DIR}/bridge.rs.cc"
 )
 if(APPLE)

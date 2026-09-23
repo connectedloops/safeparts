@@ -25,7 +25,8 @@ signals:
     void operationFinished(quint64 generation, int status, quint8 threshold, quint16 shareCount,
                            quint16 suppliedCount, quint16 batchCount, int encoding, bool protectedInput,
                            bool ready);
-    void bytesFinished(quint64 generation, int status, SecureByteBuffer bytes, int purpose, quint16 index);
+    void bytesFinished(quint64 generation, int status, SecureByteBuffer bytes, int purpose,
+                       quint16 index, bool asciiValidated);
 
 private:
     void emitOperation(const OperationOutput &output);

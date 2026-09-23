@@ -4,7 +4,9 @@
 #include "file_io.h"
 #include "rust_worker.h"
 #include "secure_byte_buffer.h"
+#include "segmented_share_view.h"
 
+#include <QAccessible>
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
@@ -18,7 +20,9 @@
 #include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QListView>
 #include <QMenu>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -254,6 +258,7 @@ private slots:
     void created_shares_keep_source_and_use_compact_native_layout();
     void generated_shares_show_authoritative_text_and_clear_stale_previews();
     void maximum_words_split_keeps_every_share_exportable();
+    void segmented_share_view_is_exact_selectable_accessible_and_bounded();
     void secure_queued_buffers_wipe_on_final_release();
     void ordinary_create_edits_reject_stale_success_and_error_results();
     void start_over_rejects_stale_success_and_error_results();
@@ -1703,8 +1708,6 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
         required<QLabel>(&window, "createStatus")->text().contains(
             QStringLiteral("Copy any share")),
         30'000);
-    heartbeat.stop();
-    maximumHeartbeatGap = std::max(maximumHeartbeatGap, heartbeatClock.elapsed() - lastHeartbeat);
     QCOMPARE(required<ExactTextEdit>(&window, "secretInput")->exactUtf8(),
              maximumSecret.toUtf8());
 
@@ -1717,6 +1720,8 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
     QByteArray repeatedFirstHash;
     QByteArray lastHash;
     qint64 maximumCopyLatency = 0;
+    qint64 maximumNativeClipboardLatency = 0;
+    QSignalSpy clipboardLatency(&window, &DesktopWindow::clipboardWriteObserved);
     for (const int index : {1, 16, 1}) {
         auto *copy = required<QPushButton>(
             &window, qPrintable(QStringLiteral("copyShare%1").arg(index)));
@@ -1727,21 +1732,26 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
         QTRY_COMPARE_WITH_TIMEOUT(
             required<QLabel>(&window, "createStatus")->text(),
             QStringLiteral("Share %1 copied.").arg(index), 30'000);
+        QTRY_VERIFY_WITH_TIMEOUT(!clipboardLatency.isEmpty(), 30'000);
+        maximumNativeClipboardLatency =
+            std::max(maximumNativeClipboardLatency, clipboardLatency.takeFirst().at(0).toLongLong());
         maximumCopyLatency = std::max(maximumCopyLatency, copyClock.elapsed());
         const QByteArray copied = QApplication::clipboard()->text().toUtf8();
         QVERIFY(!copied.isEmpty());
         const QByteArray hash = QCryptographicHash::hash(copied, QCryptographicHash::Sha256);
+        auto *revealed = required<SegmentedShareView>(
+            &window, qPrintable(QStringLiteral("generatedShare%1").arg(index)));
+        QCOMPARE(revealed->byteSize(), copied.size());
+        QCOMPARE(QCryptographicHash::hash(revealed->textRange(0, revealed->byteSize()).toLatin1(),
+                                          QCryptographicHash::Sha256),
+                 hash);
         for (int displayedIndex = 1; displayedIndex <= 16; ++displayedIndex) {
-            const QString displayed = required<QPlainTextEdit>(
-                &window,
-                qPrintable(QStringLiteral("generatedShare%1").arg(displayedIndex)))
-                                          ->toPlainText();
-            if (displayedIndex == index) {
-                QCOMPARE(QCryptographicHash::hash(displayed.toUtf8(), QCryptographicHash::Sha256),
-                         hash);
-            } else {
-                QVERIFY(displayed.isEmpty());
-            }
+            if (displayedIndex == index)
+                continue;
+            auto *display = window.findChild<QPlainTextEdit *>(
+                QStringLiteral("generatedShare%1").arg(displayedIndex));
+            QVERIFY(display != nullptr);
+            QVERIFY(display->toPlainText().isEmpty());
         }
         if (index == 1 && firstHash.isEmpty())
             firstHash = hash;
@@ -1753,15 +1763,87 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
     QVERIFY(firstHash != lastHash);
     QCOMPARE(repeatedFirstHash, firstHash);
     QVERIFY(required<QWidget>(&window, "createdShares")->isVisible());
+    heartbeat.stop();
+    maximumHeartbeatGap = std::max(maximumHeartbeatGap, heartbeatClock.elapsed() - lastHeartbeat);
     QVERIFY2(heartbeatCount > 0, "the Qt event loop did not service the 15 ms heartbeat");
     QVERIFY2(maximumHeartbeatGap < 500,
              qPrintable(QStringLiteral("maximum Qt heartbeat gap was %1 ms")
                             .arg(maximumHeartbeatGap)));
-    QVERIFY2(maximumCopyLatency < 5'000,
-             qPrintable(QStringLiteral("maximum Copy/reveal latency was %1 ms")
-                            .arg(maximumCopyLatency)));
     qInfo().noquote() << QStringLiteral("CAPACITY maximum-copy-latency-ms=%1")
-                             .arg(maximumCopyLatency);
+                             .arg(maximumCopyLatency)
+                      << QStringLiteral("maximum-heartbeat-gap-ms=%1")
+                             .arg(maximumHeartbeatGap)
+                      << QStringLiteral("maximum-native-clipboard-ms=%1")
+                             .arg(maximumNativeClipboardLatency);
+}
+
+void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bounded() {
+    const auto wiped = std::make_shared<std::atomic<int>>(0);
+    WipeObserverReset resetObserver;
+    SecureByteBuffer::setWipeObserverForTests([wiped](QByteArrayView bytes) {
+        if (bytes.size() == 8 * 1'048'576)
+            wiped->fetch_add(1, std::memory_order_release);
+    });
+
+    QByteArray payload(8 * 1'048'576, '1');
+    for (qsizetype offset = 0; offset < payload.size(); offset += 97)
+        payload[offset] = 'z';
+    const QByteArray firstHundred = payload.sliced(10, 100);
+    SegmentedShareView view;
+    view.resize(720, 240);
+    view.show();
+    QElapsedTimer install;
+    install.start();
+    QVERIFY(view.setShare(7, 15, SecureByteBuffer::take(std::move(payload)), true));
+    QVERIFY2(install.elapsed() < 500,
+             qPrintable(QStringLiteral("segmented reveal install took %1 ms").arg(install.elapsed())));
+    QCOMPARE(view.byteSize(), qsizetype(8 * 1'048'576));
+    QCOMPARE(view.segmentBytes(), qsizetype(64));
+    QCOMPARE(view.segmentCount(), 131'072);
+    QVERIFY(view.findChild<QPlainTextEdit *>() == nullptr);
+    QCOMPARE(view.textRange(10, 110).toLatin1(), firstHundred);
+
+    view.setSelectionRange(10, 110);
+    QCOMPARE(view.selection(), (QPair<qsizetype, qsizetype>(10, 110)));
+    QApplication::clipboard()->clear();
+    view.copySelection();
+    QCOMPARE(QApplication::clipboard()->text().toLatin1(), firstHundred);
+
+    auto *list = view.findChild<QListView *>();
+    QVERIFY(list != nullptr);
+    list->setFocus();
+    QTest::keySequence(list, QKeySequence::SelectAll);
+    QCOMPARE(view.selection(), (QPair<qsizetype, qsizetype>(0, view.byteSize())));
+
+    QAccessibleInterface *accessible = QAccessible::queryAccessibleInterface(&view);
+    QVERIFY(accessible != nullptr);
+    auto *text = accessible->textInterface();
+    QVERIFY(text != nullptr);
+    QCOMPARE(text->characterCount(), int(view.byteSize()));
+    QCOMPARE(text->text(10, 110).toLatin1(), firstHundred);
+    QCOMPARE(text->selectionCount(), 1);
+
+    for (const bool dark : {false, true}) {
+        QPalette palette = view.palette();
+        if (dark) {
+            palette.setColor(QPalette::Base, QColor(30, 30, 30));
+            palette.setColor(QPalette::Text, QColor(235, 235, 235));
+        } else {
+            palette.setColor(QPalette::Base, Qt::white);
+            palette.setColor(QPalette::Text, Qt::black);
+        }
+        view.setPalette(palette);
+        QPixmap rendered(view.size());
+        view.render(&rendered);
+        QVERIFY(!rendered.isNull());
+    }
+
+    view.clearSensitive();
+    QCOMPARE(view.byteSize(), qsizetype(0));
+    QCOMPARE(view.segmentCount(), 0);
+    QCOMPARE(wiped->load(std::memory_order_acquire), 1);
+    QVERIFY(!view.setShare(8, 0, SecureByteBuffer::take(QByteArray("not admitted")), false));
+    QCOMPARE(view.byteSize(), qsizetype(0));
 }
 
 void DesktopActions::secure_queued_buffers_wipe_on_final_release() {

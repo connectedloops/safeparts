@@ -4,10 +4,12 @@
 #include "exact_text_edit.h"
 #include "file_io.h"
 #include "rust_worker.h"
+#include "segmented_share_view.h"
 
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QElapsedTimer>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFontDatabase>
@@ -1102,12 +1104,16 @@ void DesktopWindow::operationFinished(quint64 generation, int status, quint8 thr
 }
 
 void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuffer bytes, int purpose,
-                                  quint16 index) {
+                                  quint16 index, bool asciiValidated) {
     if (generation != generation_)
         return;
     if (purpose == kShareDisplayPurpose) {
         if (status != statusCode(Status::Ok)) {
             failGeneratedPresentation(statusText(status));
+            return;
+        }
+        if (!asciiValidated) {
+            failGeneratedPresentation(QStringLiteral("Recovery share encoding was not ASCII."));
             return;
         }
         if (index != nextGeneratedShare_
@@ -1153,16 +1159,41 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
         return;
     }
     if (purpose == kShareClipboardPurpose) {
-        if (lazyGeneratedPresentation_
+        if (!asciiValidated) {
+            createStatus_->setText(QStringLiteral("Recovery share encoding was not ASCII."));
+        } else {
+            QElapsedTimer clipboardTimer;
+            clipboardTimer.start();
+            const bool copied = writeClipboardUtf8(bytes.view());
+            emit clipboardWriteObserved(clipboardTimer.elapsed());
+            if (copied)
+                createStatus_->setText(QStringLiteral("Share %1 copied.").arg(index + 1));
+        }
+        if (asciiValidated && lazyGeneratedPresentation_
             && index < static_cast<quint16>(generatedShareDisplays_.size())) {
             releaseRevealedGeneratedShare();
+            QPlainTextEdit *placeholder = generatedShareDisplays_.at(index);
+            auto *viewer = new SegmentedShareView;
+            viewer->setObjectName(placeholder->objectName());
+            viewer->setAccessibleName(placeholder->accessibleName());
+            viewer->setFixedHeight(72);
+            connect(viewer, &SegmentedShareView::copyRequested, this,
+                    [this, index](quint64, quint16) {
+                        if (index < static_cast<quint16>(generatedShareCopyButtons_.size()))
+                            generatedShareCopyButtons_.at(index)->click();
+                    });
+            if (!viewer->setShare(generation, index, std::move(bytes), true)) {
+                viewer->deleteLater();
+                failGeneratedPresentation(QStringLiteral("Recovery share could not be revealed."));
+                return;
+            }
+            placeholder->parentWidget()->layout()->replaceWidget(placeholder, viewer);
+            generatedShareDisplays_[index] = nullptr;
+            placeholder->deleteLater();
+            revealedGeneratedShare_ = viewer;
             revealedGeneratedShareIndex_ = index;
-            generatedShareDisplays_.at(index)->setPlainText(
-                QString::fromUtf8(bytes.data(), bytes.size()));
-            retainedGeneratedPresentationBytes_ = bytes.size() * kGeneratedPresentationExpansion;
+            retainedGeneratedPresentationBytes_ = viewer->byteSize();
         }
-        if (writeClipboardUtf8(bytes.view()))
-            createStatus_->setText(QStringLiteral("Share %1 copied.").arg(index + 1));
     } else if (purpose == kShareSavePurpose) {
         const FileIo::Status result = fileIo_->writeDirect(pendingDestination_, bytes);
         createStatus_->setText(result == FileIo::Status::Ok
@@ -1436,12 +1467,13 @@ void DesktopWindow::clearGeneratedPresentation() {
 }
 
 void DesktopWindow::releaseRevealedGeneratedShare() {
-    if (revealedGeneratedShareIndex_ < 0
-        || revealedGeneratedShareIndex_ >= static_cast<int>(generatedShareDisplays_.size())) {
+    if (revealedGeneratedShare_ == nullptr) {
         revealedGeneratedShareIndex_ = -1;
         return;
     }
-    QPlainTextEdit *previous = generatedShareDisplays_.at(revealedGeneratedShareIndex_);
+    const int index = revealedGeneratedShareIndex_;
+    SegmentedShareView *previous = revealedGeneratedShare_;
+    previous->clearSensitive();
     auto *replacement = new QPlainTextEdit;
     replacement->setObjectName(previous->objectName());
     replacement->setAccessibleName(previous->accessibleName());
@@ -1452,9 +1484,11 @@ void DesktopWindow::releaseRevealedGeneratedShare() {
     replacement->setFixedHeight(72);
     configureEditor(replacement);
     previous->parentWidget()->layout()->replaceWidget(previous, replacement);
-    generatedShareDisplays_[revealedGeneratedShareIndex_] = replacement;
-    previous->deleteLater();
+    if (index >= 0 && index < generatedShareDisplays_.size())
+        generatedShareDisplays_[index] = replacement;
+    revealedGeneratedShare_ = nullptr;
     revealedGeneratedShareIndex_ = -1;
+    previous->deleteLater();
 }
 
 void DesktopWindow::finishLazyGeneratedPresentation() {

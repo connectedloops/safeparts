@@ -17,6 +17,11 @@ int statusValue(Status status) {
     return static_cast<int>(static_cast<std::uint8_t>(status));
 }
 
+bool isAscii(const SecureByteBuffer &bytes) {
+    return std::all_of(bytes.view().begin(), bytes.view().end(),
+                       [](char byte) { return static_cast<unsigned char>(byte) <= 0x7f; });
+}
+
 ShareEncoding shareEncoding(int value) {
     switch (value) {
     case 1:
@@ -47,8 +52,10 @@ void RustWorker::create(quint64 generation, SecureByteBuffer secret, quint8 thre
 
 void RustWorker::encodeShare(quint64 generation, quint16 index, int purpose) {
     BytesOutput output = operation_->encode_share(generation, index);
-    emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes),
-                       purpose, index);
+    SecureByteBuffer bytes = copyAndWipeBytes(output.bytes);
+    const bool asciiValidated = isAscii(bytes);
+    emit bytesFinished(output.generation, statusValue(output.status), std::move(bytes), purpose,
+                       index, asciiValidated);
 }
 
 void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs, int encoding) {
@@ -86,12 +93,18 @@ void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inp
 
 void RustWorker::recover(quint64 generation, SecureByteBuffer passphrase) {
     BytesOutput output = operation_->recover_bytes_with_passphrase(generation, slice(passphrase));
-    emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), 1, 0);
+    SecureByteBuffer bytes = copyAndWipeBytes(output.bytes);
+    const bool asciiValidated = isAscii(bytes);
+    emit bytesFinished(output.generation, statusValue(output.status), std::move(bytes), 1, 0,
+                       asciiValidated);
 }
 
 void RustWorker::recoveredBytes(quint64 generation, int purpose) {
     BytesOutput output = operation_->recovered_bytes(generation);
-    emit bytesFinished(output.generation, statusValue(output.status), copyAndWipeBytes(output.bytes), purpose, 0);
+    SecureByteBuffer bytes = copyAndWipeBytes(output.bytes);
+    const bool asciiValidated = isAscii(bytes);
+    emit bytesFinished(output.generation, statusValue(output.status), std::move(bytes), purpose, 0,
+                       asciiValidated);
 }
 
 void RustWorker::emitOperation(const OperationOutput &output) {
