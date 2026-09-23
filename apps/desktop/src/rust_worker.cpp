@@ -6,7 +6,11 @@
 
 namespace {
 rust::Slice<const std::uint8_t> slice(const SecureByteBuffer &bytes) {
-    return {reinterpret_cast<const std::uint8_t *>(bytes.data()), static_cast<std::size_t>(bytes.size())};
+    static constexpr std::uint8_t empty = 0;
+    const auto *data = bytes.isEmpty()
+                           ? &empty
+                           : reinterpret_cast<const std::uint8_t *>(bytes.data());
+    return {data, static_cast<std::size_t>(bytes.size())};
 }
 
 int statusValue(Status status) {
@@ -48,18 +52,36 @@ void RustWorker::encodeShare(quint64 generation, quint16 index, int purpose) {
 }
 
 void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inputs, int encoding) {
-    rust::Vec<RecoveryBatch> batches;
-    batches.reserve(static_cast<std::size_t>(inputs.size()));
-    for (const SecureByteBuffer &input : inputs) {
-        RecoveryBatch batch;
-        batch.bytes.reserve(static_cast<std::size_t>(input.size()));
-        const auto *begin = reinterpret_cast<const std::uint8_t *>(input.data());
-        const auto *end = begin + input.size();
-        for (const auto *byte = begin; byte != end; ++byte)
-            batch.bytes.push_back(*byte);
-        batches.push_back(std::move(batch));
+    std::uint64_t totalBytes = 0;
+    bool overflow = false;
+    for (const SecureByteBuffer &input : std::as_const(inputs)) {
+        const auto size = static_cast<std::uint64_t>(input.size());
+        if (size > std::numeric_limits<std::uint64_t>::max() - totalBytes) {
+            overflow = true;
+            break;
+        }
+        totalBytes += size;
     }
-    emitOperation(operation_->replace_recovery(generation, std::move(batches), shareEncoding(encoding)));
+    const quint16 batchCount = inputs.size() > std::numeric_limits<quint16>::max()
+                                   ? std::numeric_limits<quint16>::max()
+                                   : static_cast<quint16>(inputs.size());
+    OperationOutput output = operation_->begin_recovery_replace(
+        generation, overflow ? std::numeric_limits<std::uint64_t>::max() : totalBytes,
+        batchCount, shareEncoding(encoding));
+    if (output.status == Status::Ok) {
+        for (SecureByteBuffer &input : inputs) {
+            output = operation_->stage_recovery_batch(generation, slice(input));
+            input = {};
+            if (output.status != Status::Ok)
+                break;
+        }
+        inputs.clear();
+        if (output.status == Status::Ok)
+            output = operation_->finish_recovery_replace(generation);
+    } else {
+        inputs.clear();
+    }
+    emitOperation(output);
 }
 
 void RustWorker::recover(quint64 generation, SecureByteBuffer passphrase) {

@@ -12,7 +12,7 @@ use safeparts_core::packet::{PacketVersion, SharePacket};
 use safeparts_core::{CoreError, combine_shares, inspect_share_set, split_secret};
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::bridge::ffi::{BytesOutput, OperationOutput, RecoveryBatch, ShareEncoding, Status};
+use crate::bridge::ffi::{BytesOutput, OperationOutput, ShareEncoding, Status};
 
 const MIB: usize = 1_048_576;
 const MAX_SECRET_BYTES: usize = MIB;
@@ -42,6 +42,10 @@ pub struct Operation {
     recovered: Zeroizing<Vec<u8>>,
     has_recovered: bool,
     inspection: OperationOutput,
+    pending_recovery: Option<Box<Operation>>,
+    pending_recovery_encoding: Option<CoreEncoding>,
+    pending_recovery_remaining_bytes: usize,
+    pending_recovery_expected_batches: usize,
 }
 
 pub fn new_operation() -> Box<Operation> {
@@ -56,6 +60,10 @@ pub fn new_operation() -> Box<Operation> {
         recovered: Zeroizing::new(Vec::new()),
         has_recovered: false,
         inspection: output(0, Status::NotEnoughShares),
+        pending_recovery: None,
+        pending_recovery_encoding: None,
+        pending_recovery_remaining_bytes: 0,
+        pending_recovery_expected_batches: 0,
     })
 }
 
@@ -235,23 +243,104 @@ impl Operation {
         self.inspect_recovery(generation, requested_encoding)
     }
 
-    pub fn replace_recovery(
+    pub fn begin_recovery_replace(
         &mut self,
         generation: u64,
-        inputs: Vec<RecoveryBatch>,
+        total_bytes: u64,
+        batch_count: u16,
         encoding: ShareEncoding,
     ) -> OperationOutput {
         match catch_unwind(AssertUnwindSafe(|| {
+            self.clear_pending_recovery();
             let Some(requested_encoding) = core_encoding(encoding) else {
                 return self.with_batch_count(output(generation, Status::UnsupportedInput));
             };
-            let mut candidate = new_operation();
-            for mut input in inputs {
-                let retained = candidate.retain_recovery_batch(&input.bytes, requested_encoding);
-                input.bytes.zeroize();
-                if let Err(status) = retained {
-                    return self.with_batch_count(output(generation, status));
-                }
+            let Ok(total_bytes) = usize::try_from(total_bytes) else {
+                return self.with_batch_count(output(generation, Status::ResourceLimit));
+            };
+            if total_bytes > MAX_RETAINED_INPUT_BYTES {
+                return self.with_batch_count(output(generation, Status::RetainedInputTooLarge));
+            }
+            if usize::from(batch_count) > MAX_ACCEPTED_SHARES {
+                return self.with_batch_count(output(generation, Status::TooManyShares));
+            }
+            let Some(current_state) = operation_state_bytes(
+                &self.created_packets,
+                self.created_packets.capacity(),
+                &self.recovery_batches,
+                self.recovery_batches.capacity(),
+                &self.recovery_packets,
+                self.recovery_packets.capacity(),
+                self.recovered.capacity(),
+            ) else {
+                return self.with_batch_count(output(generation, Status::ResourceLimit));
+            };
+            let transport_and_candidate = total_bytes.checked_mul(2);
+            let fits = transport_and_candidate
+                .and_then(|bytes| current_state.checked_add(bytes))
+                .and_then(|bytes| bytes.checked_add(PHASE_WORKSPACE_BUDGET))
+                .and_then(|bytes| bytes.checked_add(UI_RUNTIME_HEADROOM))
+                .is_some_and(|bytes| bytes <= PROCESS_MEMORY_BUDGET);
+            if !fits {
+                return self.with_batch_count(output(generation, Status::ResourceLimit));
+            }
+            self.pending_recovery = Some(new_operation());
+            self.pending_recovery_encoding = Some(requested_encoding);
+            self.pending_recovery_remaining_bytes = total_bytes;
+            self.pending_recovery_expected_batches = usize::from(batch_count);
+            self.with_batch_count(output(generation, Status::Ok))
+        })) {
+            Ok(result) => result,
+            Err(_) => self.replacement_panic_output(generation),
+        }
+    }
+
+    pub fn stage_recovery_batch(&mut self, generation: u64, input: &[u8]) -> OperationOutput {
+        match catch_unwind(AssertUnwindSafe(|| {
+            let Some(requested_encoding) = self.pending_recovery_encoding else {
+                return self.with_batch_count(output(generation, Status::UnsupportedInput));
+            };
+            if input.len() > self.pending_recovery_remaining_bytes {
+                self.clear_pending_recovery();
+                return self.with_batch_count(output(generation, Status::ResourceLimit));
+            }
+            if !self.replacement_stage_fits_memory() {
+                self.clear_pending_recovery();
+                return self.with_batch_count(output(generation, Status::ResourceLimit));
+            }
+            let status = self
+                .pending_recovery
+                .as_mut()
+                .ok_or(Status::UnsupportedInput)
+                .and_then(|candidate| candidate.retain_recovery_batch(input, requested_encoding));
+            if let Err(status) = status {
+                self.clear_pending_recovery();
+                return self.with_batch_count(output(generation, status));
+            }
+            self.pending_recovery_remaining_bytes -= input.len();
+            self.with_batch_count(output(generation, Status::Ok))
+        })) {
+            Ok(result) => result,
+            Err(_) => self.replacement_panic_output(generation),
+        }
+    }
+
+    pub fn finish_recovery_replace(&mut self, generation: u64) -> OperationOutput {
+        match catch_unwind(AssertUnwindSafe(|| {
+            let Some(requested_encoding) = self.pending_recovery_encoding else {
+                return self.with_batch_count(output(generation, Status::UnsupportedInput));
+            };
+            let Some(mut candidate) = self.pending_recovery.take() else {
+                self.clear_pending_recovery();
+                return self.with_batch_count(output(generation, Status::UnsupportedInput));
+            };
+            self.pending_recovery_encoding = None;
+            let expected = self.pending_recovery_expected_batches;
+            let remaining = self.pending_recovery_remaining_bytes;
+            self.pending_recovery_expected_batches = 0;
+            self.pending_recovery_remaining_bytes = 0;
+            if remaining != 0 || candidate.recovery_batches.len() != expected {
+                return self.with_batch_count(output(generation, Status::ResourceLimit));
             }
             let result = candidate.inspect_recovery(generation, requested_encoding);
             if !matches!(
@@ -270,7 +359,7 @@ impl Operation {
             result
         })) {
             Ok(result) => result,
-            Err(_) => self.panic_output(generation),
+            Err(_) => self.replacement_panic_output(generation),
         }
     }
 
@@ -573,6 +662,29 @@ impl Operation {
         }
     }
 
+    fn replacement_stage_fits_memory(&self) -> bool {
+        if self.pending_recovery.is_none() {
+            return false;
+        }
+        let Some(current_state) = operation_state_bytes(
+            &self.created_packets,
+            self.created_packets.capacity(),
+            &self.recovery_batches,
+            self.recovery_batches.capacity(),
+            &self.recovery_packets,
+            self.recovery_packets.capacity(),
+            self.recovered.capacity(),
+        ) else {
+            return false;
+        };
+        current_state
+            .checked_add(OPERATION_STATE_BUDGET)
+            .and_then(|bytes| bytes.checked_add(self.pending_recovery_remaining_bytes))
+            .and_then(|bytes| bytes.checked_add(PHASE_WORKSPACE_BUDGET))
+            .and_then(|bytes| bytes.checked_add(UI_RUNTIME_HEADROOM))
+            .is_some_and(|bytes| bytes <= PROCESS_MEMORY_BUDGET)
+    }
+
     fn recovery_batch_fits_memory(
         &self,
         input_len: usize,
@@ -759,13 +871,26 @@ impl Operation {
         self.has_recovered = false;
     }
 
+    fn clear_pending_recovery(&mut self) {
+        self.pending_recovery = None;
+        self.pending_recovery_encoding = None;
+        self.pending_recovery_remaining_bytes = 0;
+        self.pending_recovery_expected_batches = 0;
+    }
+
     fn clear_all(&mut self) {
+        self.clear_pending_recovery();
         clear_packets(&mut self.created_packets);
         self.recovery_batches.clear();
         clear_packets(&mut self.recovery_packets);
         self.recovery_encoding = None;
         self.recovery_version = None;
         self.clear_recovered();
+    }
+
+    fn replacement_panic_output(&mut self, generation: u64) -> OperationOutput {
+        self.clear_pending_recovery();
+        self.with_batch_count(output(generation, Status::InternalPanic))
     }
 
     fn panic_output(&mut self, generation: u64) -> OperationOutput {

@@ -3,9 +3,10 @@ set -eu
 
 case_name=${1:-maximum-words}
 case "$case_name" in
-  maximum-words) test_name=maximum_words_split_keeps_every_share_exportable ;;
-  maximum-valid) test_name=maximum_valid_workload_remains_bounded_and_resettable ;;
-  *) echo "usage: $0 maximum-words|maximum-valid" >&2; exit 64 ;;
+  maximum-words) test_name=maximum_words_split_keeps_every_share_exportable; runner=qt ;;
+  maximum-valid) test_name=maximum_valid_workload_remains_bounded_and_resettable; runner=qt ;;
+  maximum-recovery) test_name=maximum_base64_replacement_recovers_exact_bytes; runner=rust ;;
+  *) echo "usage: $0 maximum-words|maximum-valid|maximum-recovery" >&2; exit 64 ;;
 esac
 
 [ "$(uname -s)" = Darwin ] || {
@@ -20,15 +21,26 @@ rm -rf "$out"
 mkdir -p "$out"
 
 printf '{"phase":"build","case":"%s"}\n' "$case_name"
-cmake -S apps/desktop -B target/desktop-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
-  >"$out/build.stdout" 2>"$out/build.stderr"
-cmake --build target/desktop-build --target desktop-actions -j2 \
-  >>"$out/build.stdout" 2>>"$out/build.stderr"
+if [ "$runner" = qt ]; then
+  cmake -S apps/desktop -B target/desktop-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+    >"$out/build.stdout" 2>"$out/build.stderr"
+  cmake --build target/desktop-build --target desktop-actions -j2 \
+    >>"$out/build.stdout" 2>>"$out/build.stderr"
+else
+  mise exec -- cargo test --release -p safeparts_desktop_bridge --test operation --no-run \
+    >"$out/build.stdout" 2>"$out/build.stderr"
+fi
 
 printf '{"phase":"run","case":"%s","test":"%s"}\n' "$case_name" "$test_name"
-/usr/bin/time -l env QT_QPA_PLATFORM=cocoa \
-  target/desktop-build/desktop-actions "$test_name" \
-  >"$out/test.stdout" 2>"$out/test.time"
+if [ "$runner" = qt ]; then
+  /usr/bin/time -l env QT_QPA_PLATFORM=cocoa \
+    target/desktop-build/desktop-actions "$test_name" \
+    >"$out/test.stdout" 2>"$out/test.time"
+else
+  /usr/bin/time -l mise exec -- cargo test --release -p safeparts_desktop_bridge \
+    --test operation "$test_name" -- --ignored --exact --nocapture \
+    >"$out/test.stdout" 2>"$out/test.time"
+fi
 
 rss=$(awk '/maximum resident set size/{print $1}' "$out/test.time")
 footprint=$(awk '/peak memory footprint/{print $1}' "$out/test.time")

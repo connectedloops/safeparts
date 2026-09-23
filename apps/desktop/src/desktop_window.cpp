@@ -1153,6 +1153,14 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
         return;
     }
     if (purpose == kShareClipboardPurpose) {
+        if (lazyGeneratedPresentation_
+            && index < static_cast<quint16>(generatedShareDisplays_.size())) {
+            for (QPlainTextEdit *display : std::as_const(generatedShareDisplays_))
+                display->clear();
+            generatedShareDisplays_.at(index)->setPlainText(
+                QString::fromUtf8(bytes.data(), bytes.size()));
+            retainedGeneratedPresentationBytes_ = bytes.size() * kGeneratedPresentationExpansion;
+        }
         if (writeClipboardUtf8(bytes.view()))
             createStatus_->setText(QStringLiteral("Share %1 copied.").arg(index + 1));
     } else if (purpose == kShareSavePurpose) {
@@ -1429,7 +1437,7 @@ void DesktopWindow::clearGeneratedPresentation() {
 void DesktopWindow::finishLazyGeneratedPresentation() {
     for (QPlainTextEdit *display : std::as_const(generatedShareDisplays_)) {
         display->clear();
-        display->setPlaceholderText(QStringLiteral("Available through Copy or Save."));
+        display->setPlaceholderText(QStringLiteral("Copy to reveal this Recovery share."));
     }
     retainedGeneratedPresentationBytes_ = 0;
     lazyGeneratedPresentation_ = true;
@@ -1437,7 +1445,7 @@ void DesktopWindow::finishLazyGeneratedPresentation() {
     pending_ = Pending::None;
     setBusy(false);
     createStatus_->setText(
-        QStringLiteral("Shares created in memory. Copy or save any share on demand."));
+        QStringLiteral("Shares created in memory. Copy any share to reveal and export it."));
 }
 
 void DesktopWindow::failGeneratedPresentation(const QString &message) {

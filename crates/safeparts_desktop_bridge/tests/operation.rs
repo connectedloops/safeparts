@@ -1,9 +1,34 @@
 use base64::Engine;
 use safeparts_core::encoding::{Encoding, encode_packet};
 use safeparts_core::split_secret;
-use safeparts_desktop_bridge::{RecoveryBatch, ShareEncoding, Status, new_operation};
+use safeparts_desktop_bridge::{Operation, OperationOutput, ShareEncoding, Status, new_operation};
 
 const FIDELITY_TEXT: &str = "\0 leading\nline\u{00a0}space\u{2028}separator\u{2029}paragraph\ne\u{301} \u{1f600}\ntrailing \n";
+
+fn replace_recovery(
+    operation: &mut Operation,
+    generation: u64,
+    inputs: &[Vec<u8>],
+    encoding: ShareEncoding,
+) -> OperationOutput {
+    let total = inputs.iter().map(Vec::len).sum::<usize>();
+    let begun = operation.begin_recovery_replace(
+        generation,
+        u64::try_from(total).unwrap_or(u64::MAX),
+        u16::try_from(inputs.len()).unwrap_or(u16::MAX),
+        encoding,
+    );
+    if begun.status != Status::Ok {
+        return begun;
+    }
+    for input in inputs {
+        let staged = operation.stage_recovery_batch(generation, input);
+        if staged.status != Status::Ok {
+            return staged;
+        }
+    }
+    operation.finish_recovery_replace(generation)
+}
 
 #[test]
 fn complete_recovery_replacement_is_transactional() {
@@ -18,44 +43,37 @@ fn complete_recovery_replacement_is_transactional() {
     let second = source.encode_share(1, 1);
 
     let mut recovery = new_operation();
-    let ready = recovery.replace_recovery(
+    let ready = replace_recovery(
+        &mut recovery,
         2,
-        vec![
-            RecoveryBatch { bytes: first.bytes },
-            RecoveryBatch {
-                bytes: second.bytes,
-            },
-        ],
+        &[first.bytes, second.bytes],
         ShareEncoding::Auto,
     );
     assert!(ready.status == Status::Ok);
     assert_eq!(ready.recovery_batch_count, 2);
 
-    let rejected = recovery.replace_recovery(
+    let rejected = replace_recovery(
+        &mut recovery,
         3,
-        vec![RecoveryBatch {
-            bytes: b"malformed".to_vec(),
-        }],
+        &[b"malformed".to_vec()],
         ShareEncoding::Auto,
     );
     assert!(rejected.status == Status::MalformedInput);
     assert_eq!(rejected.recovery_batch_count, 2);
 
-    let oversized = recovery.replace_recovery(
+    let oversized = replace_recovery(
+        &mut recovery,
         4,
-        vec![RecoveryBatch {
-            bytes: vec![b'x'; 16 * 1_048_576 + 1],
-        }],
+        &[vec![b'x'; 16 * 1_048_576 + 1]],
         ShareEncoding::Auto,
     );
     assert!(oversized.status == Status::PasteTooLarge);
     assert_eq!(oversized.recovery_batch_count, 2);
 
-    let token_limited = recovery.replace_recovery(
+    let token_limited = replace_recovery(
+        &mut recovery,
         5,
-        vec![RecoveryBatch {
-            bytes: "x ".repeat(1_048_577).into_bytes(),
-        }],
+        &["x ".repeat(1_048_577).into_bytes()],
         ShareEncoding::MnemoWords,
     );
     assert!(token_limited.status == Status::TokenLimit);
@@ -83,11 +101,10 @@ fn protected_recovery_accounts_for_the_maximum_accepted_kdf_memory() {
     };
 
     let mut operation = new_operation();
-    let inspected = operation.replace_recovery(
+    let inspected = replace_recovery(
+        &mut operation,
         1,
-        vec![RecoveryBatch {
-            bytes: encoded.into_bytes(),
-        }],
+        &[encoded.into_bytes()],
         ShareEncoding::Auto,
     );
     assert!(inspected.status == Status::PassphraseRequired);
@@ -571,6 +588,31 @@ fn public_operation_covers_threshold_endpoints_and_reordered_subsets() {
             .status
             == Status::TooManyShares
     );
+}
+
+#[test]
+#[ignore = "run through the fresh-process desktop capacity evidence task"]
+fn maximum_base64_replacement_recovers_exact_bytes() {
+    let secret = vec![0x5a; 1_048_576];
+    let mut operation = new_operation();
+    assert!(
+        operation
+            .create(1, &secret, 2, 16, ShareEncoding::Base64url)
+            .status
+            == Status::Ok
+    );
+    let mut shares = Vec::new();
+    for index in 0..16 {
+        let encoded = operation.encode_share(1, index);
+        assert!(encoded.status == Status::Ok);
+        shares.push(encoded.bytes);
+    }
+    let inspected = replace_recovery(&mut operation, 2, &shares, ShareEncoding::Auto);
+    assert!(inspected.status == Status::Ok);
+    assert_eq!(inspected.supplied_count, 16);
+    let recovered = operation.recover(3);
+    assert!(recovered.status == Status::Ok);
+    assert_eq!(recovered.bytes, secret);
 }
 
 #[test]

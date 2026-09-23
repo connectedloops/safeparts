@@ -1147,8 +1147,27 @@ void DesktopActions::recovery_worker_replaces_the_complete_visible_set_transacti
     QVERIFY(!first.isEmpty());
     QVERIFY(!second.isEmpty());
 
+    const auto wipeObservation = std::make_shared<WipeObservation>();
+    WipeObserverReset resetObserver;
+    SecureByteBuffer::setWipeObserverForTests([wipeObservation](QByteArrayView bytes) {
+        if (std::any_of(bytes.begin(), bytes.end(), [](char byte) { return byte != '\0'; }))
+            wipeObservation->nonzero.fetch_add(1, std::memory_order_relaxed);
+        wipeObservation->count.fetch_add(1, std::memory_order_release);
+    });
+
     RustWorker worker;
     QSignalSpy operationSpy(&worker, &RustWorker::operationFinished);
+
+    QList<SecureByteBuffer> emptyInput;
+    emptyInput.append(SecureByteBuffer{});
+    worker.replaceRecovery(76, std::move(emptyInput), 3);
+    QCOMPARE(operationSpy.count(), 1);
+    const QList<QVariant> emptyResult = operationSpy.takeFirst();
+    QCOMPARE(emptyResult.at(0).toULongLong(), 76ULL);
+    QCOMPARE(emptyResult.at(1).toInt(),
+             static_cast<int>(static_cast<std::uint8_t>(Status::MalformedInput)));
+    QCOMPARE(emptyResult.at(5).toUInt(), 0U);
+
     QList<SecureByteBuffer> inputs;
     inputs.append(SecureByteBuffer::take(first.toUtf8()));
     inputs.append(SecureByteBuffer::take(QByteArray("invalid middle Recovery share")));
@@ -1173,6 +1192,8 @@ void DesktopActions::recovery_worker_replaces_the_complete_visible_set_transacti
     QCOMPARE(accepted.at(1).toInt(), static_cast<int>(static_cast<std::uint8_t>(Status::Ok)));
     QCOMPARE(accepted.at(5).toUInt(), 2U);
     QVERIFY(accepted.at(6).toBool());
+    QVERIFY(wipeObservation->count.load(std::memory_order_acquire) >= 5);
+    QCOMPARE(wipeObservation->nonzero.load(std::memory_order_acquire), 0);
 }
 
 void DesktopActions::all_share_formats_round_trip_with_auto_and_manual_selection() {
@@ -1680,7 +1701,7 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
     QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 30'000);
     QTRY_VERIFY_WITH_TIMEOUT(
         required<QLabel>(&window, "createStatus")->text().contains(
-            QStringLiteral("Copy or save any share")),
+            QStringLiteral("Copy any share")),
         30'000);
     heartbeat.stop();
     maximumHeartbeatGap = std::max(maximumHeartbeatGap, heartbeatClock.elapsed() - lastHeartbeat);
@@ -1689,22 +1710,34 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
 
     QByteArray firstHash;
     QByteArray lastHash;
+    qint64 maximumCopyLatency = 0;
     for (int index = 1; index <= 16; ++index) {
         auto *copy = required<QPushButton>(
             &window, qPrintable(QStringLiteral("copyShare%1").arg(index)));
         QVERIFY(copy->isEnabled());
         QApplication::clipboard()->clear();
+        QElapsedTimer copyClock;
+        copyClock.start();
         QTest::mouseClick(copy, Qt::LeftButton);
         QTRY_COMPARE_WITH_TIMEOUT(
             required<QLabel>(&window, "createStatus")->text(),
             QStringLiteral("Share %1 copied.").arg(index), 30'000);
+        maximumCopyLatency = std::max(maximumCopyLatency, copyClock.elapsed());
         const QByteArray copied = QApplication::clipboard()->text().toUtf8();
         QVERIFY(!copied.isEmpty());
-        QVERIFY(required<QPlainTextEdit>(
-                    &window, qPrintable(QStringLiteral("generatedShare%1").arg(index)))
-                    ->toPlainText()
-                    .isEmpty());
         const QByteArray hash = QCryptographicHash::hash(copied, QCryptographicHash::Sha256);
+        for (int displayedIndex = 1; displayedIndex <= 16; ++displayedIndex) {
+            const QString displayed = required<QPlainTextEdit>(
+                &window,
+                qPrintable(QStringLiteral("generatedShare%1").arg(displayedIndex)))
+                                          ->toPlainText();
+            if (displayedIndex == index) {
+                QCOMPARE(QCryptographicHash::hash(displayed.toUtf8(), QCryptographicHash::Sha256),
+                         hash);
+            } else {
+                QVERIFY(displayed.isEmpty());
+            }
+        }
         if (index == 1)
             firstHash = hash;
         if (index == 16)
@@ -1716,6 +1749,11 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
     QVERIFY2(maximumHeartbeatGap < 500,
              qPrintable(QStringLiteral("maximum Qt heartbeat gap was %1 ms")
                             .arg(maximumHeartbeatGap)));
+    QVERIFY2(maximumCopyLatency < 5'000,
+             qPrintable(QStringLiteral("maximum Copy/reveal latency was %1 ms")
+                            .arg(maximumCopyLatency)));
+    qInfo().noquote() << QStringLiteral("CAPACITY maximum-copy-latency-ms=%1")
+                             .arg(maximumCopyLatency);
 }
 
 void DesktopActions::secure_queued_buffers_wipe_on_final_release() {
