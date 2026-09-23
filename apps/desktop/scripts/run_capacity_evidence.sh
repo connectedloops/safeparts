@@ -7,7 +7,11 @@ case "$case_name" in
   maximum-valid) test_name=maximum_valid_workload_remains_bounded_and_resettable; runner=qt ;;
   maximum-recovery) test_name=maximum_base64_replacement_recovers_exact_bytes; runner=rust ;;
   maximum-protected) test_name=maximum_policy_argon2_recovery_executes_exactly; runner=rust ;;
-  *) echo "usage: $0 maximum-words|maximum-valid|maximum-recovery|maximum-protected" >&2; exit 64 ;;
+  matrix-base64) test_name=maximum_base64url_text_unprotected_recovers_exact_bytes; runner=rust ;;
+  matrix-base58) test_name=maximum_base58check_binary_protected_recovers_exact_bytes; runner=rust ;;
+  matrix-words) test_name=maximum_words_text_protected_recovers_exact_bytes; runner=rust ;;
+  matrix-bip39) test_name=maximum_bip39_binary_unprotected_recovers_exact_bytes; runner=rust ;;
+  *) echo "usage: $0 maximum-words|maximum-valid|maximum-recovery|maximum-protected|matrix-base64|matrix-base58|matrix-words|matrix-bip39" >&2; exit 64 ;;
 esac
 
 [ "$(uname -s)" = Darwin ] || {
@@ -38,9 +42,35 @@ if [ "$runner" = qt ]; then
     target/desktop-build/desktop-actions "$test_name" \
     >"$out/test.stdout" 2>"$out/test.time"
 else
-  /usr/bin/time -l mise exec -- cargo test --release -p safeparts_desktop_bridge \
-    --test operation "$test_name" -- --ignored --exact --nocapture \
-    >"$out/test.stdout" 2>"$out/test.time"
+  timeout_seconds=${CAPACITY_TIMEOUT_SECONDS:-300}
+  python3 - "$timeout_seconds" "$out/test.stdout" "$out/test.time" "$test_name" <<'PY'
+import json
+import os
+import signal
+import subprocess
+import sys
+
+seconds, stdout_path, stderr_path, test_name = sys.argv[1:]
+command = [
+    "/usr/bin/time", "-l", "mise", "exec", "--", "cargo", "test", "--release",
+    "-p", "safeparts_desktop_bridge", "--test", "operation", test_name,
+    "--", "--ignored", "--exact", "--nocapture",
+]
+with open(stdout_path, "w", encoding="utf-8") as stdout, open(stderr_path, "w", encoding="utf-8") as stderr:
+    process = subprocess.Popen(command, stdout=stdout, stderr=stderr, start_new_session=True)
+    try:
+        return_code = process.wait(timeout=int(seconds))
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGTERM)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+        print(json.dumps({"phase": "timeout", "seconds": int(seconds), "test": test_name}), file=stderr)
+        raise SystemExit(124)
+raise SystemExit(return_code)
+PY
 fi
 
 rss=$(awk '/maximum resident set size/{print $1}' "$out/test.time")

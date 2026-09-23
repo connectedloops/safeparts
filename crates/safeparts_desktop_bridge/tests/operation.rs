@@ -652,6 +652,132 @@ fn maximum_base64_replacement_recovers_exact_bytes() {
 }
 
 #[test]
+fn declared_255_sets_recover_from_small_subsets_in_every_encoding() {
+    for encoding in [
+        ShareEncoding::Base64url,
+        ShareEncoding::Base58check,
+        ShareEncoding::MnemoWords,
+        ShareEncoding::MnemoBip39,
+    ] {
+        let packets = split_secret(b"synthetic declared 255", 2, 255, None)
+            .unwrap_or_else(|error| panic!("declared-255 split failed: {error}"));
+        let core_encoding = match encoding {
+            ShareEncoding::Base64url => Encoding::Base64url,
+            ShareEncoding::Base58check => Encoding::Base58check,
+            ShareEncoding::MnemoWords => Encoding::MnemoWords,
+            ShareEncoding::MnemoBip39 => Encoding::MnemoBip39,
+            ShareEncoding::Auto => unreachable!(),
+            _ => unreachable!(),
+        };
+        let shares = packets[..2]
+            .iter()
+            .map(|packet| {
+                encode_packet(packet, core_encoding)
+                    .unwrap_or_else(|error| panic!("declared-255 encode failed: {error}"))
+                    .into_bytes()
+            })
+            .collect::<Vec<_>>();
+        let mut operation = new_operation();
+        let inspected = replace_recovery(&mut operation, 1, &shares, ShareEncoding::Auto);
+        assert!(inspected.status == Status::Ok);
+        assert_eq!(inspected.share_count, 255);
+        assert_eq!(inspected.supplied_count, 2);
+        assert_eq!(operation.recover(2).bytes, b"synthetic declared 255");
+    }
+}
+
+#[test]
+fn maximum_supplied_count_recovers_without_using_declared_count_for_volume() {
+    let packets = split_secret(b"x", 1, 255, None)
+        .unwrap_or_else(|error| panic!("maximum-count split failed: {error}"));
+    let shares = packets
+        .iter()
+        .map(|packet| {
+            encode_packet(packet, Encoding::Base64url)
+                .unwrap_or_else(|error| panic!("maximum-count encode failed: {error}"))
+                .into_bytes()
+        })
+        .collect::<Vec<_>>();
+    let mut operation = new_operation();
+    let inspected = replace_recovery(&mut operation, 1, &shares, ShareEncoding::Auto);
+    assert!(inspected.status == Status::Ok);
+    assert_eq!(inspected.supplied_count, 255);
+    assert_eq!(operation.recover(2).bytes, b"x");
+}
+
+fn run_maximum_pairwise_case(encoding: ShareEncoding, protected: bool, byte: u8) {
+    eprintln!(
+        "capacity_phase=create_begin encoding={} protected={protected}",
+        encoding.repr
+    );
+    let secret = vec![byte; 1_048_576];
+    let passphrase = protected.then_some(b"synthetic pairwise passphrase".as_slice());
+    let mut operation = new_operation();
+    let created = operation.create_with_passphrase(
+        1,
+        &secret,
+        2,
+        2,
+        encoding,
+        passphrase.unwrap_or_default(),
+    );
+    assert!(created.status == Status::Ok);
+    eprintln!("capacity_phase=create_complete");
+    let first = operation.encode_share(1, 0).bytes;
+    eprintln!("capacity_phase=first_encode_complete bytes={}", first.len());
+    let second = operation.encode_share(1, 1).bytes;
+    eprintln!(
+        "capacity_phase=second_encode_complete bytes={}",
+        second.len()
+    );
+    let shares = [first, second];
+    let inspected = replace_recovery(&mut operation, 2, &shares, ShareEncoding::Auto);
+    eprintln!(
+        "capacity_phase=inspection_complete status={}",
+        inspected.status.repr
+    );
+    assert!(
+        inspected.status
+            == if protected {
+                Status::PassphraseRequired
+            } else {
+                Status::Ok
+            }
+    );
+    let recovered = operation.recover_with_passphrase(3, passphrase.unwrap_or_default());
+    assert!(recovered.status == Status::Ok);
+    assert_eq!(recovered.bytes, secret);
+    eprintln!(
+        "capacity_phase=recovery_complete bytes={}",
+        recovered.bytes.len()
+    );
+}
+
+#[test]
+#[ignore = "run through the fresh-process desktop capacity evidence task"]
+fn maximum_base64url_text_unprotected_recovers_exact_bytes() {
+    run_maximum_pairwise_case(ShareEncoding::Base64url, false, b't');
+}
+
+#[test]
+#[ignore = "run through the fresh-process desktop capacity evidence task"]
+fn maximum_base58check_binary_protected_recovers_exact_bytes() {
+    run_maximum_pairwise_case(ShareEncoding::Base58check, true, 0xff);
+}
+
+#[test]
+#[ignore = "run through the fresh-process desktop capacity evidence task"]
+fn maximum_words_text_protected_recovers_exact_bytes() {
+    run_maximum_pairwise_case(ShareEncoding::MnemoWords, true, b'u');
+}
+
+#[test]
+#[ignore = "run through the fresh-process desktop capacity evidence task"]
+fn maximum_bip39_binary_unprotected_recovers_exact_bytes() {
+    run_maximum_pairwise_case(ShareEncoding::MnemoBip39, false, 0x00);
+}
+
+#[test]
 fn public_operation_keeps_maximum_create_exportable_in_every_encoding() {
     const ENCODINGS: &[ShareEncoding] = &[
         ShareEncoding::Base64url,
