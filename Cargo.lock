@@ -1071,6 +1071,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ibig"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1fcc7f316b2c079dde77564a1360639c1a956a23fa96122732e416cb10717bb"
+dependencies = [
+ "cfg-if",
+ "static_assertions",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2050,7 +2060,9 @@ dependencies = [
  "bs58",
  "chacha20poly1305",
  "hex",
+ "ibig",
  "rand",
+ "sha2",
  "thiserror 2.0.18",
  "zeroize",
 ]

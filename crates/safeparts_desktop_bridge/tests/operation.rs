@@ -817,7 +817,12 @@ fn run_maximum_pairwise_case(encoding: ShareEncoding, protected: bool, byte: u8)
                 Status::Ok
             }
     );
-    let recovered = operation.recover_with_passphrase(3, passphrase.unwrap_or_default());
+    let recovered = operation.recover_bytes_with_passphrase(3, passphrase.unwrap_or_default());
+    eprintln!(
+        "capacity_phase=recovery_result status={} bytes={}",
+        recovered.status.repr,
+        recovered.bytes.len()
+    );
     assert!(recovered.status == Status::Ok);
     assert_eq!(recovered.bytes, secret);
     eprintln!(

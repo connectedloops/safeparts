@@ -7,7 +7,7 @@ Nearest contract: [`crates/safeparts_core/AGENTS.md`](../../../crates/safeparts_
 
 - Shamir-style split/combine over GF(256).
 - Share packet versioning and strict parsing.
-- Share encodings and auto-detection rules, including one strict wrapped-input parser that returns the concrete encoding and retains each packet's released wire version. See the [parser contract](../manuals/rust-library.md) for framing and line endings.
+- Share encodings and auto-detection rules, including one strict wrapped-input parser that returns the concrete encoding and retains each packet's released wire version. The private Base58Check codec owns the exact Bitcoin alphabet, SHA-256d checksum, leading-zero behavior, and bounded `ibig 0.3.6` arithmetic; `bs58 0.5.1` remains a test-only differential oracle. See the [parser contract](../manuals/rust-library.md) for framing and line endings.
 - Optional passphrase protection.
 - Typed errors for core behavior.
 

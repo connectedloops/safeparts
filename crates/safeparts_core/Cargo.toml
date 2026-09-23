@@ -11,12 +11,14 @@ rand = "0.8.6"
 thiserror = "2"
 zeroize = { version = "1", features = ["alloc"] }
 base64 = "0.22"
-bs58 = { version = "0.5", features = ["check"] }
+ibig = { version = "=0.3.6", default-features = false }
+sha2 = "0.10"
 bip39 = "2"
 argon2 = "0.5"
 chacha20poly1305 = "0.10"
 
 [dev-dependencies]
+bs58 = { version = "=0.5.1", features = ["check"] }
 hex = "0.4"
 
 [lints]

@@ -8,7 +8,7 @@ Owns the core library for secret splitting, combining, packets, encodings, integ
 
 - `src/sss.rs`, `src/gf256.rs`: threshold sharing math.
 - `src/packet.rs`: versioned share packet parsing and serialization.
-- `src/encoding.rs`, `src/ascii.rs`, `src/mnemo_*`: share encoding API and implementations.
+- `src/encoding.rs`, `src/ascii.rs`, `src/base58check.rs`, `src/mnemo_*`: share encoding API and implementations. Base58Check arithmetic stays private behind `ascii.rs`.
 - `src/crypto.rs`: passphrase protection using KDF and AEAD.
 - `src/error.rs`: typed core errors.
 - `src/lib.rs`: public API.
@@ -19,6 +19,7 @@ Owns the core library for secret splitting, combining, packets, encodings, integ
 ## Local Contracts
 
 - Keep cryptographic and encoding rules here; front-ends adapt IO and presentation only.
+- Preserve exact Bitcoin Base58Check framing, alphabet, leading zeroes, SHA-256d checksum, and strict all-content decoding. Pin `ibig` to `0.3.6` with default features disabled; keep `bs58 0.5.1` only as a development differential oracle. The dependency contains audited internal unsafe code, while project-owned Rust remains unsafe-forbidden.
 - Keep reusable pre-recovery metadata inspection and strict version-preserving parsing for every share encoding here so front ends can enforce admission policy without decoding packets independently or interpolating early.
 - Do not log or fixture real secrets, share packets, passphrases, or reconstructed secrets.
 - Preserve strict validation and typed errors for malformed input, including empty BIP-39 frames.

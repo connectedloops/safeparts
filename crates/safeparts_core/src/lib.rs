@@ -20,6 +20,7 @@
 //! ```
 
 pub mod ascii;
+mod base58check;
 pub mod crypto;
 pub mod encoding;
 pub mod error;

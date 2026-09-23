@@ -1,5 +1,6 @@
 use base64::Engine;
 
+use crate::base58check;
 use crate::error::{CoreError, CoreResult};
 use crate::packet::{DecodedSharePacket, SharePacket};
 
@@ -12,7 +13,9 @@ pub enum Encoding {
 pub fn encode_packet(packet: &SharePacket, encoding: Encoding) -> CoreResult<String> {
     let bytes = packet.encode_binary()?;
     match encoding {
-        Encoding::Base58check => Ok(bs58::encode(bytes).with_check().into_string()),
+        Encoding::Base58check => {
+            base58check::encode(&bytes).map_err(|error| CoreError::Encoding(error.to_string()))
+        }
         Encoding::Base64url => Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)),
     }
 }
@@ -23,10 +26,9 @@ pub fn decode_packet(s: &str, encoding: Encoding) -> CoreResult<SharePacket> {
 
 pub fn decode_packet_with_version(s: &str, encoding: Encoding) -> CoreResult<DecodedSharePacket> {
     let bytes = match encoding {
-        Encoding::Base58check => bs58::decode(s)
-            .with_check(None)
-            .into_vec()
-            .map_err(|e| CoreError::Encoding(e.to_string()))?,
+        Encoding::Base58check => {
+            base58check::decode(s).map_err(|error| CoreError::Encoding(error.to_string()))?
+        }
         Encoding::Base64url => base64::engine::general_purpose::URL_SAFE_NO_PAD
             .decode(s)
             .map_err(|e| CoreError::Encoding(e.to_string()))?,
