@@ -504,6 +504,9 @@ impl Operation {
         if self.recovery_packets.len() < usize::from(self.inspection.threshold) {
             return bytes_output(generation, Status::NotEnoughShares);
         }
+        if protected && !self.protected_recovery_fits_memory() {
+            return bytes_output(generation, Status::ResourceLimit);
+        }
         if protected && passphrase.is_empty() {
             return bytes_output(generation, Status::PassphraseRequired);
         }
@@ -683,6 +686,41 @@ impl Operation {
         }
         next_state
             .checked_add(workspace)
+            .and_then(|bytes| bytes.checked_add(UI_RUNTIME_HEADROOM))
+            .is_some_and(|bytes| bytes <= PROCESS_MEMORY_BUDGET)
+    }
+
+    fn protected_recovery_fits_memory(&self) -> bool {
+        let Some(params) = self
+            .recovery_packets
+            .first()
+            .and_then(|packet| packet.crypto_params.as_ref())
+        else {
+            return false;
+        };
+        let Some(kdf_bytes) = usize::try_from(params.mem_cost_kib)
+            .ok()
+            .and_then(|kib| kib.checked_mul(1024))
+        else {
+            return false;
+        };
+        if kdf_bytes > PHASE_WORKSPACE_BUDGET {
+            return false;
+        }
+        let Some(current_state) = operation_state_bytes(
+            &self.created_packets,
+            self.created_packets.capacity(),
+            &self.recovery_batches,
+            self.recovery_batches.capacity(),
+            &self.recovery_packets,
+            self.recovery_packets.capacity(),
+            self.recovered.capacity(),
+        ) else {
+            return false;
+        };
+        current_state
+            .checked_add(kdf_bytes)
+            .and_then(|bytes| bytes.checked_add(MAX_SECRET_BYTES))
             .and_then(|bytes| bytes.checked_add(UI_RUNTIME_HEADROOM))
             .is_some_and(|bytes| bytes <= PROCESS_MEMORY_BUDGET)
     }

@@ -34,6 +34,27 @@ fn complete_recovery_replacement_is_transactional() {
 }
 
 #[test]
+fn protected_recovery_accounts_for_the_maximum_accepted_kdf_memory() {
+    let mut packets = split_secret(b"maximum accepted KDF accounting", 1, 1, Some(b"synthetic"))
+        .expect("split fixture");
+    packets[0]
+        .crypto_params
+        .as_mut()
+        .expect("protected packet")
+        .mem_cost_kib = 262_144;
+    let encoded = encode_packet(&packets[0], Encoding::Base64url).expect("encode fixture");
+
+    let mut operation = new_operation();
+    let inspected = operation.replace_recovery(
+        1,
+        vec![RecoveryBatch { bytes: encoded.into_bytes() }],
+        ShareEncoding::Auto,
+    );
+    assert!(inspected.status == Status::PassphraseRequired);
+    assert!(operation.recover(2).status == Status::PassphraseRequired);
+}
+
+#[test]
 fn public_operation_round_trips_exact_utf8_and_encodes_on_demand() {
     let mut operation = new_operation();
     let created = operation.create_words(1, FIDELITY_TEXT.as_bytes(), 2, 3);
