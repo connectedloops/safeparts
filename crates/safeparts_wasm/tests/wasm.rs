@@ -15,6 +15,19 @@ fn error_json(error: &JsValue) -> String {
 }
 
 #[wasm_bindgen_test]
+#[ignore = "run explicitly as maximum browser-WASM Base58 capacity evidence"]
+fn maximum_base58check_round_trips_in_real_browser_wasm() {
+    let secret = (0..1_048_576usize)
+        .map(|index| ((index * 131 + 17) % 251) as u8)
+        .collect::<Vec<_>>();
+    let shares = split_secret(&secret, 1, 1, "base58check", None).unwrap();
+    let share = shares.get(0).as_string().unwrap();
+    assert!(share.len() > secret.len());
+    let recovered = combine_shares(shares, "base58check", None).unwrap();
+    assert_eq!(recovered.to_vec(), secret);
+}
+
+#[wasm_bindgen_test]
 fn every_encoding_round_trips_binary_secrets() {
     let secret = [0, 255, 3, 128];
 

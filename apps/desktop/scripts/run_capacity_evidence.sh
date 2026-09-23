@@ -7,11 +7,13 @@ case "$case_name" in
   maximum-valid) test_name=maximum_valid_workload_remains_bounded_and_resettable; runner=qt ;;
   maximum-recovery) test_name=maximum_base64_replacement_recovers_exact_bytes; runner=rust ;;
   maximum-protected) test_name=maximum_policy_argon2_recovery_executes_exactly; runner=rust ;;
+  maximum-base58-codec) test_name=base58check::tests::maximum_codec_vector_round_trips_with_pinned_shape; runner=core ;;
+  maximum-accessibility) test_name=maximum_accessibility_handoff_remains_bounded_and_responsive; runner=qt ;;
   matrix-base64) test_name=maximum_base64url_text_unprotected_recovers_exact_bytes; runner=rust ;;
   matrix-base58) test_name=maximum_base58check_binary_protected_recovers_exact_bytes; runner=rust ;;
   matrix-words) test_name=maximum_words_text_protected_recovers_exact_bytes; runner=rust ;;
   matrix-bip39) test_name=maximum_bip39_binary_unprotected_recovers_exact_bytes; runner=rust ;;
-  *) echo "usage: $0 maximum-words|maximum-valid|maximum-recovery|maximum-protected|matrix-base64|matrix-base58|matrix-words|matrix-bip39" >&2; exit 64 ;;
+  *) echo "usage: $0 maximum-words|maximum-valid|maximum-recovery|maximum-protected|maximum-base58-codec|maximum-accessibility|matrix-base64|matrix-base58|matrix-words|matrix-bip39" >&2; exit 64 ;;
 esac
 
 [ "$(uname -s)" = Darwin ] || {
@@ -31,6 +33,9 @@ if [ "$runner" = qt ]; then
     >"$out/build.stdout" 2>"$out/build.stderr"
   cmake --build target/desktop-build --target desktop-actions -j2 \
     >>"$out/build.stdout" 2>>"$out/build.stderr"
+elif [ "$runner" = core ]; then
+  mise exec -- cargo test --release -p safeparts_core --lib --no-run \
+    >"$out/build.stdout" 2>"$out/build.stderr"
 else
   mise exec -- cargo test --release -p safeparts_desktop_bridge --test operation --no-run \
     >"$out/build.stdout" 2>"$out/build.stderr"
@@ -43,18 +48,21 @@ if [ "$runner" = qt ]; then
     >"$out/test.stdout" 2>"$out/test.time"
 else
   timeout_seconds=${CAPACITY_TIMEOUT_SECONDS:-300}
-  python3 - "$timeout_seconds" "$out/test.stdout" "$out/test.time" "$test_name" <<'PY'
+  python3 - "$timeout_seconds" "$out/test.stdout" "$out/test.time" "$test_name" "$runner" <<'PY'
 import json
 import os
 import signal
 import subprocess
 import sys
 
-seconds, stdout_path, stderr_path, test_name = sys.argv[1:]
+seconds, stdout_path, stderr_path, test_name, runner = sys.argv[1:]
+if runner == "core":
+    target = ["-p", "safeparts_core", "--lib"]
+else:
+    target = ["-p", "safeparts_desktop_bridge", "--test", "operation"]
 command = [
     "/usr/bin/time", "-l", "mise", "exec", "--", "cargo", "test", "--release",
-    "-p", "safeparts_desktop_bridge", "--test", "operation", test_name,
-    "--", "--ignored", "--exact", "--nocapture",
+    *target, test_name, "--", "--ignored", "--exact", "--nocapture",
 ]
 with open(stdout_path, "w", encoding="utf-8") as stdout, open(stderr_path, "w", encoding="utf-8") as stderr:
     process = subprocess.Popen(command, stdout=stdout, stderr=stderr, start_new_session=True)
