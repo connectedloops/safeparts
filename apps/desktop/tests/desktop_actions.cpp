@@ -10,6 +10,8 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QContextMenuEvent>
+#include <QCryptographicHash>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QFrame>
@@ -1659,17 +1661,34 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
     required<QSpinBox>(&window, "shareCountInput")->setValue(16);
     const QString maximumSecret(1'048'576, QLatin1Char('b'));
     pasteIntoCreate(window, maximumSecret);
+
+    QElapsedTimer heartbeatClock;
+    heartbeatClock.start();
+    qint64 lastHeartbeat = heartbeatClock.elapsed();
+    qint64 maximumHeartbeatGap = 0;
+    int heartbeatCount = 0;
+    QTimer heartbeat;
+    heartbeat.setInterval(15);
+    connect(&heartbeat, &QTimer::timeout, &window, [&] {
+        const qint64 now = heartbeatClock.elapsed();
+        maximumHeartbeatGap = std::max(maximumHeartbeatGap, now - lastHeartbeat);
+        lastHeartbeat = now;
+        ++heartbeatCount;
+    });
+    heartbeat.start();
     QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 30'000);
     QTRY_VERIFY_WITH_TIMEOUT(
         required<QLabel>(&window, "createStatus")->text().contains(
-            QStringLiteral("Copy any share")),
+            QStringLiteral("Copy or save any share")),
         30'000);
+    heartbeat.stop();
+    maximumHeartbeatGap = std::max(maximumHeartbeatGap, heartbeatClock.elapsed() - lastHeartbeat);
     QCOMPARE(required<ExactTextEdit>(&window, "secretInput")->exactUtf8(),
              maximumSecret.toUtf8());
 
-    QString first;
-    QString last;
+    QByteArray firstHash;
+    QByteArray lastHash;
     for (int index = 1; index <= 16; ++index) {
         auto *copy = required<QPushButton>(
             &window, qPrintable(QStringLiteral("copyShare%1").arg(index)));
@@ -1679,19 +1698,24 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
         QTRY_COMPARE_WITH_TIMEOUT(
             required<QLabel>(&window, "createStatus")->text(),
             QStringLiteral("Share %1 copied.").arg(index), 30'000);
-        const QString copied = QApplication::clipboard()->text();
+        const QByteArray copied = QApplication::clipboard()->text().toUtf8();
         QVERIFY(!copied.isEmpty());
-        QCOMPARE(required<QPlainTextEdit>(
-                     &window, qPrintable(QStringLiteral("generatedShare%1").arg(index)))
-                     ->toPlainText(),
-                 copied);
+        QVERIFY(required<QPlainTextEdit>(
+                    &window, qPrintable(QStringLiteral("generatedShare%1").arg(index)))
+                    ->toPlainText()
+                    .isEmpty());
+        const QByteArray hash = QCryptographicHash::hash(copied, QCryptographicHash::Sha256);
         if (index == 1)
-            first = copied;
+            firstHash = hash;
         if (index == 16)
-            last = copied;
+            lastHash = hash;
     }
-    QVERIFY(first != last);
+    QVERIFY(firstHash != lastHash);
     QVERIFY(required<QWidget>(&window, "createdShares")->isVisible());
+    QVERIFY2(heartbeatCount > 0, "the Qt event loop did not service the 15 ms heartbeat");
+    QVERIFY2(maximumHeartbeatGap < 500,
+             qPrintable(QStringLiteral("maximum Qt heartbeat gap was %1 ms")
+                            .arg(maximumHeartbeatGap)));
 }
 
 void DesktopActions::secure_queued_buffers_wipe_on_final_release() {

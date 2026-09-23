@@ -155,6 +155,10 @@ run = [
   "ctest --test-dir target/desktop-build --output-on-failure",
 ]
 
+[tasks."desktop:evidence:capacity"]
+description = "Run a named desktop capacity case in a fresh process with macOS memory gates."
+run = "apps/desktop/scripts/run_capacity_evidence.sh ${CAPACITY_CASE:-maximum-words}"
+
 [tasks."desktop:run"]
 description = "Build and launch the experimental Qt desktop app on the development host."
 run = "apps/desktop/run.sh"

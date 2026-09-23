@@ -8,14 +8,24 @@ const FIDELITY_TEXT: &str = "\0 leading\nline\u{00a0}space\u{2028}separator\u{20
 #[test]
 fn complete_recovery_replacement_is_transactional() {
     let mut source = new_operation();
-    assert!(source.create_words(1, b"transactional replacement", 2, 3).status == Status::Ok);
+    assert!(
+        source
+            .create_words(1, b"transactional replacement", 2, 3)
+            .status
+            == Status::Ok
+    );
     let first = source.encode_share(1, 0);
     let second = source.encode_share(1, 1);
 
     let mut recovery = new_operation();
     let ready = recovery.replace_recovery(
         2,
-        vec![RecoveryBatch { bytes: first.bytes }, RecoveryBatch { bytes: second.bytes }],
+        vec![
+            RecoveryBatch { bytes: first.bytes },
+            RecoveryBatch {
+                bytes: second.bytes,
+            },
+        ],
         ShareEncoding::Auto,
     );
     assert!(ready.status == Status::Ok);
@@ -23,31 +33,61 @@ fn complete_recovery_replacement_is_transactional() {
 
     let rejected = recovery.replace_recovery(
         3,
-        vec![RecoveryBatch { bytes: b"malformed".to_vec() }],
+        vec![RecoveryBatch {
+            bytes: b"malformed".to_vec(),
+        }],
         ShareEncoding::Auto,
     );
     assert!(rejected.status == Status::MalformedInput);
     assert_eq!(rejected.recovery_batch_count, 2);
-    let recovered = recovery.recover(4);
+
+    let oversized = recovery.replace_recovery(
+        4,
+        vec![RecoveryBatch {
+            bytes: vec![b'x'; 16 * 1_048_576 + 1],
+        }],
+        ShareEncoding::Auto,
+    );
+    assert!(oversized.status == Status::PasteTooLarge);
+    assert_eq!(oversized.recovery_batch_count, 2);
+
+    let token_limited = recovery.replace_recovery(
+        5,
+        vec![RecoveryBatch {
+            bytes: "x ".repeat(1_048_577).into_bytes(),
+        }],
+        ShareEncoding::MnemoWords,
+    );
+    assert!(token_limited.status == Status::TokenLimit);
+    assert_eq!(token_limited.recovery_batch_count, 2);
+
+    let recovered = recovery.recover(6);
     assert!(recovered.status == Status::Ok);
     assert_eq!(recovered.bytes, b"transactional replacement");
 }
 
 #[test]
 fn protected_recovery_accounts_for_the_maximum_accepted_kdf_memory() {
-    let mut packets = split_secret(b"maximum accepted KDF accounting", 1, 1, Some(b"synthetic"))
-        .expect("split fixture");
-    packets[0]
-        .crypto_params
-        .as_mut()
-        .expect("protected packet")
-        .mem_cost_kib = 262_144;
-    let encoded = encode_packet(&packets[0], Encoding::Base64url).expect("encode fixture");
+    let mut packets =
+        match split_secret(b"maximum accepted KDF accounting", 1, 1, Some(b"synthetic")) {
+            Ok(packets) => packets,
+            Err(error) => panic!("split fixture failed: {error}"),
+        };
+    let Some(params) = packets[0].crypto_params.as_mut() else {
+        panic!("protected fixture has no parameters");
+    };
+    params.mem_cost_kib = 262_144;
+    let encoded = match encode_packet(&packets[0], Encoding::Base64url) {
+        Ok(encoded) => encoded,
+        Err(error) => panic!("fixture encoding failed: {error}"),
+    };
 
     let mut operation = new_operation();
     let inspected = operation.replace_recovery(
         1,
-        vec![RecoveryBatch { bytes: encoded.into_bytes() }],
+        vec![RecoveryBatch {
+            bytes: encoded.into_bytes(),
+        }],
         ShareEncoding::Auto,
     );
     assert!(inspected.status == Status::PassphraseRequired);

@@ -54,25 +54,36 @@ pub fn split(secret: &[u8], k: u8, n: u8, set_id: SetId) -> CoreResult<Vec<RawSh
         })
         .collect();
 
-    let mut coeffs = Zeroizing::new(vec![0u8; k.saturating_sub(1) as usize]);
+    const RANDOM_CHUNK_BYTES: usize = 64 * 1024;
+    let coefficient_count = usize::from(k.saturating_sub(1));
+    let chunk_bytes = secret_len.min(RANDOM_CHUNK_BYTES);
+    let coefficient_bytes = chunk_bytes
+        .checked_mul(coefficient_count)
+        .ok_or(CoreError::InvalidCombinedLength { len: secret_len })?;
+    let mut coefficients = Zeroizing::new(vec![0u8; coefficient_bytes]);
 
-    for (idx, &byte) in secret.iter().enumerate() {
-        // Random coefficients a1..a_{k-1}
-        if !coeffs.is_empty() {
-            OsRng.fill_bytes(&mut coeffs);
+    for chunk_start in (0..secret_len).step_by(RANDOM_CHUNK_BYTES) {
+        let chunk_end = secret_len.min(chunk_start + RANDOM_CHUNK_BYTES);
+        let used_coefficients = (chunk_end - chunk_start) * coefficient_count;
+        if used_coefficients != 0 {
+            OsRng.fill_bytes(&mut coefficients[..used_coefficients]);
         }
+        for (local_index, &byte) in secret[chunk_start..chunk_end].iter().enumerate() {
+            let coefficients_start = local_index * coefficient_count;
+            let byte_coefficients =
+                &coefficients[coefficients_start..coefficients_start + coefficient_count];
+            for share in &mut shares {
+                let x = Gf256(share.x);
+                let mut y = Gf256(byte);
+                let mut x_pow = Gf256(1);
 
-        for share in &mut shares {
-            let x = Gf256(share.x);
-            let mut y = Gf256(byte);
-            let mut x_pow = Gf256(1);
+                for &coefficient in byte_coefficients {
+                    x_pow = x_pow * x;
+                    y = y + (Gf256(coefficient) * x_pow);
+                }
 
-            for &coef in coeffs.iter() {
-                x_pow = x_pow * x;
-                y = y + (Gf256(coef) * x_pow);
+                share.y[chunk_start + local_index] = y.0;
             }
-
-            share.y[idx] = y.0;
         }
     }
 
@@ -163,6 +174,15 @@ mod tests {
         let recovered2 =
             combine(&[shares[1].clone(), shares[3].clone(), shares[4].clone()]).unwrap();
         assert_eq!(recovered2, secret);
+    }
+
+    #[test]
+    fn split_round_trips_across_randomness_chunk_boundaries() {
+        let secret = vec![0x5a; 64 * 1024 + 1];
+        let shares = split(&secret, 2, 3, SetId::random()).unwrap();
+
+        let recovered = combine(&shares[..2]).unwrap();
+        assert_eq!(recovered, secret);
     }
 
     #[test]

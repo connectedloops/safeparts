@@ -254,7 +254,10 @@ impl Operation {
                 }
             }
             let result = candidate.inspect_recovery(generation, requested_encoding);
-            if !matches!(result.status, Status::Ok | Status::NotEnoughShares | Status::PassphraseRequired) {
+            if !matches!(
+                result.status,
+                Status::Ok | Status::NotEnoughShares | Status::PassphraseRequired
+            ) {
                 return self.with_batch_count(output(generation, result.status));
             }
             self.recovery_batches = std::mem::take(&mut candidate.recovery_batches);
