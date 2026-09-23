@@ -19,7 +19,7 @@ Owns the core library for secret splitting, combining, packets, encodings, integ
 ## Local Contracts
 
 - Keep cryptographic and encoding rules here; front-ends adapt IO and presentation only.
-- Preserve exact Bitcoin Base58Check framing, alphabet, leading zeroes, SHA-256d checksum, and strict all-content decoding. Pin `ibig` to `0.3.6` with default features disabled; keep `bs58 0.5.1` only as a development differential oracle. The dependency contains audited internal unsafe code, while project-owned Rust remains unsafe-forbidden.
+- Preserve exact Bitcoin Base58Check framing, alphabet, leading zeroes, SHA-256d checksum, and strict all-content decoding. Pin `ibig` to `0.3.6` with default features disabled; keep `bs58 0.5.1` only as a development differential oracle. The dependency contains reviewed internal unsafe code, while project-owned Rust remains unsafe-forbidden. Fallible reservations cover project-owned attacker-sized vectors and strings; `ibig` limb allocations remain outside recoverable allocation guarantees. The payload-plus-checksum byte buffer is zeroized on normal `Result` exits, but `ibig` limbs, output strings, allocator copies, panic/abort, and process OOM are not guaranteed erased.
 - Keep reusable pre-recovery metadata inspection and strict version-preserving parsing for every share encoding here so front ends can enforce admission policy without decoding packets independently or interpolating early.
 - Do not log or fixture real secrets, share packets, passphrases, or reconstructed secrets.
 - Preserve strict validation and typed errors for malformed input, including empty BIP-39 frames.

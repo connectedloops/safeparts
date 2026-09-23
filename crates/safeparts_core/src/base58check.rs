@@ -2,7 +2,7 @@ use core::fmt;
 
 use ibig::{UBig, ops::DivRem};
 use sha2::{Digest, Sha256};
-use zeroize::Zeroize;
+use zeroize::Zeroizing;
 
 const ALPHABET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const CHECKSUM_BYTES: usize = 4;
@@ -20,8 +20,10 @@ const LEAF_RADIX: u64 = 656_356_768; // 58^5
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Base58CheckError {
+    EmptyInput,
     InputTooLarge,
     OutputTooLarge,
+    AllocationFailure,
     InvalidCharacter,
     InvalidChecksum,
     ArithmeticFailure,
@@ -30,8 +32,10 @@ pub(crate) enum Base58CheckError {
 impl fmt::Display for Base58CheckError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
+            Self::EmptyInput => "base58check input is empty",
             Self::InputTooLarge => "base58check input exceeds the supported limit",
             Self::OutputTooLarge => "base58check output exceeds the supported limit",
+            Self::AllocationFailure => "base58check allocation failed",
             Self::InvalidCharacter => "base58check input contains an invalid character",
             Self::InvalidChecksum => "base58check checksum mismatch",
             Self::ArithmeticFailure => "base58check conversion failed",
@@ -43,10 +47,17 @@ pub(crate) fn encode(input: &[u8]) -> Result<String, Base58CheckError> {
     if input.len() > MAX_CODEC_BYTES.saturating_sub(CHECKSUM_BYTES) {
         return Err(Base58CheckError::InputTooLarge);
     }
-    let mut checked = Vec::new();
+    let checked_capacity = input
+        .len()
+        .checked_add(CHECKSUM_BYTES)
+        .ok_or(Base58CheckError::OutputTooLarge)?;
+    // This wrapper wipes the payload-plus-checksum allocation on every normal Result return.
+    // `ibig` limbs, returned Strings, allocator copies, panics, aborts, and process OOM are not
+    // covered by this recoverable-erasure guarantee.
+    let mut checked = Zeroizing::new(Vec::new());
     checked
-        .try_reserve_exact(input.len() + CHECKSUM_BYTES)
-        .map_err(|_| Base58CheckError::OutputTooLarge)?;
+        .try_reserve_exact(checked_capacity)
+        .map_err(|_| Base58CheckError::AllocationFailure)?;
     checked.extend_from_slice(input);
     checked.extend_from_slice(&checksum(input));
 
@@ -59,22 +70,26 @@ pub(crate) fn encode(input: &[u8]) -> Result<String, Base58CheckError> {
         .and_then(|value| value.checked_add(2 + leading_zeroes))
         .ok_or(Base58CheckError::OutputTooLarge)?;
     if estimated_digits > MAX_CODEC_BYTES {
-        checked.zeroize();
         return Err(Base58CheckError::OutputTooLarge);
     }
 
+    let chunk_capacity = estimated_digits
+        .checked_add(LEAF_DIGITS - 1)
+        .and_then(|value| value.checked_div(LEAF_DIGITS))
+        .ok_or(Base58CheckError::OutputTooLarge)?;
     let mut chunks = Vec::new();
-    emit_variable_chunks(number, &mut chunks)?;
+    chunks
+        .try_reserve_exact(chunk_capacity)
+        .map_err(|_| Base58CheckError::AllocationFailure)?;
+    emit_variable_chunks(number, chunk_capacity, &mut chunks)?;
     let mut output = String::new();
-    if output.try_reserve_exact(estimated_digits).is_err() {
-        checked.zeroize();
-        return Err(Base58CheckError::OutputTooLarge);
-    }
+    output
+        .try_reserve_exact(estimated_digits)
+        .map_err(|_| Base58CheckError::AllocationFailure)?;
     output.extend(core::iter::repeat_n('1', leading_zeroes));
     for (index, chunk) in chunks.into_iter().enumerate() {
         emit_chunk(&mut output, chunk, index != 0);
     }
-    checked.zeroize();
     if output.len() > MAX_CODEC_BYTES {
         return Err(Base58CheckError::OutputTooLarge);
     }
@@ -82,8 +97,14 @@ pub(crate) fn encode(input: &[u8]) -> Result<String, Base58CheckError> {
 }
 
 pub(crate) fn decode(input: &str) -> Result<Vec<u8>, Base58CheckError> {
-    if input.is_empty() || input.len() > MAX_CODEC_BYTES || !input.is_ascii() {
+    if input.is_empty() {
+        return Err(Base58CheckError::EmptyInput);
+    }
+    if input.len() > MAX_CODEC_BYTES {
         return Err(Base58CheckError::InputTooLarge);
+    }
+    if !input.is_ascii() {
+        return Err(Base58CheckError::InvalidCharacter);
     }
     let leading_zeroes = input.bytes().take_while(|&byte| byte == b'1').count();
     let significant = &input.as_bytes()[leading_zeroes..];
@@ -98,7 +119,15 @@ pub(crate) fn decode(input: &str) -> Result<Vec<u8>, Base58CheckError> {
         return Err(Base58CheckError::OutputTooLarge);
     }
 
+    let leaf_capacity = significant
+        .len()
+        .checked_add(LEAF_DIGITS - 1)
+        .and_then(|value| value.checked_div(LEAF_DIGITS))
+        .ok_or(Base58CheckError::OutputTooLarge)?;
     let mut leaves = Vec::new();
+    leaves
+        .try_reserve_exact(leaf_capacity)
+        .map_err(|_| Base58CheckError::AllocationFailure)?;
     let first_width = match significant.len() % LEAF_DIGITS {
         0 => LEAF_DIGITS,
         width => width,
@@ -122,10 +151,11 @@ pub(crate) fn decode(input: &str) -> Result<Vec<u8>, Base58CheckError> {
     if total > MAX_CODEC_BYTES + CHECKSUM_BYTES {
         return Err(Base58CheckError::OutputTooLarge);
     }
-    let mut checked = Vec::new();
+    // See encode: only this explicit checked-byte allocation has a normal-return wipe guarantee.
+    let mut checked = Zeroizing::new(Vec::new());
     checked
         .try_reserve_exact(total)
-        .map_err(|_| Base58CheckError::OutputTooLarge)?;
+        .map_err(|_| Base58CheckError::AllocationFailure)?;
     checked.resize(leading_zeroes, 0);
     checked.extend_from_slice(&magnitude);
     let payload_len = checked
@@ -138,11 +168,10 @@ pub(crate) fn decode(input: &str) -> Result<Vec<u8>, Base58CheckError> {
         difference |= actual ^ expected;
     }
     if difference != 0 {
-        checked.zeroize();
         return Err(Base58CheckError::InvalidChecksum);
     }
     checked.truncate(payload_len);
-    Ok(checked)
+    Ok(core::mem::take(&mut *checked))
 }
 
 fn checksum(input: &[u8]) -> [u8; CHECKSUM_BYTES] {
@@ -151,12 +180,24 @@ fn checksum(input: &[u8]) -> [u8; CHECKSUM_BYTES] {
     [second[0], second[1], second[2], second[3]]
 }
 
-fn emit_variable_chunks(number: UBig, output: &mut Vec<u64>) -> Result<(), Base58CheckError> {
+fn emit_variable_chunks(
+    number: UBig,
+    chunk_capacity: usize,
+    output: &mut Vec<u64>,
+) -> Result<(), Base58CheckError> {
     if number < UBig::from(LEAF_RADIX) {
+        if output.len() >= chunk_capacity {
+            return Err(Base58CheckError::OutputTooLarge);
+        }
         output.push(u64::try_from(number).map_err(|_| Base58CheckError::ArithmeticFailure)?);
         return Ok(());
     }
-    let mut powers = vec![UBig::from(LEAF_RADIX)];
+    let power_capacity = usize::BITS as usize;
+    let mut powers = Vec::new();
+    powers
+        .try_reserve_exact(power_capacity)
+        .map_err(|_| Base58CheckError::AllocationFailure)?;
+    powers.push(UBig::from(LEAF_RADIX));
     while powers.last().is_some_and(|power| power <= &number) {
         let next = powers
             .last()
@@ -165,21 +206,28 @@ fn emit_variable_chunks(number: UBig, output: &mut Vec<u64>) -> Result<(), Base5
         if next > number {
             break;
         }
+        if powers.len() >= power_capacity {
+            return Err(Base58CheckError::ArithmeticFailure);
+        }
         powers.push(next);
     }
     let level = powers.len() - 1;
     let (quotient, remainder) = number.div_rem(&powers[level]);
-    emit_variable_chunks(quotient, output)?;
-    emit_fixed_chunks(remainder, level, &powers, output)
+    emit_variable_chunks(quotient, chunk_capacity, output)?;
+    emit_fixed_chunks(remainder, level, &powers, chunk_capacity, output)
 }
 
 fn emit_fixed_chunks(
     number: UBig,
     level: usize,
     powers: &[UBig],
+    chunk_capacity: usize,
     output: &mut Vec<u64>,
 ) -> Result<(), Base58CheckError> {
     if level == 0 {
+        if output.len() >= chunk_capacity {
+            return Err(Base58CheckError::OutputTooLarge);
+        }
         output.push(u64::try_from(number).map_err(|_| Base58CheckError::ArithmeticFailure)?);
         return Ok(());
     }
@@ -187,8 +235,8 @@ fn emit_fixed_chunks(
         .get(level - 1)
         .ok_or(Base58CheckError::ArithmeticFailure)?;
     let (left, right) = number.div_rem(divisor);
-    emit_fixed_chunks(left, level - 1, powers, output)?;
-    emit_fixed_chunks(right, level - 1, powers, output)
+    emit_fixed_chunks(left, level - 1, powers, chunk_capacity, output)?;
+    emit_fixed_chunks(right, level - 1, powers, chunk_capacity, output)
 }
 
 fn combine_balanced(leaves: &[(UBig, usize)]) -> Result<UBig, Base58CheckError> {
@@ -296,8 +344,44 @@ mod tests {
     }
 
     #[test]
-    fn invalid_character_checksum_and_bounds_are_rejected() {
-        assert_eq!(decode("0"), Err(Base58CheckError::InvalidCharacter));
+    fn malformed_inputs_are_classified_and_canonical_forms_are_exact() {
+        assert_eq!(decode(""), Err(Base58CheckError::EmptyInput));
+        for forbidden in ["0", "O", "I", "l", " ", "\t", "\n", "+", "/"] {
+            assert_eq!(decode(forbidden), Err(Base58CheckError::InvalidCharacter));
+        }
+        for non_ascii in ["é", "💣", "3QJmnhé"] {
+            assert_eq!(decode(non_ascii), Err(Base58CheckError::InvalidCharacter));
+        }
+
+        let canonical = encode(b"canonical payload").unwrap();
+        assert_eq!(encode(&decode(&canonical).unwrap()).unwrap(), canonical);
+        let mut malformed = vec![canonical[..canonical.len() - 1].to_owned()];
+        malformed.push(canonical[1..].to_owned());
+        malformed.push(format!("1{canonical}"));
+        malformed.push(format!("{canonical}1"));
+        for index in [0, canonical.len() / 2, canonical.len() - 1] {
+            let mut mutation = canonical.as_bytes().to_vec();
+            mutation[index] = if mutation[index] == b'1' { b'2' } else { b'1' };
+            malformed.push(String::from_utf8(mutation).unwrap());
+        }
+        let leading_one = encode(&[0, 7, 8, 9]).unwrap();
+        assert!(leading_one.starts_with('1'));
+        malformed.push(leading_one[1..].to_owned());
+        malformed.push(format!("1{leading_one}"));
+        for value in malformed {
+            assert!(matches!(
+                decode(&value),
+                Err(Base58CheckError::InvalidChecksum | Base58CheckError::InvalidCharacter)
+            ));
+        }
+
+        for length in [4, 5, 6, 9, 10, 11, 19, 20, 21] {
+            let bytes = (0..length).map(|index| index as u8).collect::<Vec<_>>();
+            let oracle = bs58::encode(&bytes).with_check().into_string();
+            assert_eq!(encode(&bytes).unwrap(), oracle);
+            assert_eq!(decode(&oracle).unwrap(), bytes);
+        }
+
         assert_eq!(decode("3QJmni"), Err(Base58CheckError::InvalidChecksum));
         assert_eq!(
             encode(&vec![0; MAX_CODEC_BYTES - CHECKSUM_BYTES + 1]),
