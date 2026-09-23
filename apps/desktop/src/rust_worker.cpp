@@ -17,9 +17,11 @@ int statusValue(Status status) {
     return static_cast<int>(static_cast<std::uint8_t>(status));
 }
 
-bool isAscii(const SecureByteBuffer &bytes) {
-    return std::all_of(bytes.view().begin(), bytes.view().end(),
-                       [](char byte) { return static_cast<unsigned char>(byte) <= 0x7f; });
+bool isCanonicalDisplayAscii(const SecureByteBuffer &bytes) {
+    return std::all_of(bytes.view().begin(), bytes.view().end(), [](char byte) {
+        const auto value = static_cast<unsigned char>(byte);
+        return value >= 0x20 && value <= 0x7e;
+    });
 }
 
 ShareEncoding shareEncoding(int value) {
@@ -53,7 +55,7 @@ void RustWorker::create(quint64 generation, SecureByteBuffer secret, quint8 thre
 void RustWorker::encodeShare(quint64 generation, quint16 index, int purpose) {
     BytesOutput output = operation_->encode_share(generation, index);
     SecureByteBuffer bytes = copyAndWipeBytes(output.bytes);
-    const bool asciiValidated = isAscii(bytes);
+    const bool asciiValidated = isCanonicalDisplayAscii(bytes);
     emit bytesFinished(output.generation, statusValue(output.status), std::move(bytes), purpose,
                        index, asciiValidated);
 }
@@ -94,7 +96,7 @@ void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inp
 void RustWorker::recover(quint64 generation, SecureByteBuffer passphrase) {
     BytesOutput output = operation_->recover_bytes_with_passphrase(generation, slice(passphrase));
     SecureByteBuffer bytes = copyAndWipeBytes(output.bytes);
-    const bool asciiValidated = isAscii(bytes);
+    const bool asciiValidated = isCanonicalDisplayAscii(bytes);
     emit bytesFinished(output.generation, statusValue(output.status), std::move(bytes), 1, 0,
                        asciiValidated);
 }
@@ -102,7 +104,7 @@ void RustWorker::recover(quint64 generation, SecureByteBuffer passphrase) {
 void RustWorker::recoveredBytes(quint64 generation, int purpose) {
     BytesOutput output = operation_->recovered_bytes(generation);
     SecureByteBuffer bytes = copyAndWipeBytes(output.bytes);
-    const bool asciiValidated = isAscii(bytes);
+    const bool asciiValidated = isCanonicalDisplayAscii(bytes);
     emit bytesFinished(output.generation, statusValue(output.status), std::move(bytes), purpose, 0,
                        asciiValidated);
 }

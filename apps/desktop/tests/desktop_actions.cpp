@@ -24,8 +24,10 @@
 #include <QMenu>
 #include <QPixmap>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScrollBar>
 #include <QSignalSpy>
 #include <QSpinBox>
 #include <QTabBar>
@@ -201,6 +203,44 @@ public:
     ~WipeObserverReset() { SecureByteBuffer::setWipeObserverForTests({}); }
 };
 
+struct AccessibilityObservations final {
+    std::atomic<int> value{0};
+    std::atomic<int> reorder{0};
+    std::atomic<int> cursor{0};
+    std::atomic<int> selection{0};
+};
+AccessibilityObservations accessibilityObservations;
+void observeAccessibility(QAccessibleEvent *event) {
+    if (event->object() == nullptr || !event->object()->inherits("SegmentedShareView"))
+        return;
+    switch (event->type()) {
+    case QAccessible::ValueChanged:
+        accessibilityObservations.value.fetch_add(1, std::memory_order_relaxed);
+        break;
+    case QAccessible::ObjectReorder:
+        accessibilityObservations.reorder.fetch_add(1, std::memory_order_relaxed);
+        break;
+    case QAccessible::TextCaretMoved:
+        accessibilityObservations.cursor.fetch_add(1, std::memory_order_relaxed);
+        break;
+    case QAccessible::TextSelectionChanged:
+        accessibilityObservations.selection.fetch_add(1, std::memory_order_relaxed);
+        break;
+    default:
+        break;
+    }
+}
+
+class AccessibilityObserverReset final {
+public:
+    AccessibilityObserverReset()
+        : previous_(QAccessible::installUpdateHandler(observeAccessibility)) {}
+    ~AccessibilityObserverReset() { QAccessible::installUpdateHandler(previous_); }
+
+private:
+    QAccessible::UpdateHandler previous_;
+};
+
 class FailingWriteDevice final : public FileDevice {
 public:
     enum class Failure { Open, Zero, Short, Error, Flush, Close };
@@ -259,6 +299,7 @@ private slots:
     void generated_shares_show_authoritative_text_and_clear_stale_previews();
     void maximum_words_split_keeps_every_share_exportable();
     void segmented_share_view_is_exact_selectable_accessible_and_bounded();
+    void maximum_accessibility_handoff_remains_bounded_and_responsive();
     void secure_queued_buffers_wipe_on_final_release();
     void ordinary_create_edits_reject_stale_success_and_error_results();
     void start_over_rejects_stale_success_and_error_results();
@@ -1775,14 +1816,21 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
                              .arg(maximumHeartbeatGap)
                       << QStringLiteral("maximum-native-clipboard-ms=%1")
                              .arg(maximumNativeClipboardLatency);
-    auto *revealedBeforeReset = window.findChild<SegmentedShareView *>();
-    QVERIFY(revealedBeforeReset != nullptr);
+    QPointer<SegmentedShareView> revealedBeforeReset = window.findChild<SegmentedShareView *>();
+    QVERIFY(!revealedBeforeReset.isNull());
     QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
     QCOMPARE(revealedBeforeReset->byteSize(), qsizetype(0));
     QVERIFY(!required<QWidget>(&window, "createdShares")->isVisible());
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(revealedBeforeReset.isNull());
 }
 
 void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bounded() {
+    accessibilityObservations.value = 0;
+    accessibilityObservations.reorder = 0;
+    accessibilityObservations.cursor = 0;
+    accessibilityObservations.selection = 0;
+    AccessibilityObserverReset accessibilityObserver;
     const auto wiped = std::make_shared<std::atomic<int>>(0);
     WipeObserverReset resetObserver;
     SecureByteBuffer::setWipeObserverForTests([wiped](QByteArrayView bytes) {
@@ -1808,8 +1856,14 @@ void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bou
     QVERIFY(view.findChild<QPlainTextEdit *>() == nullptr);
     QCOMPARE(view.textRange(10, 110).toLatin1(), firstHundred);
 
+    QVERIFY(accessibilityObservations.value.load() >= 1);
+    QVERIFY(accessibilityObservations.reorder.load() >= 1);
+    view.setCursorPosition(9);
+    view.setCursorPosition(10);
+    QVERIFY(accessibilityObservations.cursor.load() >= 2);
     view.setSelectionRange(10, 110);
     QCOMPARE(view.selection(), (QPair<qsizetype, qsizetype>(10, 110)));
+    QVERIFY(accessibilityObservations.selection.load() >= 1);
     QApplication::clipboard()->clear();
     view.copySelection();
     QCOMPARE(QApplication::clipboard()->text().toLatin1(), firstHundred);
@@ -1854,12 +1908,115 @@ void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bou
         QVERIFY(!rendered.isNull());
     }
 
+    const int refreshBeforeClear = accessibilityObservations.value.load();
     view.clearSensitive();
     QCOMPARE(view.byteSize(), qsizetype(0));
     QCOMPARE(view.segmentCount(), 0);
     QCOMPARE(wiped->load(std::memory_order_acquire), 1);
+    QVERIFY(accessibilityObservations.value.load() > refreshBeforeClear);
     QVERIFY(!view.setShare(8, 0, SecureByteBuffer::take(QByteArray("not admitted")), false));
+    QVERIFY(!view.setShare(8, 0, SecureByteBuffer::take(QByteArray(1, char(0xff))), true));
     QCOMPARE(view.byteSize(), qsizetype(0));
+
+    SegmentedShareView narrow;
+    narrow.resize(120, 90);
+    narrow.show();
+    QByteArray narrowBytes(64, 'a');
+    narrowBytes[63] = 'Z';
+    QVERIFY(narrow.setShare(9, 0, SecureByteBuffer::take(std::move(narrowBytes)), true));
+    QCoreApplication::processEvents();
+    auto *narrowList = narrow.findChild<QListView *>();
+    QVERIFY(narrowList != nullptr);
+    QVERIFY(narrowList->horizontalScrollBar()->maximum() > 0);
+    narrow.scrollToOffset(63);
+    QCoreApplication::processEvents();
+    const QRect finalCharacter = narrow.characterRect(63);
+    QVERIFY(narrowList->viewport()->rect().contains(
+        narrowList->viewport()->mapFromGlobal(finalCharacter.center())));
+    QCOMPARE(narrow.offsetAtGlobalPoint(finalCharacter.topLeft() + QPoint(1, 1)), qsizetype(63));
+    const QRect dragStartCharacter = narrow.characterRect(60);
+    QWidget *narrowViewport = narrowList->viewport();
+    const QPoint dragStart = narrowViewport->mapFromGlobal(dragStartCharacter.topLeft() + QPoint(1, 1));
+    const QPoint dragEnd = narrowViewport->mapFromGlobal(finalCharacter.bottomRight() - QPoint(1, 1));
+    QTest::mousePress(narrowViewport, Qt::LeftButton, Qt::NoModifier, dragStart);
+    QTest::mouseMove(narrowViewport, dragEnd, 10);
+    QTest::mouseRelease(narrowViewport, Qt::LeftButton, Qt::NoModifier, dragEnd);
+    QVERIFY(narrow.selection().first != narrow.selection().second);
+    QVERIFY(std::max(narrow.selection().first, narrow.selection().second) >= 63);
+    narrow.setSelectionRange(63, 64);
+    narrow.copySelection();
+    QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("Z"));
+
+    SegmentedShareView controls;
+    controls.resize(220, 90);
+    controls.show();
+    const QByteArray controlBytes("A\n\r\tB", 5);
+    QVERIFY(controls.setShare(10, 0, SecureByteBuffer::take(QByteArray(controlBytes)), true));
+    QCOMPARE(controls.textRange(0, 5).toLatin1(), controlBytes);
+    controls.setSelectionRange(0, 5);
+    controls.copySelection();
+    QCOMPARE(QApplication::clipboard()->text().toLatin1(), controlBytes);
+    QPixmap controlRendering(controls.size());
+    controls.render(&controlRendering);
+    QVERIFY(!controlRendering.isNull());
+
+    const int refreshBeforeReplacement = accessibilityObservations.value.load();
+    QVERIFY(controls.setShare(11, 1, SecureByteBuffer::take(QByteArray("replacement")), true));
+    QVERIFY(accessibilityObservations.value.load() >= refreshBeforeReplacement + 2);
+}
+
+void DesktopActions::maximum_accessibility_handoff_remains_bounded_and_responsive() {
+    QByteArray payload(8 * 1'048'576, '1');
+    for (qsizetype offset = 0; offset < payload.size(); offset += 101)
+        payload[offset] = 'z';
+    const QByteArray expectedHash = QCryptographicHash::hash(payload, QCryptographicHash::Sha256);
+    SegmentedShareView view;
+    view.resize(240, 120);
+    view.show();
+    QVERIFY(view.setShare(12, 0, SecureByteBuffer::take(std::move(payload)), true));
+
+    qint64 maximumHeartbeatGap = 0;
+    qint64 lastHeartbeat = 0;
+    int heartbeatCount = 0;
+    QElapsedTimer heartbeatClock;
+    heartbeatClock.start();
+    QTimer heartbeat;
+    heartbeat.setInterval(15);
+    connect(&heartbeat, &QTimer::timeout, &view, [&] {
+        const qint64 now = heartbeatClock.elapsed();
+        maximumHeartbeatGap = std::max(maximumHeartbeatGap, now - lastHeartbeat);
+        lastHeartbeat = now;
+        ++heartbeatCount;
+    });
+    heartbeat.start();
+    QTest::qWait(45);
+
+    QAccessibleInterface *accessible = QAccessible::queryAccessibleInterface(&view);
+    QVERIFY(accessible != nullptr);
+    auto *text = accessible->textInterface();
+    QVERIFY(text != nullptr);
+    QElapsedTimer query;
+    query.start();
+    QString handoff = text->text(0, text->characterCount());
+    const qint64 queryLatency = query.elapsed();
+    QCOMPARE(handoff.size(), int(8 * 1'048'576));
+    QCOMPARE(QCryptographicHash::hash(handoff.toLatin1(), QCryptographicHash::Sha256), expectedHash);
+    handoff.clear();
+    handoff.squeeze();
+    QCoreApplication::processEvents();
+    heartbeat.stop();
+    maximumHeartbeatGap = std::max(maximumHeartbeatGap, heartbeatClock.elapsed() - lastHeartbeat);
+    QVERIFY(heartbeatCount > 0);
+    QVERIFY2(queryLatency < 500,
+             qPrintable(QStringLiteral("maximum accessibility handoff took %1 ms").arg(queryLatency)));
+    QVERIFY2(maximumHeartbeatGap < 500,
+             qPrintable(QStringLiteral("maximum accessibility heartbeat gap was %1 ms")
+                            .arg(maximumHeartbeatGap)));
+    view.clearSensitive();
+    qInfo().noquote() << QStringLiteral("CAPACITY maximum-accessibility-latency-ms=%1")
+                             .arg(queryLatency)
+                      << QStringLiteral("maximum-heartbeat-gap-ms=%1")
+                             .arg(maximumHeartbeatGap);
 }
 
 void DesktopActions::secure_queued_buffers_wipe_on_final_release() {

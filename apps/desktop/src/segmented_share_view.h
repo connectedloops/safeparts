@@ -43,7 +43,8 @@ protected:
 
 private:
     void setCaret(qsizetype position, bool extend);
-    void updateSelection();
+    void updateSelection(qsizetype previousAnchor, qsizetype previousCaret);
+    void notifyTextRefresh();
     [[nodiscard]] qsizetype offsetAtViewportPoint(const QPoint &point) const;
 
     ShareSegmentModel *model_ = nullptr;

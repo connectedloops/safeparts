@@ -4,7 +4,9 @@
 
 #include <QAbstractListModel>
 #include <QAccessible>
+#include <QAccessibleTextCursorEvent>
 #include <QAccessibleTextSelectionEvent>
+#include <QAccessibleValueChangeEvent>
 #include <QAccessibleWidget>
 #include <QApplication>
 #include <QContextMenuEvent>
@@ -25,6 +27,15 @@
 
 constexpr qsizetype kMaximumShareBytes = 8 * 1'048'576;
 constexpr qsizetype kSegmentBytes = 64;
+constexpr int kHorizontalPadding = 8;
+
+QFont segmentFont() { return QFontDatabase::systemFont(QFontDatabase::FixedFont); }
+int segmentCharacterWidth() {
+    return std::max(1, QFontMetrics(segmentFont()).horizontalAdvance(QLatin1Char('M')));
+}
+int segmentRowWidth() {
+    return kHorizontalPadding + int(kSegmentBytes) * segmentCharacterWidth();
+}
 
 class ShareSegmentModel final : public QAbstractListModel {
 public:
@@ -72,9 +83,9 @@ public:
     SegmentDelegate(const SegmentedShareView *owner, QObject *parent)
         : QStyledItemDelegate(parent), owner_(owner) {}
 
-    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &) const override {
-        const QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-        return {option.rect.width(), QFontMetrics(font).height() + 6};
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override {
+        const QFont font = segmentFont();
+        return {segmentRowWidth(), QFontMetrics(font).height() + 6};
     }
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
@@ -88,11 +99,14 @@ public:
 
         QString text = index.data(Qt::DisplayRole).toString();
         for (QChar &character : text) {
-            if (character == QLatin1Char('\n') || character == QLatin1Char('\r')
-                || character == QLatin1Char('\t'))
-                character = QLatin1Char(' ');
+            if (character == QLatin1Char('\n'))
+                character = QChar(0x240a); // ␊
+            else if (character == QLatin1Char('\r'))
+                character = QChar(0x240d); // ␍
+            else if (character == QLatin1Char('\t'))
+                character = QChar(0x2409); // ␉
         }
-        const QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+        const QFont font = segmentFont();
         QTextLayout layout(text, font);
         QList<QTextLayout::FormatRange> formats;
         const auto selected = owner_->selection();
@@ -112,7 +126,7 @@ public:
         }
         layout.beginLayout();
         QTextLine line = layout.createLine();
-        line.setLineWidth(option.rect.width() - 8);
+        line.setLineWidth(segmentRowWidth() - kHorizontalPadding);
         layout.endLayout();
         painter->save();
         painter->setPen(option.palette.color(QPalette::Text));
@@ -202,9 +216,10 @@ SegmentedShareView::SegmentedShareView(QWidget *parent) : QWidget(parent) {
     view_->setItemDelegate(new SegmentDelegate(this, view_));
     view_->setUniformItemSizes(true);
     view_->setSelectionMode(QAbstractItemView::NoSelection);
-    view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    view_->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
     view_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    view_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    view_->setFont(segmentFont());
     view_->viewport()->installEventFilter(this);
     view_->installEventFilter(this);
     setFocusProxy(view_);
@@ -216,7 +231,12 @@ SegmentedShareView::SegmentedShareView(QWidget *parent) : QWidget(parent) {
 
 bool SegmentedShareView::setShare(quint64 generation, quint16 index, SecureByteBuffer bytes,
                                   bool asciiValidated) {
-    if (!asciiValidated || bytes.isEmpty() || bytes.size() > kMaximumShareBytes) {
+    const bool actuallyAscii = std::all_of(bytes.view().begin(), bytes.view().end(),
+                                           [](char byte) {
+                                               return static_cast<unsigned char>(byte) <= 0x7f;
+                                           });
+    if (!asciiValidated || !actuallyAscii || bytes.isEmpty()
+        || bytes.size() > kMaximumShareBytes) {
         bytes = {};
         return false;
     }
@@ -226,6 +246,10 @@ bool SegmentedShareView::setShare(quint64 generation, quint16 index, SecureByteB
     model_->setBytes(std::move(bytes));
     setAccessibleName(QStringLiteral("Recovery share %1").arg(index + 1));
     view_->scrollToTop();
+    view_->horizontalScrollBar()->setValue(0);
+    notifyTextRefresh();
+    QAccessibleEvent nameEvent(this, QAccessible::NameChanged);
+    QAccessible::updateAccessibility(&nameEvent);
     return true;
 }
 
@@ -237,6 +261,7 @@ void SegmentedShareView::clearSensitive() {
     caret_ = 0;
     dragging_ = false;
     view_->viewport()->update();
+    notifyTextRefresh();
 }
 
 bool SegmentedShareView::hasShare() const noexcept { return model_->byteSize() != 0; }
@@ -246,15 +271,19 @@ QPair<qsizetype, qsizetype> SegmentedShareView::selection() const noexcept {
 }
 
 void SegmentedShareView::selectAll() {
+    const qsizetype previousAnchor = anchor_;
+    const qsizetype previousCaret = caret_;
     anchor_ = 0;
     caret_ = byteSize();
-    updateSelection();
+    updateSelection(previousAnchor, previousCaret);
 }
 
 void SegmentedShareView::setSelectionRange(qsizetype begin, qsizetype end) {
+    const qsizetype previousAnchor = anchor_;
+    const qsizetype previousCaret = caret_;
     anchor_ = std::clamp<qsizetype>(begin, 0, byteSize());
     caret_ = std::clamp<qsizetype>(end, 0, byteSize());
-    updateSelection();
+    updateSelection(previousAnchor, previousCaret);
 }
 
 void SegmentedShareView::copySelection() {
@@ -285,7 +314,7 @@ QRect SegmentedShareView::characterRect(qsizetype position) const {
     const int row = static_cast<int>(position / kSegmentBytes);
     const int column = static_cast<int>(position % kSegmentBytes);
     const QRect rowRect = view_->visualRect(model_->index(row, 0));
-    const int width = QFontMetrics(view_->font()).horizontalAdvance(QLatin1Char('M'));
+    const int width = segmentCharacterWidth();
     QRect result(rowRect.left() + 4 + column * width, rowRect.top(), width, rowRect.height());
     result.moveTopLeft(view_->viewport()->mapToGlobal(result.topLeft()));
     return result;
@@ -300,6 +329,15 @@ void SegmentedShareView::scrollToOffset(qsizetype position) {
         return;
     position = std::clamp<qsizetype>(position, 0, byteSize() - 1);
     view_->scrollTo(model_->index(static_cast<int>(position / kSegmentBytes), 0));
+    const int column = static_cast<int>(position % kSegmentBytes);
+    const int characterLeft = 4 + column * segmentCharacterWidth();
+    QScrollBar *horizontal = view_->horizontalScrollBar();
+    if (characterLeft < horizontal->value())
+        horizontal->setValue(characterLeft);
+    else if (characterLeft + segmentCharacterWidth()
+             > horizontal->value() + view_->viewport()->width())
+        horizontal->setValue(characterLeft + segmentCharacterWidth()
+                             - view_->viewport()->width());
 }
 
 int SegmentedShareView::segmentCount() const noexcept { return model_->rowCount(); }
@@ -365,19 +403,43 @@ bool SegmentedShareView::eventFilter(QObject *watched, QEvent *event) {
 
 void SegmentedShareView::setCaret(qsizetype position, bool extend) {
     position = std::clamp<qsizetype>(position, 0, byteSize());
+    const qsizetype previousAnchor = anchor_;
+    const qsizetype previousCaret = caret_;
     if (!extend)
         anchor_ = position;
     caret_ = position;
     scrollToOffset(position == byteSize() && position != 0 ? position - 1 : position);
-    updateSelection();
+    updateSelection(previousAnchor, previousCaret);
 }
 
-void SegmentedShareView::updateSelection() {
+void SegmentedShareView::updateSelection(qsizetype previousAnchor, qsizetype previousCaret) {
+    if (anchor_ == previousAnchor && caret_ == previousCaret)
+        return;
     view_->viewport()->update();
     emit selectionChanged(std::min(anchor_, caret_), std::max(anchor_, caret_));
-    QAccessibleTextSelectionEvent event(this, static_cast<int>(std::min(anchor_, caret_)),
-                                        static_cast<int>(std::max(anchor_, caret_)));
-    QAccessible::updateAccessibility(&event);
+    const bool previousHadSelection = previousAnchor != previousCaret;
+    const bool hasSelection = anchor_ != caret_;
+    const bool selectionChanged = previousHadSelection != hasSelection
+                                  || (hasSelection
+                                      && (std::min(previousAnchor, previousCaret)
+                                              != std::min(anchor_, caret_)
+                                          || std::max(previousAnchor, previousCaret)
+                                                 != std::max(anchor_, caret_)));
+    if (selectionChanged) {
+        QAccessibleTextSelectionEvent event(this, static_cast<int>(std::min(anchor_, caret_)),
+                                            static_cast<int>(std::max(anchor_, caret_)));
+        QAccessible::updateAccessibility(&event);
+    } else {
+        QAccessibleTextCursorEvent event(this, static_cast<int>(caret_));
+        QAccessible::updateAccessibility(&event);
+    }
+}
+
+void SegmentedShareView::notifyTextRefresh() {
+    QAccessibleValueChangeEvent valueEvent(this, QVariant::fromValue(byteSize()));
+    QAccessible::updateAccessibility(&valueEvent);
+    QAccessibleEvent layoutEvent(this, QAccessible::ObjectReorder);
+    QAccessible::updateAccessibility(&layoutEvent);
 }
 
 qsizetype SegmentedShareView::offsetAtViewportPoint(const QPoint &point) const {
@@ -385,7 +447,7 @@ qsizetype SegmentedShareView::offsetAtViewportPoint(const QPoint &point) const {
     if (!index.isValid())
         return point.y() < 0 ? 0 : byteSize();
     const QRect rowRect = view_->visualRect(index);
-    const int width = std::max(1, QFontMetrics(view_->font()).horizontalAdvance(QLatin1Char('M')));
+    const int width = segmentCharacterWidth();
     const qsizetype column = std::clamp((point.x() - rowRect.left() - 4 + width / 2) / width,
                                        0, int(kSegmentBytes));
     return std::min(byteSize(), qsizetype(index.row()) * kSegmentBytes + column);
