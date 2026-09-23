@@ -97,6 +97,58 @@ QFont pointFont(const QWidget *widget, qreal points, QFont::Weight weight = QFon
     return font;
 }
 
+class DisclosureButton final : public QToolButton {
+public:
+    explicit DisclosureButton(QWidget *parent = nullptr) : QToolButton(parent) {
+        setCheckable(true);
+        setFocusPolicy(Qt::StrongFocus);
+        setCursor(Qt::PointingHandCursor);
+        setFixedSize(176, 30);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QColor foreground = palette().color(QPalette::ButtonText);
+        const QRectF bounds = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+
+        if (isChecked() || underMouse()) {
+            QColor fill = foreground;
+            fill.setAlphaF(isChecked() ? 0.08 : 0.045);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(fill);
+            painter.drawRoundedRect(bounds, 7, 7);
+        }
+        if (hasFocus()) {
+            QColor focus = palette().color(QPalette::Highlight);
+            focus.setAlphaF(0.72);
+            painter.setPen(QPen(focus, 1));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawRoundedRect(bounds, 7, 7);
+        }
+
+        QPainterPath chevron;
+        if (isChecked()) {
+            chevron.moveTo(10, 12);
+            chevron.lineTo(15, 17);
+            chevron.lineTo(20, 12);
+        } else {
+            chevron.moveTo(12, 10);
+            chevron.lineTo(17, 15);
+            chevron.lineTo(12, 20);
+        }
+        QPen chevronPen(foreground, 1.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        painter.setPen(chevronPen);
+        painter.drawPath(chevron);
+
+        painter.setPen(foreground);
+        painter.setFont(pointFont(this, 11.0, QFont::Medium));
+        painter.drawText(QRectF(28, 0, width() - 32, height()),
+                         Qt::AlignVCenter | Qt::AlignLeft, text());
+    }
+};
+
 class ModeSelector final : public QTabBar {
 public:
     explicit ModeSelector(QWidget *parent = nullptr) : QTabBar(parent) {
@@ -384,37 +436,39 @@ QWidget *DesktopWindow::buildCreatePage() {
     groupLayout->addLayout(sourceActions);
 
     auto *settings = new QGridLayout;
-    settings->setHorizontalSpacing(12);
-    settings->setVerticalSpacing(4);
+    settings->setHorizontalSpacing(28);
+    settings->setVerticalSpacing(6);
     auto *thresholdLabel = label(QStringLiteral("Minimum shares to recover (k)"));
     threshold_ = new QSpinBox;
     threshold_->setObjectName(QStringLiteral("thresholdInput"));
     threshold_->setAccessibleName(QStringLiteral("Minimum shares to recover (k)"));
     threshold_->setRange(1, 255);
     threshold_->setValue(2);
+    threshold_->setAlignment(Qt::AlignCenter);
+    threshold_->setFixedSize(112, 32);
     thresholdLabel->setBuddy(threshold_);
     settings->addWidget(thresholdLabel, 0, 0);
-    settings->addWidget(threshold_, 1, 0);
+    settings->addWidget(threshold_, 1, 0, Qt::AlignLeft);
     auto *shareCountLabel = label(QStringLiteral("Total shares to create (n)"));
     shareCount_ = new QSpinBox;
     shareCount_->setObjectName(QStringLiteral("shareCountInput"));
     shareCount_->setAccessibleName(QStringLiteral("Total shares to create (n)"));
     shareCount_->setRange(1, 255);
     shareCount_->setValue(3);
+    shareCount_->setAlignment(Qt::AlignCenter);
+    shareCount_->setFixedSize(112, 32);
     shareCountLabel->setBuddy(shareCount_);
     settings->addWidget(shareCountLabel, 0, 1);
-    settings->addWidget(shareCount_, 1, 1);
+    settings->addWidget(shareCount_, 1, 1, Qt::AlignLeft);
     settings->setColumnStretch(0, 1);
     settings->setColumnStretch(1, 1);
     groupLayout->addLayout(settings);
 
-    auto *additionalOptions = new QToolButton;
+    auto *additionalOptions = new DisclosureButton;
     additionalOptions->setObjectName(QStringLiteral("additionalOptionsButton"));
     additionalOptions->setText(QStringLiteral("Additional options"));
-    additionalOptions->setCheckable(true);
+    additionalOptions->setAccessibleName(QStringLiteral("Additional options"));
     additionalOptions->setArrowType(Qt::RightArrow);
-    additionalOptions->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    additionalOptions->setAutoRaise(true);
     groupLayout->addWidget(additionalOptions, 0, Qt::AlignLeft);
     auto *additionalOptionsPanel = new QWidget;
     additionalOptionsPanel->setObjectName(QStringLiteral("additionalOptionsPanel"));

@@ -1020,10 +1020,33 @@ void DesktopActions::web_terms_icons_and_selector_keyboard_match() {
     QCOMPARE(required<QLabel>(&window, "createPageTitle")->text(), QStringLiteral("Split"));
     QCOMPARE(required<QPushButton>(&window, "createButton")->text(), QStringLiteral("Split"));
     QCOMPARE(required<ExactTextEdit>(&window, "secretInput")->accessibleName(), QStringLiteral("Secret"));
-    QCOMPARE(required<QSpinBox>(&window, "thresholdInput")->accessibleName(),
-             QStringLiteral("Minimum shares to recover (k)"));
-    QCOMPARE(required<QSpinBox>(&window, "shareCountInput")->accessibleName(),
-             QStringLiteral("Total shares to create (n)"));
+    auto *threshold = required<QSpinBox>(&window, "thresholdInput");
+    auto *shareCount = required<QSpinBox>(&window, "shareCountInput");
+    QCOMPARE(threshold->accessibleName(), QStringLiteral("Minimum shares to recover (k)"));
+    QCOMPARE(shareCount->accessibleName(), QStringLiteral("Total shares to create (n)"));
+    QCOMPARE(threshold->size(), QSize(112, 32));
+    QCOMPARE(shareCount->size(), QSize(112, 32));
+    QCOMPARE(threshold->alignment(), Qt::AlignCenter);
+    QCOMPARE(shareCount->alignment(), Qt::AlignCenter);
+    QCOMPARE(threshold->geometry().top(), shareCount->geometry().top());
+
+    auto *additionalOptions = required<QToolButton>(&window, "additionalOptionsButton");
+    auto *additionalPanel = required<QWidget>(&window, "additionalOptionsPanel");
+    QCOMPARE(additionalOptions->accessibleName(), QStringLiteral("Additional options"));
+    QCOMPARE(additionalOptions->size(), QSize(176, 30));
+    QVERIFY(additionalOptions->isCheckable());
+    QVERIFY(!additionalOptions->isChecked());
+    QCOMPARE(additionalOptions->arrowType(), Qt::RightArrow);
+    QVERIFY(additionalPanel->isHidden());
+    additionalOptions->setFocus();
+    QTest::keyClick(additionalOptions, Qt::Key_Space);
+    QVERIFY(additionalOptions->isChecked());
+    QCOMPARE(additionalOptions->arrowType(), Qt::DownArrow);
+    QVERIFY(!additionalPanel->isHidden());
+    QTest::keyClick(additionalOptions, Qt::Key_Space);
+    QVERIFY(!additionalOptions->isChecked());
+    QCOMPARE(additionalOptions->arrowType(), Qt::RightArrow);
+    QVERIFY(additionalPanel->isHidden());
 
     const auto labels = window.findChildren<QLabel *>();
     const auto hasLabel = [&labels](const QString &text) {
