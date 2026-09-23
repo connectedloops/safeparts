@@ -84,6 +84,7 @@ Default section order:
 
 - Prefer Stagehand-style local browser automation over Playwright defaults for developer env/task setup.
 - Delegate implementation and test execution to subagents using exactly `openai-codex/gpt-5.6-sol` with low thinking effort. The parent agent supervises, reviews diffs, results, and evidence, and requires corrections before acceptance; final acceptance and publication remain under parent control.
+- Treat desktop printing issues #144-#146 as deferred: keep them open but unready, resume them only on explicit owner instruction, and continue the active desktop roadmap at #147.
 
 ## Child DOX Index
 
