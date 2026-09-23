@@ -1032,20 +1032,29 @@ void DesktopActions::web_terms_icons_and_selector_keyboard_match() {
 
     auto *additionalOptions = required<QToolButton>(&window, "additionalOptionsButton");
     auto *additionalPanel = required<QWidget>(&window, "additionalOptionsPanel");
-    QCOMPARE(additionalOptions->accessibleName(), QStringLiteral("Additional options"));
-    QCOMPARE(additionalOptions->size(), QSize(176, 30));
+    QCOMPARE(additionalOptions->text(), QStringLiteral("Advanced"));
+    QCOMPARE(additionalOptions->accessibleName(), QStringLiteral("Advanced options"));
+    const QSize disclosureSize(112, 30);
+    QCOMPARE(additionalOptions->size(), disclosureSize);
     QVERIFY(additionalOptions->isCheckable());
+    QVERIFY(!additionalOptions->autoRaise());
     QVERIFY(!additionalOptions->isChecked());
     QCOMPARE(additionalOptions->arrowType(), Qt::RightArrow);
     QVERIFY(additionalPanel->isHidden());
     additionalOptions->setFocus();
+    QCOMPARE(additionalOptions->size(), disclosureSize);
     QTest::keyClick(additionalOptions, Qt::Key_Space);
     QVERIFY(additionalOptions->isChecked());
     QCOMPARE(additionalOptions->arrowType(), Qt::DownArrow);
+    QCOMPARE(additionalOptions->size(), disclosureSize);
     QVERIFY(!additionalPanel->isHidden());
+    additionalOptions->clearFocus();
+    QCOMPARE(additionalOptions->size(), disclosureSize);
+    additionalOptions->setFocus();
     QTest::keyClick(additionalOptions, Qt::Key_Space);
     QVERIFY(!additionalOptions->isChecked());
     QCOMPARE(additionalOptions->arrowType(), Qt::RightArrow);
+    QCOMPARE(additionalOptions->size(), disclosureSize);
     QVERIFY(additionalPanel->isHidden());
 
     const auto labels = window.findChildren<QLabel *>();

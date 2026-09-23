@@ -103,30 +103,25 @@ public:
         setCheckable(true);
         setFocusPolicy(Qt::StrongFocus);
         setCursor(Qt::PointingHandCursor);
-        setFixedSize(176, 30);
+        setAutoRaise(false);
+        setFixedSize(112, 30);
     }
 
 protected:
     void paintEvent(QPaintEvent *) override {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
+        const QColor window = palette().color(QPalette::Window);
         const QColor foreground = palette().color(QPalette::ButtonText);
-        const QRectF bounds = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+        const bool dark = window.lightnessF() < 0.5;
+        const QRectF bounds = QRectF(rect()).adjusted(0.75, 0.75, -0.75, -0.75);
 
-        if (isChecked() || underMouse()) {
-            QColor fill = foreground;
-            fill.setAlphaF(isChecked() ? 0.08 : 0.045);
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(fill);
-            painter.drawRoundedRect(bounds, 7, 7);
-        }
-        if (hasFocus()) {
-            QColor focus = palette().color(QPalette::Highlight);
-            focus.setAlphaF(0.72);
-            painter.setPen(QPen(focus, 1));
-            painter.setBrush(Qt::NoBrush);
-            painter.drawRoundedRect(bounds, 7, 7);
-        }
+        QColor edge = foreground;
+        edge.setAlphaF(hasFocus() ? 0.32 : (dark ? 0.16 : 0.11));
+        painter.setPen(QPen(edge, hasFocus() ? 1.5 : 1.0));
+        painter.setBrush(blend(window, foreground, underMouse() ? (dark ? 0.12 : 0.075)
+                                                                : (dark ? 0.08 : 0.045)));
+        painter.drawRoundedRect(bounds, 7, 7);
 
         QPainterPath chevron;
         if (isChecked()) {
@@ -466,8 +461,8 @@ QWidget *DesktopWindow::buildCreatePage() {
 
     auto *additionalOptions = new DisclosureButton;
     additionalOptions->setObjectName(QStringLiteral("additionalOptionsButton"));
-    additionalOptions->setText(QStringLiteral("Additional options"));
-    additionalOptions->setAccessibleName(QStringLiteral("Additional options"));
+    additionalOptions->setText(QStringLiteral("Advanced"));
+    additionalOptions->setAccessibleName(QStringLiteral("Advanced options"));
     additionalOptions->setArrowType(Qt::RightArrow);
     groupLayout->addWidget(additionalOptions, 0, Qt::AlignLeft);
     auto *additionalOptionsPanel = new QWidget;
