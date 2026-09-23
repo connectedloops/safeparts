@@ -58,6 +58,10 @@ pub mod ffi {
         bytes: Vec<u8>,
     }
 
+    struct RecoveryBatch {
+        bytes: Vec<u8>,
+    }
+
     extern "Rust" {
         type Operation;
 
@@ -86,6 +90,12 @@ pub mod ffi {
             self: &mut Operation,
             generation: u64,
             input: &[u8],
+            encoding: ShareEncoding,
+        ) -> OperationOutput;
+        fn replace_recovery(
+            self: &mut Operation,
+            generation: u64,
+            inputs: Vec<RecoveryBatch>,
             encoding: ShareEncoding,
         ) -> OperationOutput;
         fn remove_recovery_batch(

@@ -12,7 +12,7 @@ use safeparts_core::packet::{PacketVersion, SharePacket};
 use safeparts_core::{CoreError, combine_shares, inspect_share_set, split_secret};
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::bridge::ffi::{BytesOutput, OperationOutput, ShareEncoding, Status};
+use crate::bridge::ffi::{BytesOutput, OperationOutput, RecoveryBatch, ShareEncoding, Status};
 
 const MIB: usize = 1_048_576;
 const MAX_SECRET_BYTES: usize = MIB;
@@ -229,43 +229,84 @@ impl Operation {
         let Some(requested_encoding) = core_encoding(encoding) else {
             return self.with_batch_count(output(generation, Status::UnsupportedInput));
         };
-        if input.len() > MAX_PASTE_BYTES {
-            return self.with_batch_count(output(generation, Status::PasteTooLarge));
+        if let Err(status) = self.retain_recovery_batch(input, requested_encoding) {
+            return self.with_batch_count(output(generation, status));
         }
-        let input_text = match str::from_utf8(input) {
-            Ok(input_text) => input_text,
-            Err(_) => return self.with_batch_count(output(generation, Status::InvalidUtf8)),
-        };
+        self.inspect_recovery(generation, requested_encoding)
+    }
+
+    pub fn replace_recovery(
+        &mut self,
+        generation: u64,
+        inputs: Vec<RecoveryBatch>,
+        encoding: ShareEncoding,
+    ) -> OperationOutput {
+        match catch_unwind(AssertUnwindSafe(|| {
+            let Some(requested_encoding) = core_encoding(encoding) else {
+                return self.with_batch_count(output(generation, Status::UnsupportedInput));
+            };
+            let mut candidate = new_operation();
+            for mut input in inputs {
+                let retained = candidate.retain_recovery_batch(&input.bytes, requested_encoding);
+                input.bytes.zeroize();
+                if let Err(status) = retained {
+                    return self.with_batch_count(output(generation, status));
+                }
+            }
+            let result = candidate.inspect_recovery(generation, requested_encoding);
+            if !matches!(result.status, Status::Ok | Status::NotEnoughShares | Status::PassphraseRequired) {
+                return self.with_batch_count(output(generation, result.status));
+            }
+            self.recovery_batches = std::mem::take(&mut candidate.recovery_batches);
+            clear_packets(&mut self.recovery_packets);
+            self.recovery_packets = std::mem::take(&mut candidate.recovery_packets);
+            self.recovery_encoding = candidate.recovery_encoding.take();
+            self.recovery_version = candidate.recovery_version.take();
+            self.clear_recovered();
+            self.inspection = clone_output(&result);
+            result
+        })) {
+            Ok(result) => result,
+            Err(_) => self.panic_output(generation),
+        }
+    }
+
+    fn retain_recovery_batch(
+        &mut self,
+        input: &[u8],
+        requested_encoding: CoreEncoding,
+    ) -> Result<(), Status> {
+        if input.len() > MAX_PASTE_BYTES {
+            return Err(Status::PasteTooLarge);
+        }
+        let input_text = str::from_utf8(input).map_err(|_| Status::InvalidUtf8)?;
         let token_count = input_text
             .split_whitespace()
             .take(MAX_PASTE_TOKENS + 1)
             .count();
         if token_count > MAX_PASTE_TOKENS {
-            return self.with_batch_count(output(generation, Status::TokenLimit));
+            return Err(Status::TokenLimit);
         }
         let retained = self
             .recovery_batches
             .iter()
-            .try_fold(input.len(), |total, batch| total.checked_add(batch.len()));
-        let Some(retained) = retained else {
-            return self.with_batch_count(output(generation, Status::ResourceLimit));
-        };
+            .try_fold(input.len(), |total, batch| total.checked_add(batch.len()))
+            .ok_or(Status::ResourceLimit)?;
         if retained > MAX_RETAINED_INPUT_BYTES {
-            return self.with_batch_count(output(generation, Status::RetainedInputTooLarge));
+            return Err(Status::RetainedInputTooLarge);
         }
         if !self.recovery_batch_fits_memory(input.len(), token_count, requested_encoding) {
-            return self.with_batch_count(output(generation, Status::ResourceLimit));
+            return Err(Status::ResourceLimit);
         }
-
         let mut retained_input = Vec::new();
         if retained_input.try_reserve_exact(input.len()).is_err()
             || self.recovery_batches.try_reserve(1).is_err()
         {
-            return self.with_batch_count(output(generation, Status::ResourceLimit));
+            return Err(Status::ResourceLimit);
         }
         retained_input.extend_from_slice(input);
         self.recovery_batches.push(Zeroizing::new(retained_input));
-        self.inspect_recovery(generation, requested_encoding)
+        Ok(())
     }
 
     pub fn remove_recovery_batch(&mut self, generation: u64, batch_index: u16) -> OperationOutput {

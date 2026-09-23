@@ -1,9 +1,37 @@
 use base64::Engine;
 use safeparts_core::encoding::{Encoding, encode_packet};
 use safeparts_core::split_secret;
-use safeparts_desktop_bridge::{ShareEncoding, Status, new_operation};
+use safeparts_desktop_bridge::{RecoveryBatch, ShareEncoding, Status, new_operation};
 
 const FIDELITY_TEXT: &str = "\0 leading\nline\u{00a0}space\u{2028}separator\u{2029}paragraph\ne\u{301} \u{1f600}\ntrailing \n";
+
+#[test]
+fn complete_recovery_replacement_is_transactional() {
+    let mut source = new_operation();
+    assert!(source.create_words(1, b"transactional replacement", 2, 3).status == Status::Ok);
+    let first = source.encode_share(1, 0);
+    let second = source.encode_share(1, 1);
+
+    let mut recovery = new_operation();
+    let ready = recovery.replace_recovery(
+        2,
+        vec![RecoveryBatch { bytes: first.bytes }, RecoveryBatch { bytes: second.bytes }],
+        ShareEncoding::Auto,
+    );
+    assert!(ready.status == Status::Ok);
+    assert_eq!(ready.recovery_batch_count, 2);
+
+    let rejected = recovery.replace_recovery(
+        3,
+        vec![RecoveryBatch { bytes: b"malformed".to_vec() }],
+        ShareEncoding::Auto,
+    );
+    assert!(rejected.status == Status::MalformedInput);
+    assert_eq!(rejected.recovery_batch_count, 2);
+    let recovered = recovery.recover(4);
+    assert!(recovered.status == Status::Ok);
+    assert_eq!(recovered.bytes, b"transactional replacement");
+}
 
 #[test]
 fn public_operation_round_trips_exact_utf8_and_encodes_on_demand() {

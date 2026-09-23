@@ -240,7 +240,7 @@ private slots:
     void maximum_valid_workload_remains_bounded_and_resettable();
     void web_terms_icons_and_selector_keyboard_match();
     void recovery_fields_add_remove_renumber_and_invalidate();
-    void recovery_worker_retains_the_complete_visible_set_after_a_middle_error();
+    void recovery_worker_replaces_the_complete_visible_set_transactionally();
     void all_share_formats_round_trip_with_auto_and_manual_selection();
     void auto_detection_expands_to_the_required_threshold();
     void readiness_uses_distinct_shares_not_empty_placeholders();
@@ -1136,7 +1136,7 @@ void DesktopActions::recovery_fields_add_remove_renumber_and_invalidate() {
     QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare2")->exactUtf8(), QByteArray());
 }
 
-void DesktopActions::recovery_worker_retains_the_complete_visible_set_after_a_middle_error() {
+void DesktopActions::recovery_worker_replaces_the_complete_visible_set_transactionally() {
     DesktopWindow window;
     window.show();
     pasteIntoCreate(window, QStringLiteral("complete visible set worker boundary"));
@@ -1158,8 +1158,19 @@ void DesktopActions::recovery_worker_retains_the_complete_visible_set_after_a_mi
     const QList<QVariant> result = operationSpy.takeFirst();
     QCOMPARE(result.at(0).toULongLong(), 77ULL);
     QCOMPARE(result.at(1).toInt(), static_cast<int>(static_cast<std::uint8_t>(Status::MalformedInput)));
-    QCOMPARE(result.at(5).toUInt(), 3U);
+    QCOMPARE(result.at(5).toUInt(), 0U);
     QVERIFY(!result.at(6).toBool());
+
+    QList<SecureByteBuffer> corrected;
+    corrected.append(SecureByteBuffer::take(first.toUtf8()));
+    corrected.append(SecureByteBuffer::take(second.toUtf8()));
+    worker.replaceRecovery(78, std::move(corrected), 3);
+    QCOMPARE(operationSpy.count(), 1);
+    const QList<QVariant> accepted = operationSpy.takeFirst();
+    QCOMPARE(accepted.at(0).toULongLong(), 78ULL);
+    QCOMPARE(accepted.at(1).toInt(), static_cast<int>(static_cast<std::uint8_t>(Status::Ok)));
+    QCOMPARE(accepted.at(5).toUInt(), 2U);
+    QVERIFY(accepted.at(6).toBool());
 }
 
 void DesktopActions::all_share_formats_round_trip_with_auto_and_manual_selection() {
