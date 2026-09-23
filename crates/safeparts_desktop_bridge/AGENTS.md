@@ -15,7 +15,7 @@ Owns the generated CXX seam between the experimental Qt desktop app and `safepar
 
 - Pin the CXX family to `1.0.195`; do not add `build.rs` or handwritten unsafe code.
 - Keep `src/bridge.rs` declarations-only and pinned by the policy guard. Keep operation logic under `#![forbid(unsafe_code)]`.
-- Rust owns share packets, retained recovery input, and authoritative recovered bytes. CXX values are bounded copies with explicit owners. Secret creation is byte-oriented; Qt separately enforces its text-entry UTF-8/LF contract. Recovered presence is explicit, so valid empty legacy recovery is distinct from absent or failed output. The generated boundary exposes fresh exact-byte recovery access without paths or packet layout.
+- Rust owns share packets, retained recovery input, and authoritative recovered bytes. Complete recovery replacement crosses CXX incrementally: Rust stages each batch in zeroizing candidate ownership, Qt releases each consumed `SecureByteBuffer`, and finish parses once before an atomic commit. Rejection, reset, unwind, and destruction wipe the candidate while preserving the prior accepted set. CXX values are bounded copies with explicit owners. Secret creation is byte-oriented; Qt separately enforces its text-entry UTF-8/LF contract. Recovered presence is explicit, so valid empty legacy recovery is distinct from absent or failed output. The generated boundary exposes fresh exact-byte recovery access without paths or packet layout.
 - Catch unwinds at every CXX operation entry and return content-free typed statuses. Never log secret or Recovery share content.
 - Delegate packet grammar, version-preserving Auto/manual encoding detection, validation, interpolation, and integrity checks to `safeparts_core`; expose only bounded encoding/protection/count/status metadata.
 
@@ -23,7 +23,7 @@ Owns the generated CXX seam between the experimental Qt desktop app and `safepar
 
 - Add behavior through the existing operation interface. Do not expose packet layouts or create a second decoder.
 - Run admission checks before allocation-heavy parsing and preserve accepted recovery batches after handled errors.
-- Account with checked arithmetic for current operation-owned state and the next recovery phase: raw batches, decoded packets, incoming bridge/Qt copies, parser workspace, and fixed UI/runtime headroom. Preserve the published logical limits.
+- Account with checked arithmetic for current operation-owned state and the next recovery phase: the prior accepted set, queued incoming Qt bytes, incrementally staged candidate bytes, decoded packets, parser workspace, and fixed UI/runtime headroom. Preserve the published logical limits.
 
 ## Verification
 
