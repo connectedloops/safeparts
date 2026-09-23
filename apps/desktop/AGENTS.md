@@ -32,7 +32,7 @@ Owns the experimental Qt Widgets text and exact-byte file workflow through capac
 - Build: `mise run desktop:build`
 - Public and Qt actions: `mise run desktop:test`
 - Launch: `mise run desktop:run`
-- Capacity evidence: run `mise run desktop:evidence:capacity` with `CAPACITY_CASE=maximum-valid`, `maximum-words`, or `maximum-recovery`.
+- Capacity evidence: run `mise run desktop:evidence:capacity` with a named case from `apps/desktop/scripts/run_capacity_evidence.sh`; every case has a bounded fresh-process path and both macOS memory gates. Treat a timeout as a blocker, not a pass.
 - Run `mise run verify` before review.
 
 ## Child DOX Index
