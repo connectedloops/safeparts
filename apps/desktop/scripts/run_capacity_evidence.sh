@@ -6,7 +6,8 @@ case "$case_name" in
   maximum-words) test_name=maximum_words_split_keeps_every_share_exportable; runner=qt ;;
   maximum-valid) test_name=maximum_valid_workload_remains_bounded_and_resettable; runner=qt ;;
   maximum-recovery) test_name=maximum_base64_replacement_recovers_exact_bytes; runner=rust ;;
-  *) echo "usage: $0 maximum-words|maximum-valid|maximum-recovery" >&2; exit 64 ;;
+  maximum-protected) test_name=maximum_policy_argon2_recovery_executes_exactly; runner=rust ;;
+  *) echo "usage: $0 maximum-words|maximum-valid|maximum-recovery|maximum-protected" >&2; exit 64 ;;
 esac
 
 [ "$(uname -s)" = Darwin ] || {

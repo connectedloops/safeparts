@@ -16,6 +16,35 @@ pub const MIN_PARALLELISM: u32 = 1;
 pub const MAX_PARALLELISM: u32 = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CryptoWorkFactor {
+    pub mem_cost_kib: u32,
+    pub time_cost: u32,
+    pub parallelism: u32,
+}
+
+impl CryptoWorkFactor {
+    pub const DEFAULT: Self = Self {
+        mem_cost_kib: 65_536,
+        time_cost: 3,
+        parallelism: 1,
+    };
+
+    pub fn validate_policy(self) -> CoreResult<()> {
+        let supported = (MIN_MEM_COST_KIB..=MAX_MEM_COST_KIB).contains(&self.mem_cost_kib)
+            && (MIN_TIME_COST..=MAX_TIME_COST).contains(&self.time_cost)
+            && (MIN_PARALLELISM..=MAX_PARALLELISM).contains(&self.parallelism);
+        if !supported {
+            return Err(CoreError::UnsupportedCryptoParams {
+                mem_cost_kib: self.mem_cost_kib,
+                time_cost: self.time_cost,
+                parallelism: self.parallelism,
+            });
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CryptoParams {
     pub salt: [u8; SALT_LEN],
     pub nonce: [u8; NONCE_LEN],
@@ -26,6 +55,10 @@ pub struct CryptoParams {
 
 impl CryptoParams {
     pub fn random_default() -> Self {
+        Self::random_with_work_factor(CryptoWorkFactor::DEFAULT)
+    }
+
+    pub fn random_with_work_factor(work_factor: CryptoWorkFactor) -> Self {
         let mut salt = [0u8; SALT_LEN];
         let mut nonce = [0u8; NONCE_LEN];
         OsRng.fill_bytes(&mut salt);
@@ -34,31 +67,33 @@ impl CryptoParams {
         Self {
             salt,
             nonce,
-            mem_cost_kib: 65_536,
-            time_cost: 3,
-            parallelism: 1,
+            mem_cost_kib: work_factor.mem_cost_kib,
+            time_cost: work_factor.time_cost,
+            parallelism: work_factor.parallelism,
         }
     }
 
     pub fn validate_policy(&self) -> CoreResult<()> {
-        let supported = (MIN_MEM_COST_KIB..=MAX_MEM_COST_KIB).contains(&self.mem_cost_kib)
-            && (MIN_TIME_COST..=MAX_TIME_COST).contains(&self.time_cost)
-            && (MIN_PARALLELISM..=MAX_PARALLELISM).contains(&self.parallelism);
-
-        if !supported {
-            return Err(CoreError::UnsupportedCryptoParams {
-                mem_cost_kib: self.mem_cost_kib,
-                time_cost: self.time_cost,
-                parallelism: self.parallelism,
-            });
+        CryptoWorkFactor {
+            mem_cost_kib: self.mem_cost_kib,
+            time_cost: self.time_cost,
+            parallelism: self.parallelism,
         }
-
-        Ok(())
+        .validate_policy()
     }
 }
 
 pub fn encrypt(plaintext: &[u8], passphrase: &[u8]) -> CoreResult<(Vec<u8>, CryptoParams)> {
-    let params = CryptoParams::random_default();
+    encrypt_with_work_factor(plaintext, passphrase, CryptoWorkFactor::DEFAULT)
+}
+
+pub fn encrypt_with_work_factor(
+    plaintext: &[u8],
+    passphrase: &[u8],
+    work_factor: CryptoWorkFactor,
+) -> CoreResult<(Vec<u8>, CryptoParams)> {
+    work_factor.validate_policy()?;
+    let params = CryptoParams::random_with_work_factor(work_factor);
     let key = derive_key(passphrase, &params)?;
 
     let cipher = ChaCha20Poly1305::new(Key::from_slice(key.as_ref()));

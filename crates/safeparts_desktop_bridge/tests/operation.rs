@@ -1,6 +1,7 @@
 use base64::Engine;
+use safeparts_core::crypto::{CryptoWorkFactor, MAX_MEM_COST_KIB, MAX_PARALLELISM, MAX_TIME_COST};
 use safeparts_core::encoding::{Encoding, encode_packet};
-use safeparts_core::split_secret;
+use safeparts_core::{split_secret, split_secret_with_work_factor};
 use safeparts_desktop_bridge::{Operation, OperationOutput, ShareEncoding, Status, new_operation};
 
 const FIDELITY_TEXT: &str = "\0 leading\nline\u{00a0}space\u{2028}separator\u{2029}paragraph\ne\u{301} \u{1f600}\ntrailing \n";
@@ -109,6 +110,41 @@ fn protected_recovery_accounts_for_the_maximum_accepted_kdf_memory() {
     );
     assert!(inspected.status == Status::PassphraseRequired);
     assert!(operation.recover(2).status == Status::PassphraseRequired);
+}
+
+#[test]
+#[ignore = "run through the fresh-process desktop capacity evidence task"]
+fn maximum_policy_argon2_recovery_executes_exactly() {
+    const SECRET: &[u8] = b"synthetic maximum-policy secret";
+    const PASSPHRASE: &[u8] = b"synthetic maximum-policy passphrase";
+    let work_factor = CryptoWorkFactor {
+        mem_cost_kib: MAX_MEM_COST_KIB,
+        time_cost: MAX_TIME_COST,
+        parallelism: MAX_PARALLELISM,
+    };
+    let packets = split_secret_with_work_factor(SECRET, 1, 1, Some(PASSPHRASE), work_factor)
+        .unwrap_or_else(|error| panic!("maximum-policy split failed: {error}"));
+    let encoded = encode_packet(&packets[0], Encoding::Base64url)
+        .unwrap_or_else(|error| panic!("maximum-policy encode failed: {error}"));
+
+    let mut operation = new_operation();
+    let inspected = replace_recovery(
+        &mut operation,
+        1,
+        &[encoded.into_bytes()],
+        ShareEncoding::Auto,
+    );
+    assert!(inspected.status == Status::PassphraseRequired);
+    assert!(inspected.passphrase_protected);
+    assert!(
+        operation
+            .recover_with_passphrase(2, b"wrong synthetic passphrase")
+            .status
+            == Status::IntegrityFailure
+    );
+    let recovered = operation.recover_with_passphrase(3, PASSPHRASE);
+    assert!(recovered.status == Status::Ok);
+    assert_eq!(recovered.bytes, SECRET);
 }
 
 #[test]
