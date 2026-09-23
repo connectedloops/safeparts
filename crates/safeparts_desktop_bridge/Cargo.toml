@@ -8,6 +8,9 @@ repository.workspace = true
 [lib]
 crate-type = ["staticlib", "rlib"]
 
+[features]
+capacity-test-hooks = []
+
 [dependencies]
 cxx = "=1.0.195"
 safeparts_core = { path = "../safeparts_core" }

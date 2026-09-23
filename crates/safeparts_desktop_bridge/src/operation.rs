@@ -32,6 +32,15 @@ const PARSER_FIXED_WORKSPACE: usize = MIB;
 
 static PANIC_HOOK: Once = Once::new();
 
+#[cfg(feature = "capacity-test-hooks")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum CapacityFailpoint {
+    RecoveryRetain,
+    RecoveryParse,
+    ShareEncode,
+    ProtectedKdf,
+}
+
 pub struct Operation {
     created_packets: Vec<SharePacket>,
     created_encoding: CoreEncoding,
@@ -46,6 +55,8 @@ pub struct Operation {
     pending_recovery_encoding: Option<CoreEncoding>,
     pending_recovery_remaining_bytes: usize,
     pending_recovery_expected_batches: usize,
+    #[cfg(feature = "capacity-test-hooks")]
+    capacity_failpoint: Option<CapacityFailpoint>,
 }
 
 pub fn new_operation() -> Box<Operation> {
@@ -64,6 +75,8 @@ pub fn new_operation() -> Box<Operation> {
         pending_recovery_encoding: None,
         pending_recovery_remaining_bytes: 0,
         pending_recovery_expected_batches: 0,
+        #[cfg(feature = "capacity-test-hooks")]
+        capacity_failpoint: None,
     })
 }
 
@@ -72,6 +85,20 @@ pub fn destroy_operation(operation: Box<Operation>) {
 }
 
 impl Operation {
+    #[cfg(feature = "capacity-test-hooks")]
+    pub fn set_capacity_failpoint(&mut self, failpoint: CapacityFailpoint) {
+        self.capacity_failpoint = Some(failpoint);
+    }
+
+    #[cfg(feature = "capacity-test-hooks")]
+    fn take_capacity_failpoint(&mut self, failpoint: CapacityFailpoint) -> bool {
+        if self.capacity_failpoint == Some(failpoint) {
+            self.capacity_failpoint = None;
+            return true;
+        }
+        false
+    }
+
     pub fn reset(&mut self, generation: u64) -> OperationOutput {
         match catch_unwind(AssertUnwindSafe(|| {
             self.clear_all();
@@ -192,7 +219,11 @@ impl Operation {
         }
     }
 
-    fn encode_share_inner(&self, generation: u64, share_index: u16) -> BytesOutput {
+    fn encode_share_inner(&mut self, generation: u64, share_index: u16) -> BytesOutput {
+        #[cfg(feature = "capacity-test-hooks")]
+        if self.take_capacity_failpoint(CapacityFailpoint::ShareEncode) {
+            return bytes_output(generation, Status::ResourceLimit);
+        }
         let Some(packet) = self.created_packets.get(usize::from(share_index)) else {
             return bytes_output(generation, Status::InvalidIndex);
         };
@@ -284,7 +315,14 @@ impl Operation {
             if !fits {
                 return self.with_batch_count(output(generation, Status::ResourceLimit));
             }
-            self.pending_recovery = Some(new_operation());
+            let candidate = new_operation();
+            #[cfg(feature = "capacity-test-hooks")]
+            let candidate = {
+                let mut candidate = candidate;
+                candidate.capacity_failpoint = self.capacity_failpoint.take();
+                candidate
+            };
+            self.pending_recovery = Some(candidate);
             self.pending_recovery_encoding = Some(requested_encoding);
             self.pending_recovery_remaining_bytes = total_bytes;
             self.pending_recovery_expected_batches = usize::from(batch_count);
@@ -368,6 +406,10 @@ impl Operation {
         input: &[u8],
         requested_encoding: CoreEncoding,
     ) -> Result<(), Status> {
+        #[cfg(feature = "capacity-test-hooks")]
+        if self.take_capacity_failpoint(CapacityFailpoint::RecoveryRetain) {
+            return Err(Status::ResourceLimit);
+        }
         if input.len() > MAX_PASTE_BYTES {
             return Err(Status::PasteTooLarge);
         }
@@ -425,6 +467,11 @@ impl Operation {
         self.recovery_version = None;
         if self.recovery_batches.is_empty() {
             self.inspection = self.with_batch_count(output(generation, Status::NotEnoughShares));
+            return clone_output(&self.inspection);
+        }
+        #[cfg(feature = "capacity-test-hooks")]
+        if self.take_capacity_failpoint(CapacityFailpoint::RecoveryParse) {
+            self.inspection = self.with_batch_count(output(generation, Status::ResourceLimit));
             return clone_output(&self.inspection);
         }
 
@@ -601,6 +648,10 @@ impl Operation {
         }
         if protected && passphrase.is_empty() {
             return bytes_output(generation, Status::PassphraseRequired);
+        }
+        #[cfg(feature = "capacity-test-hooks")]
+        if protected && self.take_capacity_failpoint(CapacityFailpoint::ProtectedKdf) {
+            return bytes_output(generation, Status::ResourceLimit);
         }
         if !protected && (!self.inspection.ready || self.inspection.status != Status::Ok) {
             return bytes_output(generation, self.inspection.status);
@@ -880,6 +931,10 @@ impl Operation {
 
     fn clear_all(&mut self) {
         self.clear_pending_recovery();
+        #[cfg(feature = "capacity-test-hooks")]
+        {
+            self.capacity_failpoint = None;
+        }
         clear_packets(&mut self.created_packets);
         self.recovery_batches.clear();
         clear_packets(&mut self.recovery_packets);

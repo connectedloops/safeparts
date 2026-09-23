@@ -2,6 +2,8 @@ use base64::Engine;
 use safeparts_core::crypto::{CryptoWorkFactor, MAX_MEM_COST_KIB, MAX_PARALLELISM, MAX_TIME_COST};
 use safeparts_core::encoding::{Encoding, encode_packet};
 use safeparts_core::{split_secret, split_secret_with_work_factor};
+#[cfg(feature = "capacity-test-hooks")]
+use safeparts_desktop_bridge::CapacityFailpoint;
 use safeparts_desktop_bridge::{Operation, OperationOutput, ShareEncoding, Status, new_operation};
 
 const FIDELITY_TEXT: &str = "\0 leading\nline\u{00a0}space\u{2028}separator\u{2029}paragraph\ne\u{301} \u{1f600}\ntrailing \n";
@@ -83,6 +85,77 @@ fn complete_recovery_replacement_is_transactional() {
     let recovered = recovery.recover(6);
     assert!(recovered.status == Status::Ok);
     assert_eq!(recovered.bytes, b"transactional replacement");
+}
+
+#[cfg(feature = "capacity-test-hooks")]
+#[test]
+fn one_shot_capacity_failpoints_preserve_state_and_allow_retry() {
+    let mut source = new_operation();
+    assert!(
+        source
+            .create(1, b"accepted state", 2, 2, ShareEncoding::Base64url)
+            .status
+            == Status::Ok
+    );
+    let shares = [
+        source.encode_share(1, 0).bytes,
+        source.encode_share(1, 1).bytes,
+    ];
+    let mut recovery = new_operation();
+    assert!(replace_recovery(&mut recovery, 2, &shares, ShareEncoding::Auto).status == Status::Ok);
+
+    for failpoint in [
+        CapacityFailpoint::RecoveryRetain,
+        CapacityFailpoint::RecoveryParse,
+    ] {
+        recovery.set_capacity_failpoint(failpoint);
+        let failed = replace_recovery(&mut recovery, 3, &shares, ShareEncoding::Auto);
+        assert!(failed.status == Status::ResourceLimit);
+        let retried = recovery.recover(4);
+        assert!(retried.status == Status::Ok);
+        assert_eq!(retried.bytes, b"accepted state");
+    }
+
+    source.set_capacity_failpoint(CapacityFailpoint::ShareEncode);
+    assert!(source.encode_share(5, 0).status == Status::ResourceLimit);
+    assert!(source.encode_share(6, 0).status == Status::Ok);
+
+    let mut protected_source = new_operation();
+    assert!(
+        protected_source
+            .create_with_passphrase(
+                7,
+                b"protected retry",
+                1,
+                1,
+                ShareEncoding::Base64url,
+                b"synthetic passphrase",
+            )
+            .status
+            == Status::Ok
+    );
+    let protected_share = protected_source.encode_share(7, 0).bytes;
+    let mut protected_recovery = new_operation();
+    assert!(
+        replace_recovery(
+            &mut protected_recovery,
+            8,
+            &[protected_share],
+            ShareEncoding::Auto,
+        )
+        .status
+            == Status::PassphraseRequired
+    );
+    protected_recovery.set_capacity_failpoint(CapacityFailpoint::ProtectedKdf);
+    assert!(
+        protected_recovery
+            .recover_with_passphrase(9, b"synthetic passphrase")
+            .status
+            == Status::ResourceLimit
+    );
+    let recovered = protected_recovery.recover_with_passphrase(10, b"synthetic passphrase");
+    assert!(recovered.status == Status::Ok);
+    assert_eq!(recovered.bytes, b"protected retry");
 }
 
 #[test]
