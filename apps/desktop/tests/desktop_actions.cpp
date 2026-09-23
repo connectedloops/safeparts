@@ -1708,13 +1708,18 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
     QCOMPARE(required<ExactTextEdit>(&window, "secretInput")->exactUtf8(),
              maximumSecret.toUtf8());
 
+    for (int index = 1; index <= 16; ++index)
+        QVERIFY(required<QPushButton>(
+                    &window, qPrintable(QStringLiteral("copyShare%1").arg(index)))
+                    ->isEnabled());
+
     QByteArray firstHash;
+    QByteArray repeatedFirstHash;
     QByteArray lastHash;
     qint64 maximumCopyLatency = 0;
-    for (int index = 1; index <= 16; ++index) {
+    for (const int index : {1, 16, 1}) {
         auto *copy = required<QPushButton>(
             &window, qPrintable(QStringLiteral("copyShare%1").arg(index)));
-        QVERIFY(copy->isEnabled());
         QApplication::clipboard()->clear();
         QElapsedTimer copyClock;
         copyClock.start();
@@ -1738,12 +1743,15 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
                 QVERIFY(displayed.isEmpty());
             }
         }
-        if (index == 1)
+        if (index == 1 && firstHash.isEmpty())
             firstHash = hash;
-        if (index == 16)
+        else if (index == 1)
+            repeatedFirstHash = hash;
+        else
             lastHash = hash;
     }
     QVERIFY(firstHash != lastHash);
+    QCOMPARE(repeatedFirstHash, firstHash);
     QVERIFY(required<QWidget>(&window, "createdShares")->isVisible());
     QVERIFY2(heartbeatCount > 0, "the Qt event loop did not service the 15 ms heartbeat");
     QVERIFY2(maximumHeartbeatGap < 500,

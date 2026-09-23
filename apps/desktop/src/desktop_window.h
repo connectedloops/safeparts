@@ -88,6 +88,7 @@ private:
     void showCreated(quint8 threshold, quint16 shareCount);
     void requestNextGeneratedShare();
     void clearGeneratedPresentation();
+    void releaseRevealedGeneratedShare();
     void finishLazyGeneratedPresentation();
     void failGeneratedPresentation(const QString &message);
     void addRecoveryField();
@@ -139,6 +140,7 @@ private:
     quint16 nextGeneratedShare_ = 0;
     qsizetype retainedGeneratedPresentationBytes_ = 0;
     bool lazyGeneratedPresentation_ = false;
+    int revealedGeneratedShareIndex_ = -1;
 
     QVBoxLayout *recoveryFieldsLayout_ = nullptr;
     QList<ExactTextEdit *> recoveryFields_;

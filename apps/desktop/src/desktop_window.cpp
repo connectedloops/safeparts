@@ -1155,8 +1155,8 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
     if (purpose == kShareClipboardPurpose) {
         if (lazyGeneratedPresentation_
             && index < static_cast<quint16>(generatedShareDisplays_.size())) {
-            for (QPlainTextEdit *display : std::as_const(generatedShareDisplays_))
-                display->clear();
+            releaseRevealedGeneratedShare();
+            revealedGeneratedShareIndex_ = index;
             generatedShareDisplays_.at(index)->setPlainText(
                 QString::fromUtf8(bytes.data(), bytes.size()));
             retainedGeneratedPresentationBytes_ = bytes.size() * kGeneratedPresentationExpansion;
@@ -1423,6 +1423,7 @@ void DesktopWindow::requestNextGeneratedShare() {
 }
 
 void DesktopWindow::clearGeneratedPresentation() {
+    releaseRevealedGeneratedShare();
     for (QPlainTextEdit *display : std::as_const(generatedShareDisplays_))
         display->clear();
     for (QPushButton *copy : std::as_const(generatedShareCopyButtons_))
@@ -1432,6 +1433,28 @@ void DesktopWindow::clearGeneratedPresentation() {
     nextGeneratedShare_ = 0;
     retainedGeneratedPresentationBytes_ = 0;
     lazyGeneratedPresentation_ = false;
+}
+
+void DesktopWindow::releaseRevealedGeneratedShare() {
+    if (revealedGeneratedShareIndex_ < 0
+        || revealedGeneratedShareIndex_ >= static_cast<int>(generatedShareDisplays_.size())) {
+        revealedGeneratedShareIndex_ = -1;
+        return;
+    }
+    QPlainTextEdit *previous = generatedShareDisplays_.at(revealedGeneratedShareIndex_);
+    auto *replacement = new QPlainTextEdit;
+    replacement->setObjectName(previous->objectName());
+    replacement->setAccessibleName(previous->accessibleName());
+    replacement->setPlaceholderText(QStringLiteral("Copy to reveal this Recovery share."));
+    replacement->setReadOnly(true);
+    replacement->setUndoRedoEnabled(false);
+    replacement->setTextInteractionFlags(Qt::TextSelectableByKeyboard | Qt::TextSelectableByMouse);
+    replacement->setFixedHeight(72);
+    configureEditor(replacement);
+    previous->parentWidget()->layout()->replaceWidget(previous, replacement);
+    generatedShareDisplays_[revealedGeneratedShareIndex_] = replacement;
+    previous->deleteLater();
+    revealedGeneratedShareIndex_ = -1;
 }
 
 void DesktopWindow::finishLazyGeneratedPresentation() {
