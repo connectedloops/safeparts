@@ -86,7 +86,7 @@ def classify_dependencies(metadata: dict, root: str) -> tuple[set[str],set[str]]
         if item in bucket: continue
         bucket.add(item)
         for dep in nodes.get(item,{}).get("deps",[]):
-            kinds={entry.get("kind") for entry in dep.get("dep_kinds",[])}
+            kinds={entry.get("kind") or "normal" for entry in dep.get("dep_kinds",[])}
             if kinds=={"dev"} or not kinds: continue
             next_scope="host" if scope=="host" or "build" in kinds or any(t.get("kind")==["proc-macro"] for t in packages[dep["pkg"]].get("targets",[])) else "runtime"
             if "normal" in kinds or "build" in kinds: todo.append((dep["pkg"],next_scope))

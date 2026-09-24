@@ -265,9 +265,9 @@ Load command 2
         for name,kind in (("root",["lib"]),("runtime",["lib"]),("builder",["lib"]),("macro",["proc-macro"]),("dev",["lib"])):
             packages.append({"id":name,"name":name,"targets":[{"kind":kind}]})
         nodes=[{"id":"root","deps":[
-            {"pkg":"runtime","dep_kinds":[{"kind":"normal","target":None}]},
+            {"pkg":"runtime","dep_kinds":[{"kind":None,"target":None}]},
             {"pkg":"builder","dep_kinds":[{"kind":"build","target":None}]},
-            {"pkg":"macro","dep_kinds":[{"kind":"normal","target":None}]},
+            {"pkg":"macro","dep_kinds":[{"kind":None,"target":None}]},
             {"pkg":"dev","dep_kinds":[{"kind":"dev","target":None}]}]},
             {"id":"runtime","deps":[]},{"id":"builder","deps":[]},{"id":"macro","deps":[]},{"id":"dev","deps":[]}]
         runtime,host=LICENSE.classify_dependencies({"packages":packages,"resolve":{"nodes":nodes}},"root")
