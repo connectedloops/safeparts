@@ -227,6 +227,10 @@ def main() -> int:
         ax_call(helper, pid, "press", "AXRadioButton", "Combine", deadline=time.monotonic() + 5)
         for index, share in enumerate(shares, 1):
             ax_call(helper, pid, "type", "AXTextArea", f"Recovery share {index}", value=share.decode(), deadline=time.monotonic() + 5)
+            inspected = time.monotonic() + 20
+            count_status = f"{index} of 2 Recovery shares entered"
+            poll(lambda: ax_exists(helper, pid, "AXStaticText", count_status, deadline=inspected), bool,
+                 deadline=inspected, description=f"inspection of Recovery share {index}")
         combine_deadline = time.monotonic() + 20
         poll(lambda: ax_enabled(helper, pid, "AXButton", "Combine", deadline=combine_deadline), bool,
              deadline=combine_deadline, description="unprotected Combine readiness")
@@ -255,6 +259,10 @@ def main() -> int:
         ax_call(helper, pid, "press", "AXRadioButton", "Combine", deadline=time.monotonic() + 5)
         for index, share in enumerate(protected_shares, 1):
             ax_call(helper, pid, "type", "AXTextArea", f"Recovery share {index}", value=share.decode(), deadline=time.monotonic() + 5)
+            inspected = time.monotonic() + 20
+            count_status = f"{index} of 2 Recovery shares entered"
+            poll(lambda: ax_exists(helper, pid, "AXStaticText", count_status, deadline=inspected), bool,
+                 deadline=inspected, description=f"inspection of protected Recovery share {index}")
         protected_ready = time.monotonic() + 20
         poll(lambda: ax_exists(helper, pid, "AXTextArea", "Passphrase input (contents hidden)", deadline=protected_ready), bool,
              deadline=protected_ready, description="protected recovery passphrase editor")
