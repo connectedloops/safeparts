@@ -280,7 +280,13 @@ def main() -> int:
         dialog_ready = time.monotonic() + 10
         poll(lambda: ax_enabled(helper, pid, "AXButton", "Split", deadline=dialog_ready), bool, deadline=dialog_ready, description="pre-dialog Split readiness")
         def dialog_snapshot():
-            return {"secret": ax_value(helper, pid, "AXTextArea", "Secret", deadline=time.monotonic() + 2), "split_enabled": ax_enabled(helper, pid, "AXButton", "Split", deadline=time.monotonic() + 2), "choose_enabled": ax_enabled(helper, pid, "AXButton", "Choose file…", deadline=time.monotonic() + 2)}
+            return {
+                "secret": ax_value(helper, pid, "AXTextArea", "Secret", deadline=time.monotonic() + 2),
+                "split_mode": ax_value(helper, pid, "AXRadioButton", "Split", deadline=time.monotonic() + 2),
+                "split_enabled": ax_enabled(helper, pid, "AXButton", "Split", deadline=time.monotonic() + 2),
+                "choose_enabled": ax_enabled(helper, pid, "AXButton", "Choose file…", deadline=time.monotonic() + 2),
+                "file_selected": ax_exists(helper, pid, "AXButton", "Use text instead", deadline=time.monotonic() + 2),
+            }
         verify_dialog_cancellation(
             dialog_snapshot,
             lambda: ax_exists(helper, pid, "AXWindow", "Choose Secret file", deadline=time.monotonic() + 2),
