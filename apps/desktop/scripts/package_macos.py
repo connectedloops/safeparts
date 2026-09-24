@@ -202,7 +202,7 @@ def homebrew_provenance(macho: list[dict[str, object]], qt_prefix: Path) -> dict
         formulas.update(matches)
     result = {}
     for formula in sorted(formulas):
-        prefix = qt_prefix if formula == "qt" else Path(run("brew", "--prefix", formula)).resolve()
+        prefix = Path(run("brew", "--prefix", formula)).resolve()
         receipt = prefix / "INSTALL_RECEIPT.json"
         sbom = prefix / "sbom.spdx.json"
         result[formula] = {"version": prefix.name, "prefix": str(prefix), "receipt_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
