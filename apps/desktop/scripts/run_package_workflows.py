@@ -285,7 +285,7 @@ def main() -> int:
             dialog_snapshot,
             lambda: ax_exists(helper, pid, "AXWindow", "Choose Secret file", deadline=time.monotonic() + 2),
             lambda: ax_call(helper, pid, "press", "AXButton", "Choose file…", deadline=time.monotonic() + 5),
-            lambda: ax_call(helper, pid, "escape", "AXWindow", "Choose Secret file", deadline=time.monotonic() + 5),
+            lambda: ax_call(helper, pid, "press", "AXButton", "Cancel", deadline=time.monotonic() + 5),
             lambda: ax_call(helper, pid, "press", "AXRadioButton", "Split", deadline=time.monotonic() + 5),
             deadline=time.monotonic() + 10)
         results.append({"case": "cancel-open-dialog", "status": "passed", "dialog_observed": True, "state_preserved": True, "controls_responsive": True})
