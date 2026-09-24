@@ -86,8 +86,8 @@ if command == "actions" {
     usleep(300_000)
     postKey(36)
 } else if command == "escape" {
-    guard AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success else { exit(6) }
-    guard ["1", "true"].contains(text(element, kAXFocusedAttribute)) else { exit(6) }
+    guard AXUIElementPerformAction(element, kAXRaiseAction as CFString) == .success else { exit(6) }
+    guard let focusedWindow = attribute(app, kAXFocusedWindowAttribute), CFEqual(focusedWindow, element) else { exit(6) }
     postKey(53)
 } else if command == "get" {
     FileHandle.standardOutput.write(Data(text(element, kAXValueAttribute).utf8))
