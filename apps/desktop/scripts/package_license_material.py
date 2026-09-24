@@ -56,7 +56,7 @@ def main() -> int:
     notices=output/"notices"; notices.mkdir(); shutil.copytree(cache/"qtbase-6.9.1/LICENSES", notices/"qtbase-LICENSES")
     shutil.copy2(repo/"LICENSE", notices/"Safeparts-MIT.txt")
     qt_prefix=Path(run("brew","--prefix","qt")).resolve(); receipts=output/"receipts"; receipts.mkdir()
-    for name, source in (("qt-INSTALL_RECEIPT.json",qt_prefix/"INSTALL_RECEIPT.json"),("qt-homebrew-sbom.spdx.json",qt_prefix/"sbom.spdx.json"),("qtbase-6.9.1.spdx",qt_prefix/"share/qt/sbom/qtbase-6.9.1.spdx"),("qt.rb",qt_prefix/"qt.rb")):
+    for name, source in (("qt-INSTALL_RECEIPT.json",qt_prefix/"INSTALL_RECEIPT.json"),("qt-homebrew-sbom.spdx.json",qt_prefix/"sbom.spdx.json"),("qtbase-6.9.1.spdx",qt_prefix/"share/qt/sbom/qtbase-6.9.1.spdx"),("qt.rb",qt_prefix/".brew/qt.rb")):
         shutil.copy2(source, receipts/name)
     cxx=next((Path(os.environ.get("CARGO_HOME",Path.home()/".cargo"))/"registry/src").glob("*/cxx-1.0.195"))
     for name in ("LICENSE-APACHE","LICENSE-MIT"): shutil.copy2(cxx/name, notices/f"cxx-1.0.195-{name}.txt")
