@@ -189,24 +189,121 @@ def normalize_load_paths(app: Path) -> None:
             run("/usr/bin/install_name_tool", "-change", dependency, replacement, str(binary))
 
 
-def homebrew_provenance(macho: list[dict[str, object]], qt_prefix: Path) -> dict[str, dict[str, str | None]]:
-    formulas = {"qt"}
-    for record in macho:
-        path = str(record["path"])
-        if not path.startswith("Contents/Frameworks/lib"):
+def resolve_source_load(binary: Path, dependency: str, rpaths: tuple[str, ...], executable: Path) -> Path:
+    candidates = []
+    if dependency.startswith("@rpath/"):
+        suffix = dependency.removeprefix("@rpath/")
+        for rpath in rpaths:
+            base = rpath.replace("@loader_path", str(binary.parent)).replace("@executable_path", str(executable.parent))
+            candidates.append(Path(base) / suffix)
+    elif dependency.startswith("@loader_path/"):
+        candidates.append(binary.parent / dependency.removeprefix("@loader_path/"))
+    elif dependency.startswith("@executable_path/"):
+        candidates.append(executable.parent / dependency.removeprefix("@executable_path/"))
+    elif dependency.startswith("/"):
+        candidates.append(Path(dependency))
+    resolved = {candidate.resolve() for candidate in candidates if candidate.exists()}
+    if len(resolved) != 1:
+        raise RuntimeError(f"dependency does not resolve to one source: {binary}: {dependency}: {sorted(map(str, resolved))}")
+    return resolved.pop()
+
+
+def deployment_destination(source: Path, app_source: Path, plugins: dict[Path, str]) -> str:
+    if source == app_source.resolve():
+        return "Contents/MacOS/Safeparts"
+    if source in plugins:
+        return "Contents/PlugIns/" + plugins[source]
+    framework_parts = list(source.parts)
+    framework_index = next((index for index, part in enumerate(framework_parts) if part.endswith(".framework")), None)
+    if framework_index is not None:
+        return "Contents/Frameworks/" + "/".join(framework_parts[framework_index:])
+    return "Contents/Frameworks/" + source.name
+
+
+def dependency_destination(dependency: str) -> str:
+    relative = dependency
+    for prefix in ("@rpath/", "@loader_path/", "@executable_path/"):
+        if relative.startswith(prefix):
+            relative = relative.removeprefix(prefix)
+            break
+    parts = PurePosixPath(relative).parts
+    framework_index = next((index for index, part in enumerate(parts) if part.endswith(".framework")), None)
+    if framework_index is not None:
+        return "Contents/Frameworks/" + "/".join(parts[framework_index:])
+    return "Contents/Frameworks/" + PurePosixPath(relative).name
+
+
+def collect_deployment_sources(app_source: Path, plugin_sources: dict[Path, str]) -> dict[str, Path]:
+    executable = app_source.resolve()
+    plugins = {path.resolve(): relative for path, relative in plugin_sources.items()}
+    pending = [(executable, "Contents/MacOS/Safeparts")]
+    pending.extend((source, "Contents/PlugIns/" + relative) for source, relative in plugins.items())
+    by_destination = {}
+    visited = set()
+    while pending:
+        source, destination = pending.pop()
+        source = source.resolve()
+        identity = (source, destination)
+        if identity in visited:
             continue
-        name = PurePosixPath(path).name
-        matches = {formula for prefix, formula in FORMULA_BY_BINARY_PREFIX.items() if name.startswith(prefix)}
-        if len(matches) != 1:
-            raise RuntimeError(f"cannot bind deployed binary to one Homebrew formula: {path}")
-        formulas.update(matches)
+        visited.add(identity)
+        previous = by_destination.get(destination)
+        if previous is not None and previous != source:
+            raise RuntimeError(f"ambiguous deployment destination {destination}: {previous} and {source}")
+        by_destination[destination] = source
+        _, dependencies, rpaths, _ = parse_load_commands(run("/usr/bin/otool", "-l", str(source)))
+        for dependency in dependencies:
+            if dependency.startswith(("/System/Library/", "/usr/lib/")):
+                continue
+            resolved = resolve_source_load(source, dependency, rpaths, executable)
+            pending.append((resolved, dependency_destination(dependency)))
+    return by_destination
+
+
+def source_formula(source: Path, selected_qt_prefix: Path) -> tuple[str, Path] | None:
+    source = source.resolve()
+    selected_qt_prefix = selected_qt_prefix.resolve()
+    try:
+        source.relative_to(selected_qt_prefix)
+        return "qt", selected_qt_prefix
+    except ValueError:
+        pass
+    cellar = Path("/opt/homebrew/Cellar")
+    try:
+        relative = source.relative_to(cellar)
+    except ValueError:
+        return None
+    if len(relative.parts) < 3:
+        return None
+    prefix = cellar / relative.parts[0] / relative.parts[1]
+    return relative.parts[0], prefix
+
+
+def stage_source_provenance(sources: dict[str, Path], stage: Path, selected_qt_prefix: Path) -> dict[str, dict[str, str | None]]:
     result = {}
-    for formula in sorted(formulas):
-        prefix = Path(run("brew", "--prefix", formula)).resolve()
-        receipt = prefix / "INSTALL_RECEIPT.json"
-        sbom = prefix / "sbom.spdx.json"
-        result[formula] = {"version": prefix.name, "prefix": str(prefix), "receipt_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
-                           "sbom_sha256": hashlib.sha256(sbom.read_bytes()).hexdigest() if sbom.is_file() else None}
+    for destination, source in sorted(sources.items()):
+        staged = stage / destination
+        staged.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, staged)
+        source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+        staged_hash = hashlib.sha256(staged.read_bytes()).hexdigest()
+        if source_hash != staged_hash:
+            raise RuntimeError(f"unmodified staged input differs from source: {source}")
+        formula = source_formula(source, selected_qt_prefix)
+        entry = {"source_path": str(source), "source_sha256": source_hash,
+                 "staged_path": staged.relative_to(stage.parent).as_posix(), "staged_sha256": staged_hash,
+                 "formula": None, "formula_prefix": None, "formula_version": None,
+                 "receipt_sha256": None, "sbom_sha256": None}
+        if formula:
+            name, prefix = formula
+            receipt = prefix / "INSTALL_RECEIPT.json"
+            sbom = prefix / "sbom.spdx.json"
+            if not receipt.is_file():
+                raise RuntimeError(f"source formula receipt is unavailable: {source}")
+            entry.update({"formula": name, "formula_prefix": str(prefix), "formula_version": prefix.name,
+                          "receipt_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
+                          "sbom_sha256": hashlib.sha256(sbom.read_bytes()).hexdigest() if sbom.is_file() else None})
+        result[destination] = entry
     return result
 
 
@@ -255,6 +352,10 @@ def main() -> int:
         raise SystemExit(f"selected Qt does not provide macdeployqt: {macdeployqt}")
     qt_libs = Path(run(str(qtpaths), "--query", "QT_INSTALL_LIBS"))
     qt_plugins = Path(run(str(qtpaths), "--query", "QT_INSTALL_PLUGINS"))
+    selected_qt_prefix = Path(run("brew", "--prefix", "qt")).resolve()
+    plugin_sources = {qt_plugins / relative: relative for relative in ("platforms/libqcocoa.dylib", "styles/libqmacstyle.dylib")}
+    deployment_sources = collect_deployment_sources(build_dir / "Safeparts.app/Contents/MacOS/Safeparts", plugin_sources)
+    binary_provenance = stage_source_provenance(deployment_sources, output_dir / "provenance-inputs", selected_qt_prefix)
     run(str(macdeployqt), str(app), "-always-overwrite", "-no-plugins", "-verbose=1")
     frameworks = app / "Contents/Frameworks"
     qt_dbus = frameworks / "QtDBus.framework"
@@ -284,6 +385,17 @@ def main() -> int:
     shutil.copyfile(repo / "LICENSE", license_dir / "Safeparts-MIT.txt")
     (resources / "qt.conf").write_text("[Paths]\nPrefix = ..\nPlugins = PlugIns\n")
     macho = inspect_bundle(app)
+    final_paths = {record["path"] for record in macho}
+    if final_paths != set(binary_provenance):
+        raise RuntimeError(f"deployed closure differs from proven source closure: missing={sorted(set(binary_provenance) - final_paths)}, unproven={sorted(final_paths - set(binary_provenance))}")
+    for relative, provenance in binary_provenance.items():
+        source = Path(provenance["source_path"])
+        staged = output_dir / provenance["staged_path"]
+        if hashlib.sha256(source.read_bytes()).hexdigest() != provenance["source_sha256"]:
+            raise RuntimeError(f"deployment source changed during packaging: {source}")
+        if hashlib.sha256(staged.read_bytes()).hexdigest() != provenance["staged_sha256"]:
+            raise RuntimeError(f"staged deployment input changed during packaging: {staged}")
+        provenance["final_sha256"] = hashlib.sha256((app / relative).read_bytes()).hexdigest()
     run("/usr/bin/codesign", "--force", "--sign", "-", str(app))
     run("/usr/bin/codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app))
     with (app / "Contents/Info.plist").open("rb") as handle:
@@ -295,7 +407,7 @@ def main() -> int:
         "build": {"provenance": "package-owned CMake, Cargo, and generated-CXX directories recreated before configuration",
                   "cmake_cache_sha256": hashlib.sha256(cache_path.read_bytes()).hexdigest(),
                   "installed_executable_sha256": hashlib.sha256((app / "Contents/MacOS/Safeparts").read_bytes()).hexdigest(),
-                  "homebrew_inputs": homebrew_provenance(macho, qt_prefix)},
+                  "binary_inputs": binary_provenance},
         "bundle_identifier": plist["CFBundleIdentifier"], "deployment_target": plist["LSMinimumSystemVersion"],
         "toolchain": {"rust": run("mise", "exec", "--", "rustc", "--version", cwd=repo),
                       "cmake": run(cmake, "--version").splitlines()[0],

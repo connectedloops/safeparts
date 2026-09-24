@@ -77,6 +77,35 @@ def verified_package(package: Path, head: str) -> tuple[dict, str, list[dict[str
     return manifest,manifest_hash,fresh
 
 
+def verify_binary_inputs(package: Path, fresh: list[dict[str, object]], manifest: dict) -> dict:
+    binary_inputs=manifest.get("build",{}).get("binary_inputs",{})
+    if set(binary_inputs) != {binary["path"] for binary in fresh}:
+        raise RuntimeError("package binary-source mapping is incomplete")
+    for binary in fresh:
+        relative=binary["path"]; evidence=binary_inputs[relative]
+        source=Path(evidence["source_path"]); staged=package/evidence["staged_path"]; final=package/"Safeparts.app"/relative
+        if not source.is_file() or sha(source)!=evidence["source_sha256"]:
+            raise RuntimeError(f"packaged source input changed: {relative}")
+        if not staged.is_file() or sha(staged)!=evidence["staged_sha256"] or evidence["staged_sha256"]!=evidence["source_sha256"]:
+            raise RuntimeError(f"unmodified staged input does not match source: {relative}")
+        if sha(final)!=evidence["final_sha256"]:
+            raise RuntimeError(f"final deployed binary changed: {relative}")
+        if relative.startswith(("Contents/Frameworks/","Contents/PlugIns/")) and not evidence.get("formula"):
+            raise RuntimeError(f"deployed library origin is unverified: {relative}")
+        if evidence.get("formula"):
+            prefix=Path(evidence["formula_prefix"]).resolve()
+            try: source.resolve().relative_to(prefix)
+            except ValueError as error: raise RuntimeError(f"source is outside recorded formula prefix: {relative}") from error
+            receipt=prefix/"INSTALL_RECEIPT.json"; sbom=prefix/"sbom.spdx.json"
+            if prefix.name!=evidence["formula_version"] or not receipt.is_file() or sha(receipt)!=evidence["receipt_sha256"]:
+                raise RuntimeError(f"installed receipt no longer matches packaged binary: {relative}")
+            if evidence["sbom_sha256"] and (not sbom.is_file() or sha(sbom)!=evidence["sbom_sha256"]):
+                raise RuntimeError(f"installed SBOM no longer matches packaged binary: {relative}")
+            if component_for(relative)=="qt" and evidence["formula"]!="qt":
+                raise RuntimeError(f"selected Qt prefix mismatch: {relative}")
+    return binary_inputs
+
+
 def classify_dependencies(metadata: dict, root: str) -> tuple[set[str],set[str]]:
     packages={p["id"]:p for p in metadata["packages"]}; nodes={n["id"]:n for n in metadata["resolve"]["nodes"]}
     runtime=set(); host=set(); todo=[(root,"runtime")]
@@ -87,10 +116,11 @@ def classify_dependencies(metadata: dict, root: str) -> tuple[set[str],set[str]]
         bucket.add(item)
         for dep in nodes.get(item,{}).get("deps",[]):
             kinds={entry.get("kind") or "normal" for entry in dep.get("dep_kinds",[])}
-            if kinds=={"dev"} or not kinds: continue
-            next_scope="host" if scope=="host" or "build" in kinds or any(t.get("kind")==["proc-macro"] for t in packages[dep["pkg"]].get("targets",[])) else "runtime"
-            if "normal" in kinds or "build" in kinds: todo.append((dep["pkg"],next_scope))
-    runtime-=host
+            is_proc_macro=any("proc-macro" in target.get("kind",[]) for target in packages[dep["pkg"]].get("targets",[]))
+            if "normal" in kinds:
+                todo.append((dep["pkg"],"host" if scope=="host" or is_proc_macro else "runtime"))
+            if "build" in kinds:
+                todo.append((dep["pkg"],"host"))
     return runtime,host
 
 def main() -> int:
@@ -101,15 +131,7 @@ def main() -> int:
     head=run("/usr/bin/git","rev-parse","HEAD",cwd=repo); protected=(package,cache,repo/"target/desktop-package-work",repo/"apps/desktop",repo/"crates")
     cache_rows(cache)
     manifest_path=package/"manifest.json"; manifest,manifest_hash,fresh=verified_package(package,head)
-    build_inputs=manifest.get("build",{}).get("homebrew_inputs",{})
-    for component in sorted({component_for(binary["path"]) for binary in fresh}-{ "safeparts" }):
-        evidence=build_inputs.get(component)
-        if not evidence: raise SystemExit(f"package lacks build-time provenance for {component}")
-        prefix=Path(evidence["prefix"]); receipt=prefix/"INSTALL_RECEIPT.json"; sbom=prefix/"sbom.spdx.json"
-        if prefix.name!=evidence["version"] or not receipt.is_file() or sha(receipt)!=evidence["receipt_sha256"]:
-            raise SystemExit(f"installed receipt no longer matches packaged {component}")
-        if evidence["sbom_sha256"] and (not sbom.is_file() or sha(sbom)!=evidence["sbom_sha256"]):
-            raise SystemExit(f"installed SBOM no longer matches packaged {component}")
+    binary_inputs=verify_binary_inputs(package,fresh,manifest)
     owned_output(repo,output,protected)
     notices=output/"notices"; notices.mkdir(); shutil.copytree(cache/"qtbase-6.9.1/LICENSES",notices/"qtbase-LICENSES"); shutil.copy2(repo/"LICENSE",notices/"Safeparts-MIT.txt")
     receipts=output/"receipts"; receipts.mkdir()
@@ -117,14 +139,10 @@ def main() -> int:
     for binary in fresh:
         component=component_for(binary["path"]); deployed.append({"path":binary["path"],"component":component})
         if component=="safeparts" or component in components: continue
-        evidence=build_inputs.get(component)
-        if not evidence: raise SystemExit(f"package lacks build-time provenance for {component}")
-        prefix=Path(evidence["prefix"])
-        if prefix.name!=evidence["version"]: raise SystemExit(f"invalid package provenance version for {component}")
+        evidence=binary_inputs[binary["path"]]
+        prefix=Path(evidence["formula_prefix"])
         receipt=prefix/"INSTALL_RECEIPT.json"; sbom=prefix/"sbom.spdx.json"
-        if not receipt.is_file() or sha(receipt)!=evidence["receipt_sha256"]: raise SystemExit(f"installed receipt no longer matches packaged {component}")
-        if evidence["sbom_sha256"] and (not sbom.is_file() or sha(sbom)!=evidence["sbom_sha256"]): raise SystemExit(f"installed SBOM no longer matches packaged {component}")
-        components[component]={"version":evidence["version"],"origin":"package-recorded Homebrew build input","receipt_sha256":evidence["receipt_sha256"],"sbom_sha256":evidence["sbom_sha256"],"license_text_status":"Qtbase license set verified" if component=="qt" else "exact upstream text not yet cached"}
+        components[component]={"version":evidence["formula_version"],"origin":"source/staged byte identity under package-recorded formula prefix","receipt_sha256":evidence["receipt_sha256"],"sbom_sha256":evidence["sbom_sha256"],"license_text_status":"Qtbase license set verified" if component=="qt" else "exact upstream text not yet cached"}
         shutil.copy2(receipt,receipts/f"{component}-INSTALL_RECEIPT.json")
         if sbom.is_file(): shutil.copy2(sbom,receipts/f"{component}-sbom.spdx.json")
         if component=="qt":

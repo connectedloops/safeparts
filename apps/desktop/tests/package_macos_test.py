@@ -262,17 +262,59 @@ Load command 2
 
     def test_rust_inventory_filters_dev_and_separates_host_build_candidates(self):
         packages=[]
-        for name,kind in (("root",["lib"]),("runtime",["lib"]),("builder",["lib"]),("macro",["proc-macro"]),("dev",["lib"])):
+        for name,kind in (("root",["lib"]),("runtime",["lib"]),("builder",["lib"]),("macro",["proc-macro"]),("dev",["lib"]),("mixed",["lib"]),("shared",["lib"])):
             packages.append({"id":name,"name":name,"targets":[{"kind":kind}]})
         nodes=[{"id":"root","deps":[
             {"pkg":"runtime","dep_kinds":[{"kind":None,"target":None}]},
             {"pkg":"builder","dep_kinds":[{"kind":"build","target":None}]},
             {"pkg":"macro","dep_kinds":[{"kind":None,"target":None}]},
-            {"pkg":"dev","dep_kinds":[{"kind":"dev","target":None}]}]},
-            {"id":"runtime","deps":[]},{"id":"builder","deps":[]},{"id":"macro","deps":[]},{"id":"dev","deps":[]}]
+            {"pkg":"dev","dep_kinds":[{"kind":"dev","target":None}]},
+            {"pkg":"mixed","dep_kinds":[{"kind":None,"target":None},{"kind":"build","target":None}]}]},
+            {"id":"runtime","deps":[{"pkg":"shared","dep_kinds":[{"kind":None,"target":None}]}]},
+            {"id":"builder","deps":[{"pkg":"shared","dep_kinds":[{"kind":None,"target":None}]}]},
+            {"id":"macro","deps":[]},{"id":"dev","deps":[]},{"id":"mixed","deps":[]},{"id":"shared","deps":[]}]
         runtime,host=LICENSE.classify_dependencies({"packages":packages,"resolve":{"nodes":nodes}},"root")
-        self.assertEqual(runtime,{"root","runtime"})
-        self.assertEqual(host,{"builder","macro"})
+        self.assertEqual(runtime,{"root","runtime","mixed","shared"})
+        self.assertEqual(host,{"builder","macro","mixed","shared"})
+
+    def test_binary_source_provenance_rejects_wrong_prefix_mismatch_and_missing_mapping(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); package=root/"package"; prefix=root/"qt/6.9.1"; source=prefix/"lib/QtCore"; source.parent.mkdir(parents=True)
+            source.write_bytes(b"raw"); (prefix/"INSTALL_RECEIPT.json").write_text("receipt")
+            staged=package/"provenance-inputs/Contents/Frameworks/QtCore"; staged.parent.mkdir(parents=True); staged.write_bytes(b"raw")
+            final=package/"Safeparts.app/Contents/Frameworks/QtCore"; final.parent.mkdir(parents=True); final.write_bytes(b"final")
+            relative="Contents/Frameworks/QtCore"; record={"path":relative}
+            evidence={"source_path":str(source),"source_sha256":LICENSE.sha(source),"staged_path":"provenance-inputs/Contents/Frameworks/QtCore",
+                "staged_sha256":LICENSE.sha(staged),"final_sha256":LICENSE.sha(final),"formula":"qt","formula_prefix":str(prefix),
+                "formula_version":"6.9.1","receipt_sha256":LICENSE.sha(prefix/"INSTALL_RECEIPT.json"),"sbom_sha256":None}
+            manifest={"build":{"binary_inputs":{relative:evidence}}}
+            LICENSE.verify_binary_inputs(package,[record],manifest)
+            with self.assertRaisesRegex(RuntimeError,"incomplete"):
+                LICENSE.verify_binary_inputs(package,[record],{"build":{"binary_inputs":{}}})
+            evidence["formula_prefix"]=str(root/"other/6.9.1")
+            with self.assertRaisesRegex(RuntimeError,"outside recorded"):
+                LICENSE.verify_binary_inputs(package,[record],manifest)
+            evidence["formula_prefix"]=str(prefix); staged.write_bytes(b"changed")
+            with self.assertRaisesRegex(RuntimeError,"staged input"):
+                LICENSE.verify_binary_inputs(package,[record],manifest)
+            staged.write_bytes(b"raw"); evidence["formula"]="other"
+            with self.assertRaisesRegex(RuntimeError,"selected Qt prefix mismatch"):
+                LICENSE.verify_binary_inputs(package,[record],manifest)
+
+    def test_source_staging_detects_copy_mismatch_and_out_of_prefix_candidate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); prefix=root/"qt/6.9.1"; source=prefix/"lib/QtCore"; source.parent.mkdir(parents=True)
+            source.write_bytes(b"raw"); (prefix/"INSTALL_RECEIPT.json").write_text("receipt")
+            result=PACKAGE.stage_source_provenance({"Contents/Frameworks/QtCore":source},root/"stage",prefix)
+            self.assertEqual(result["Contents/Frameworks/QtCore"]["source_sha256"],result["Contents/Frameworks/QtCore"]["staged_sha256"])
+            outside=root/"outside/QtCore"; outside.parent.mkdir(); outside.write_bytes(b"raw")
+            self.assertIsNone(PACKAGE.source_formula(outside,prefix))
+            original=PACKAGE.shutil.copy2
+            def corrupt(src,dst):
+                value=original(src,dst); Path(dst).write_bytes(b"changed"); return value
+            with mock.patch.object(PACKAGE.shutil,"copy2",side_effect=corrupt):
+                with self.assertRaisesRegex(RuntimeError,"differs from source"):
+                    PACKAGE.stage_source_provenance({"Contents/Frameworks/QtCore":source},root/"bad-stage",prefix)
 
     def test_cleanup_terminates_descendant_after_leader_exit(self):
         code = "import os,time; p=os.fork(); os._exit(0) if p else time.sleep(60)"
