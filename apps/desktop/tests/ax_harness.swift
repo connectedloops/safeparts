@@ -26,7 +26,7 @@ func descendants(_ root: AXUIElement) -> [AXUIElement] {
 
 func matches(_ element: AXUIElement, role: String, title: String) -> Bool {
     text(element, kAXRoleAttribute) == role &&
-        (text(element, kAXTitleAttribute) == title || text(element, kAXDescriptionAttribute) == title)
+        (text(element, kAXTitleAttribute) == title || text(element, kAXDescriptionAttribute) == title || text(element, kAXValueAttribute) == title)
 }
 
 guard AXIsProcessTrusted() else { fputs("accessibility permission is unavailable\n", stderr); exit(3) }
@@ -54,8 +54,18 @@ func postText(_ value: String) {
     let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)!
     up.keyboardSetUnicodeString(stringLength: characters.count, unicodeString: characters); up.postToPid(pid)
 }
-if command == "press" {
+if command == "actions" {
+    var names: CFArray?
+    guard AXUIElementCopyActionNames(element, &names) == .success else { exit(5) }
+    print(names ?? [] as CFArray)
+} else if command == "press" {
     guard AXUIElementPerformAction(element, kAXPressAction as CFString) == .success else { exit(5) }
+} else if command == "open" {
+    guard AXUIElementPerformAction(element, "AXOpen" as CFString) == .success else { exit(5) }
+} else if command == "confirm" {
+    guard AXUIElementPerformAction(element, "AXConfirm" as CFString) == .success else { exit(5) }
+} else if command == "select" {
+    guard AXUIElementSetAttributeValue(element, kAXSelectedAttribute as CFString, kCFBooleanTrue) == .success else { exit(6) }
 } else if command == "set" {
     guard CommandLine.arguments.count > 6 else { exit(2) }
     guard AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, CommandLine.arguments[6] as CFTypeRef) == .success else { exit(6) }
