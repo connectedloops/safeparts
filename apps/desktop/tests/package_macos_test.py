@@ -20,6 +20,11 @@ SMOKE_SPEC = importlib.util.spec_from_file_location("smoke_macos_package", SMOKE
 SMOKE = importlib.util.module_from_spec(SMOKE_SPEC)
 sys.modules[SMOKE_SPEC.name] = SMOKE
 SMOKE_SPEC.loader.exec_module(SMOKE)
+LICENSE_PATH = Path(__file__).parents[1] / "scripts/package_license_material.py"
+LICENSE_SPEC = importlib.util.spec_from_file_location("package_license_material", LICENSE_PATH)
+LICENSE = importlib.util.module_from_spec(LICENSE_SPEC)
+sys.modules[LICENSE_SPEC.name] = LICENSE
+LICENSE_SPEC.loader.exec_module(LICENSE)
 
 
 class PackageManifestTests(unittest.TestCase):
@@ -185,6 +190,25 @@ Load command 2
                 SMOKE.manifest_rows({"files": [manifest["files"][0], manifest["files"][0]]})
             with self.assertRaisesRegex(RuntimeError, "malformed"):
                 SMOKE.manifest_rows({"files": [{"path": "x", "type": "directory", "target": "y"}]})
+            for path in ("Contents//MacOS/Safeparts", "./Contents/MacOS/Safeparts"):
+                with self.assertRaisesRegex(RuntimeError, "non-canonical"):
+                    SMOKE.manifest_rows({"files": [{"path": path, "type": "file", "sha256": "x"}]})
+
+    def test_license_inventory_maps_only_actual_closure_names(self):
+        self.assertEqual(LICENSE.component_for("Contents/Frameworks/QtCore.framework/Versions/A/QtCore"), "qt")
+        self.assertEqual(LICENSE.component_for("Contents/PlugIns/styles/libqmacstyle.dylib"), "qt")
+        self.assertEqual(LICENSE.component_for("Contents/Frameworks/libglib-2.0.0.dylib"), "glib")
+        self.assertEqual(LICENSE.component_for("Contents/MacOS/Safeparts"), "safeparts")
+        with self.assertRaisesRegex(RuntimeError, "unmapped"):
+            LICENSE.component_for("Contents/Frameworks/libunknown.dylib")
+
+    def test_license_output_refuses_unowned_or_target_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo=Path(directory); unowned=repo/"target/material"; unowned.mkdir(parents=True)
+            with self.assertRaisesRegex(RuntimeError,"unowned"):
+                LICENSE.owned_output(repo,unowned.resolve())
+            with self.assertRaisesRegex(RuntimeError,"proper"):
+                LICENSE.owned_output(repo,(repo/"target").resolve())
 
     def test_cleanup_terminates_descendant_after_leader_exit(self):
         code = "import os,time; p=os.fork(); os._exit(0) if p else time.sleep(60)"

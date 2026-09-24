@@ -163,6 +163,10 @@ run = "python3 apps/desktop/scripts/package_macos.py --build-dir target/desktop-
 description = "Run bounded development-host relocation evidence for the exact local bundle."
 run = "python3 apps/desktop/scripts/smoke_macos_package.py --package-dir target/desktop-package --evidence-dir target/desktop-package-smoke"
 
+[tasks."desktop:package:licenses"]
+description = "Assemble offline local license and provenance material for the deployed closure."
+run = "python3 apps/desktop/scripts/package_license_material.py --package-dir target/desktop-package --cache-dir target/desktop-license-cache --output-dir target/desktop-license-material"
+
 [tasks."desktop:evidence:capacity"]
 description = "Run a named desktop capacity case in a fresh process with macOS memory gates."
 run = "apps/desktop/scripts/run_capacity_evidence.sh ${CAPACITY_CASE:-maximum-words}"

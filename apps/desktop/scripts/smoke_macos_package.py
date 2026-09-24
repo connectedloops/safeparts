@@ -57,6 +57,8 @@ def manifest_rows(manifest: dict) -> dict[str, dict]:
         if pure.is_absolute() or not pure.parts or any(part in ("", ".", "..") for part in pure.parts):
             raise RuntimeError(f"unsafe manifest path: {row['path']}")
         normalized = pure.as_posix()
+        if row["path"] != normalized:
+            raise RuntimeError(f"non-canonical manifest path: {row['path']}")
         if normalized in result:
             raise RuntimeError(f"duplicate manifest path: {normalized}")
         expected_keys = {"path", "type", "sha256" if row["type"] == "file" else "target"}

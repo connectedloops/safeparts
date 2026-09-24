@@ -8,7 +8,7 @@ Owns the experimental Qt Widgets text and exact-byte file workflow plus local Ap
 
 - `src/`: single-window Qt UI, one serialized Rust worker, exact text editor, bounded clipboard adapters, and direct file I/O.
 - `tests/`: generated-CXX contract and Qt user-action/lifecycle checks.
-- `scripts/`: deterministic generated-bridge command and local macOS bundle staging/closure inspection.
+- `scripts/`: deterministic generated-bridge command, local macOS bundle staging/closure inspection, runtime smoke evidence, and deployed-license inventory.
 - `resources/`: application-bundle metadata.
 - `CMakeLists.txt`, `run.sh`: local build, test, install, and launch entry points.
 
@@ -35,7 +35,7 @@ Owns the experimental Qt Widgets text and exact-byte file workflow plus local Ap
 - Build: `mise run desktop:build`
 - Public and Qt actions: `mise run desktop:test`
 - Launch: `mise run desktop:run`
-- Local Apple-silicon bundle: `mise run desktop:package:local`; inspect `target/desktop-package/manifest.json` and `SHA256SUMS`. Run `mise run desktop:package:smoke` for bounded relocated launch/idle evidence. Both are development-host evidence only.
+- Local Apple-silicon bundle: `mise run desktop:package:local`; inspect `target/desktop-package/manifest.json` and `SHA256SUMS`. Run `mise run desktop:package:smoke` for bounded relocated launch/idle evidence and `mise run desktop:package:licenses` for the offline deployed-closure inventory. These are development-host materials only; the license inventory must retain unresolved obligations and must not claim distribution readiness.
 - Capacity evidence: run `mise run desktop:evidence:capacity` with a named case from `apps/desktop/scripts/run_capacity_evidence.sh`; every case resolves and hashes its exact native executable, then runs `/usr/bin/time -l` directly around a PID-preserving `exec`, so direct-test RSS and peak private footprint are the independent strict gates. `maximum-retained` additionally samples that stable PID, requires every named phase with bounded gaps and no sampling errors, and derives its ownership ledger from emitted test facts. Treat a timeout, ambiguous identity, executable path/hash change, incomplete samples, or either metric at 1 GiB as a blocker. Timeout cleanup targets only the run's new process group, always probes after TERM/leader wait, KILLs remaining members, and verifies bounded group disappearance before returning 124.
 - Run `mise run verify` before review.
 
