@@ -381,11 +381,56 @@ Load command 2
             with self.assertRaisesRegex(RuntimeError,"unsafe"):
                 WORKFLOW.prepare(repo,package.resolve(),package.resolve())
 
-    def test_workflow_wait_timeout_is_bounded_and_reports_target(self):
-        result=subprocess.CompletedProcess([],4,"","not found")
-        with mock.patch.object(WORKFLOW.subprocess,"run",return_value=result):
-            with self.assertRaisesRegex(RuntimeError,"AXTextArea Secret"):
-                WORKFLOW.wait_get(Path("helper"),123,"AXTextArea","Secret",timeout=0.01)
+    def test_workflow_copy_requires_transition_and_preserves_exact_bytes(self):
+        expected=b"  exact bytes with trailing space  \n"
+        sentinel=b"different synthetic sentinel\n"
+        clipboard=[b"unread existing clipboard"]; delayed=[]; reads=[]
+        def write(value): clipboard[0]=value
+        def read():
+            value=delayed.pop(0) if delayed else clipboard[0]
+            reads.append(value); return value
+        def delayed_copy():
+            delayed.extend([sentinel,expected]); clipboard[0]=expected
+        WORKFLOW.verified_copy(expected,sentinel,delayed_copy,deadline=time.monotonic()+1,write=write,read=read)
+        self.assertEqual(reads[0],sentinel)
+        self.assertEqual(reads[-1],expected)
+
+    def test_workflow_copy_rejects_noop_and_does_not_read_before_sentinel(self):
+        expected=b"expected\n"; sentinel=b"sentinel\n"; clipboard=[expected]; events=[]
+        def write(value): events.append("write"); clipboard[0]=value
+        def read(): events.append("read"); return clipboard[0]
+        with self.assertRaises(TimeoutError):
+            WORKFLOW.verified_copy(expected,sentinel,lambda: None,deadline=time.monotonic()+0.02,write=write,read=read)
+        self.assertEqual(events[0],"write")
+
+    def test_workflow_failure_wait_handles_delay_noop_and_query_error(self):
+        working="Working…".encode(); statuses=iter([working,working,WORKFLOW.FAILURE_STATUS.encode()])
+        enabled=iter([False,True])
+        WORKFLOW.wait_failure(lambda: next(statuses,WORKFLOW.FAILURE_STATUS.encode()),lambda: next(enabled,True),lambda: True,lambda: b"sentinel",b"sentinel",deadline=time.monotonic()+1)
+        with self.assertRaises(TimeoutError):
+            WORKFLOW.wait_failure(lambda: working,lambda: True,lambda: True,lambda: b"sentinel",b"sentinel",deadline=time.monotonic()+0.02)
+        with self.assertRaisesRegex(RuntimeError,"AX query failed"):
+            WORKFLOW.wait_failure(lambda: (_ for _ in ()).throw(RuntimeError("AX query failed")),lambda: True,lambda: True,lambda: b"sentinel",b"sentinel",deadline=time.monotonic()+1)
+
+    def test_workflow_dialog_requires_open_close_and_preserved_state(self):
+        state={"dialog":False,"value":"synthetic"}; responsive=[]
+        WORKFLOW.verify_dialog_cancellation(lambda: state["value"],lambda: state["dialog"],lambda: state.__setitem__("dialog",True),lambda: state.__setitem__("dialog",False),lambda: responsive.append(True),deadline=time.monotonic()+1)
+        self.assertEqual(responsive,[True])
+        with self.assertRaises(TimeoutError):
+            WORKFLOW.verify_dialog_cancellation(lambda: "same",lambda: False,lambda: None,lambda: None,lambda: None,deadline=time.monotonic()+0.02)
+        state={"dialog":False}
+        with self.assertRaises(TimeoutError):
+            WORKFLOW.verify_dialog_cancellation(lambda: "same",lambda: state["dialog"],lambda: state.__setitem__("dialog",True),lambda: None,lambda: None,deadline=time.monotonic()+0.02)
+        state={"dialog":False,"value":"before"}
+        with self.assertRaisesRegex(RuntimeError,"changed app state"):
+            WORKFLOW.verify_dialog_cancellation(lambda: state["value"],lambda: state["dialog"],lambda: state.__setitem__("dialog",True),lambda: (state.__setitem__("dialog",False),state.__setitem__("value","after")),lambda: None,deadline=time.monotonic()+1)
+
+    def test_workflow_ax_errors_and_timeouts_are_not_absence(self):
+        result=subprocess.CompletedProcess([],5,b"",b"failure")
+        with mock.patch.object(WORKFLOW.os,"kill"), mock.patch.object(WORKFLOW.subprocess,"run",return_value=result) as invoked:
+            with self.assertRaisesRegex(RuntimeError,"AX helper failed"):
+                WORKFLOW.ax_call(Path("helper"),123,"get","AXTextArea","Secret",deadline=time.monotonic()+1)
+            self.assertLessEqual(invoked.call_args.kwargs["timeout"],1)
 
     def test_final_hash_is_recorded_after_all_signing_mutations(self):
         with tempfile.TemporaryDirectory() as directory:
