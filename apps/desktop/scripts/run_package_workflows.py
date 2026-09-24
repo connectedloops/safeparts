@@ -246,6 +246,9 @@ def main() -> int:
         ax_call(helper, pid, "press", "AXRadioButton", "Combine", deadline=time.monotonic() + 5)
         for index, share in enumerate(protected_shares, 1):
             ax_call(helper, pid, "type", "AXTextArea", f"Recovery share {index}", value=share.decode(), deadline=time.monotonic() + 5)
+        protected_ready = time.monotonic() + 20
+        poll(lambda: ax_exists(helper, pid, "AXTextArea", "Passphrase input (contents hidden)", deadline=protected_ready), bool,
+             deadline=protected_ready, description="protected recovery passphrase editor")
         ax_call(helper, pid, "type", "AXTextArea", "Passphrase input (contents hidden)", value="wrong-synthetic", deadline=time.monotonic() + 5)
         failure_clipboard = b"  synthetic clipboard sentinel: wrong passphrase  \n"
         write_clipboard(failure_clipboard, deadline=time.monotonic() + 2)
