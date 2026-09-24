@@ -395,9 +395,10 @@ def main() -> int:
             raise RuntimeError(f"deployment source changed during packaging: {source}")
         if hashlib.sha256(staged.read_bytes()).hexdigest() != provenance["staged_sha256"]:
             raise RuntimeError(f"staged deployment input changed during packaging: {staged}")
-        provenance["final_sha256"] = hashlib.sha256((app / relative).read_bytes()).hexdigest()
     run("/usr/bin/codesign", "--force", "--sign", "-", str(app))
     run("/usr/bin/codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app))
+    for relative, provenance in binary_provenance.items():
+        provenance["final_sha256"] = hashlib.sha256((app / relative).read_bytes()).hexdigest()
     with (app / "Contents/Info.plist").open("rb") as handle:
         plist = plistlib.load(handle)
     source_commit = run("/usr/bin/git", "rev-parse", "HEAD", cwd=repo)
