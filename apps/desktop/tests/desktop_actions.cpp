@@ -1765,8 +1765,7 @@ void DesktopActions::generated_shares_show_authoritative_text_and_clear_stale_pr
 }
 
 void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
-    auto allocationPolicy = std::make_shared<OneShotAllocationPolicy>();
-    DesktopWindow window(allocationPolicy);
+    DesktopWindow window;
     window.show();
     required<QSpinBox>(&window, "shareCountInput")->setValue(16);
     const QString maximumSecret(1'048'576, QLatin1Char('b'));
@@ -1799,13 +1798,6 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
         QVERIFY(required<QPushButton>(
                     &window, qPrintable(QStringLiteral("copyShare%1").arg(index)))
                     ->isEnabled());
-
-    allocationPolicy->failNext(DesktopAllocationBoundary::AccessibilityPresentation);
-    QApplication::clipboard()->clear();
-    QTest::mouseClick(required<QPushButton>(&window, "copyShare1"), Qt::LeftButton);
-    QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "createStatus")->text(), QStringLiteral("Operation could not reserve memory."), 30'000);
-    QVERIFY(QApplication::clipboard()->text().isEmpty());
-    QVERIFY(window.findChild<SegmentedShareView *>() == nullptr);
 
     QByteArray firstHash;
     QByteArray repeatedFirstHash;
@@ -1885,6 +1877,12 @@ void DesktopActions::injected_allocation_failures_are_transactional_and_retryabl
     policy->failNext(DesktopAllocationBoundary::EditorUtf8);
     QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
     QCOMPARE(required<QLabel>(&window, "createStatus")->text(), QStringLiteral("Operation could not reserve memory."));
+    policy->failNext(DesktopAllocationBoundary::GeneratedPresentation);
+    QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
+    QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "createStatus")->text(),
+                              QStringLiteral("Operation could not reserve memory."), 10'000);
+    QVERIFY(!required<QWidget>(&window, "createdShares")->isVisible());
+    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "createButton")->isEnabled(), 10'000);
     QTest::mouseClick(required<QPushButton>(&window, "createButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "createdShares")->isVisible(), 10'000);
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "copyShare1")->isEnabled(), 10'000);
@@ -1894,14 +1892,38 @@ void DesktopActions::injected_allocation_failures_are_transactional_and_retryabl
     QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "createStatus")->text(), QStringLiteral("Operation could not reserve memory."), 10'000);
     QVERIFY(QApplication::clipboard()->text().isEmpty());
     const QString first = createAndCopy(window, 1);
+    QTemporaryDir recoveryDirectory;
+    QVERIFY(recoveryDirectory.isValid());
+    const QString recoveryPath = recoveryDirectory.filePath(QStringLiteral("share.txt"));
+    QFile recoveryFile(recoveryPath);
+    QVERIFY(recoveryFile.open(QIODevice::WriteOnly));
+    QCOMPARE(recoveryFile.write(first.toUtf8()), first.toUtf8().size());
+    recoveryFile.close();
     chooseRecover(window);
-    setRecoveryField(window, 1, first);
+    window.setFileServicesForTests(std::make_shared<FileIo>(), [] { return QString(); },
+                                   [&] { return QStringList{recoveryPath}; },
+                                   [] { return QString(); });
+    policy->failNext(DesktopAllocationBoundary::FileAcquisition);
+    QTest::mouseClick(required<QPushButton>(&window, "loadRecoveryFilesButton"), Qt::LeftButton);
+    QCOMPARE(required<QLabel>(&window, "recoveryStatus")->text(),
+             QStringLiteral("Operation could not reserve memory."));
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryShare1")->exactUtf8(), QByteArray());
+    QTest::mouseClick(required<QPushButton>(&window, "loadRecoveryFilesButton"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
     policy->failNext(DesktopAllocationBoundary::RecoveryTransport);
     setRecoveryField(window, 1, first + QStringLiteral(" "));
     QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")->text(), QStringLiteral("Operation could not reserve memory."), 10'000);
     setRecoveryField(window, 1, first + QStringLiteral("  "));
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+    const QByteArray recoveryPassphrase =
+        required<ExactTextEdit>(&window, "recoveryPassphrase")->exactUtf8();
+    policy->failNext(DesktopAllocationBoundary::EditorUtf8);
+    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+    QCOMPARE(required<QLabel>(&window, "recoveryStatus")->text(),
+             QStringLiteral("Operation could not reserve memory."));
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryPassphrase")->exactUtf8(),
+             recoveryPassphrase);
+    QVERIFY(required<QPushButton>(&window, "recoverButton")->isEnabled());
     policy->failNext(DesktopAllocationBoundary::RecoveredPresentation);
     QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
     QTRY_COMPARE_WITH_TIMEOUT(required<QLabel>(&window, "recoveryStatus")->text(), QStringLiteral("Operation could not reserve memory."), 10'000);
@@ -1927,53 +1949,117 @@ void DesktopActions::injected_allocation_failures_are_transactional_and_retryabl
     QCOMPARE(required<QLabel>(&window, "createStatus")->text(), QStringLiteral("Operation could not reserve memory."));
     QTest::mouseClick(required<QPushButton>(&window, "chooseSecretFileButton"), Qt::LeftButton);
     QVERIFY(required<QLabel>(&window, "secretFileMetadata")->isVisible());
+    QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+    QVERIFY(!required<QLabel>(&window, "secretFileMetadata")->isVisible());
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryPassphrase")->exactUtf8(), QByteArray());
 }
 
 void DesktopActions::maximum_policy_recovery_rejects_stale_lifecycle_results() {
     const QString packet = QStringLiteral("U01OMQIBAQEBKg-DHAgPdfNRFsshslnE4jPad-ssRtOXwf8Y1-S3N60T-zhAFOw6-ak5yh4ABAAAAAAACgAAAAQAAABPvZb5vVVCremTHFeQSndDO0tDF-uJ-gBBF9GqPlAi15vaDm0QUdCfY1WvLHt5_KSDvZjaKU89RzfOaT4bHFh32ZNj4bbcUEsTpNEcXfYxEQ");
+    const QString correct = QStringLiteral("synthetic maximum-policy passphrase");
+    const QString wrong = QStringLiteral("synthetic maximum-policy wrong pass");
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString forbiddenDestination = directory.filePath(QStringLiteral("must-not-exist"));
+    int saveDialogCalls = 0;
+    const auto wiped = std::make_shared<std::atomic<int>>(0);
+    WipeObserverReset wipeReset;
+    SecureByteBuffer::setWipeObserverForTests([wiped](QByteArrayView bytes) {
+        if (!bytes.isEmpty())
+            wiped->fetch_add(1, std::memory_order_release);
+    });
+
     DesktopWindow window;
+    window.setFileServicesForTests(std::make_shared<FileIo>(), [] { return QString(); },
+                                   [] { return QStringList(); }, [&] {
+                                       ++saveDialogCalls;
+                                       return forbiddenDestination;
+                                   });
     window.show();
-    chooseRecover(window);
-    setRecoveryField(window, 1, packet);
-    replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"), QStringLiteral("synthetic maximum-policy passphrase"));
-    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+    qint64 maximumGap = 0;
     QElapsedTimer heartbeatClock;
     heartbeatClock.start();
-    qint64 prior = heartbeatClock.elapsed(), maximumGap = 0;
+    qint64 prior = heartbeatClock.elapsed();
     QTimer heartbeat;
     heartbeat.setInterval(15);
-    connect(&heartbeat, &QTimer::timeout, &window, [&] { const qint64 now = heartbeatClock.elapsed(); maximumGap = std::max(maximumGap, now - prior); prior = now; });
+    connect(&heartbeat, &QTimer::timeout, &window, [&] {
+        const qint64 now = heartbeatClock.elapsed();
+        maximumGap = std::max(maximumGap, now - prior);
+        prior = now;
+    });
     heartbeat.start();
-    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
-    QTest::keyClicks(required<ExactTextEdit>(&window, "recoveryPassphrase"), QStringLiteral("!"));
-    QTest::qWait(4'500);
-    QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
-    replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"), QStringLiteral("synthetic maximum-policy passphrase"));
-    QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
-    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
-    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
-    QCOMPARE(required<QPlainTextEdit>(&window, "recoveredText")->toPlainText(), QStringLiteral("synthetic maximum-policy secret"));
-    QVERIFY(maximumGap < 500);
-    QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
-    QCOMPARE(required<ExactTextEdit>(&window, "recoveryPassphrase")->exactUtf8(), QByteArray());
 
-    chooseRecover(window);
-    setRecoveryField(window, 1, packet);
-    replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"), QStringLiteral("synthetic maximum-policy passphrase"));
+    const auto prepare = [&](const QString &passphrase) {
+        chooseRecover(window);
+        setRecoveryField(window, 1, packet);
+        replaceExact(required<ExactTextEdit>(&window, "recoveryPassphrase"), passphrase);
+        QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
+        QApplication::clipboard()->setText(QStringLiteral("lifecycle-sentinel"));
+    };
+    const auto begin = [&] {
+        QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(!required<QPushButton>(&window, "recoverButton")->isEnabled(), 2'000);
+    };
+    const auto assertNoEffects = [&] {
+        QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
+        QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("lifecycle-sentinel"));
+        QVERIFY(!QFileInfo::exists(forbiddenDestination));
+        QCOMPARE(saveDialogCalls, 0);
+    };
+
+    prepare(wrong);
+    begin();
+    QTest::keyClicks(required<ExactTextEdit>(&window, "recoveryPassphrase"), QStringLiteral("!"));
+    assertNoEffects();
+    QTest::qWait(4'500);
+    assertNoEffects();
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(&window, "recoverButton")->isEnabled(), 10'000);
-    QTest::mouseClick(required<QPushButton>(&window, "recoverButton"), Qt::LeftButton);
+    const int afterEditWipes = wiped->load(std::memory_order_acquire);
+    QVERIFY(afterEditWipes > 0);
+
+    QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+    prepare(correct);
+    begin();
+    QTest::mouseClick(required<QToolButton>(&window, "startOverButton"), Qt::LeftButton);
+    assertNoEffects();
+    QCOMPARE(required<ExactTextEdit>(&window, "recoveryPassphrase")->exactUtf8(), QByteArray());
+    QTest::qWait(4'500);
+    assertNoEffects();
+    QVERIFY(required<QPushButton>(&window, "addRecoveryShareButton")->isEnabled());
+    QVERIFY(wiped->load(std::memory_order_acquire) > afterEditWipes);
+
+    prepare(correct);
+    begin();
     auto *tabs = required<QTabBar>(&window, "modeSelector");
     QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier, tabs->tabRect(0).center());
+    assertNoEffects();
     QTest::qWait(4'500);
-    QVERIFY(!required<QWidget>(&window, "recoveryResult")->isVisible());
+    assertNoEffects();
+    QVERIFY(required<QPushButton>(&window, "chooseSecretFileButton")->isEnabled());
     QCOMPARE(required<ExactTextEdit>(&window, "recoveryPassphrase")->exactUtf8(), QByteArray());
 
+    prepare(correct);
+    begin();
+    QTRY_VERIFY_WITH_TIMEOUT(required<QWidget>(&window, "recoveryResult")->isVisible(), 10'000);
+    QCOMPARE(required<QPlainTextEdit>(&window, "recoveredText")->toPlainText(),
+             QStringLiteral("synthetic maximum-policy secret"));
+    QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("lifecycle-sentinel"));
+    QVERIFY(!QFileInfo::exists(forbiddenDestination));
+    QCOMPARE(saveDialogCalls, 0);
+    QVERIFY(maximumGap < 500);
+
     auto *closing = new DesktopWindow;
+    closing->setFileServicesForTests(std::make_shared<FileIo>(), [] { return QString(); },
+                                     [] { return QStringList(); }, [&] {
+                                         ++saveDialogCalls;
+                                         return forbiddenDestination;
+                                     });
     closing->show();
     chooseRecover(*closing);
     setRecoveryField(*closing, 1, packet);
-    replaceExact(required<ExactTextEdit>(closing, "recoveryPassphrase"), QStringLiteral("synthetic maximum-policy passphrase"));
+    replaceExact(required<ExactTextEdit>(closing, "recoveryPassphrase"), correct);
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(closing, "recoverButton")->isEnabled(), 10'000);
+    QApplication::clipboard()->setText(QStringLiteral("lifecycle-sentinel"));
     QTest::mouseClick(required<QPushButton>(closing, "recoverButton"), Qt::LeftButton);
     QElapsedTimer closeClock;
     closeClock.start();
@@ -1981,14 +2067,21 @@ void DesktopActions::maximum_policy_recovery_rejects_stale_lifecycle_results() {
     const qint64 closeMilliseconds = closeClock.elapsed();
     QVERIFY(closeMilliseconds < 500);
     QCOMPARE(required<ExactTextEdit>(closing, "recoveryPassphrase")->exactUtf8(), QByteArray());
+    QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("lifecycle-sentinel"));
+    QVERIFY(!QFileInfo::exists(forbiddenDestination));
+    QCOMPARE(saveDialogCalls, 0);
     QElapsedTimer destructionClock;
     destructionClock.start();
     delete closing;
-    QVERIFY(destructionClock.elapsed() < 10'000);
-    qInfo().noquote() << QStringLiteral("CAPACITY maximum-policy-heartbeat-gap-ms=%1 close-ms=%2 destruction-wait-ms=%3")
-                             .arg(maximumGap)
-                             .arg(closeMilliseconds)
-                             .arg(destructionClock.elapsed());
+    const qint64 destructionMilliseconds = destructionClock.elapsed();
+    QVERIFY(destructionMilliseconds < 10'000);
+    QVERIFY(maximumGap < 500);
+    qInfo().noquote()
+        << QStringLiteral("CAPACITY maximum-policy-heartbeat-gap-ms=%1 close-ms=%2 destruction-wait-ms=%3 wipes=%4")
+               .arg(maximumGap)
+               .arg(closeMilliseconds)
+               .arg(destructionMilliseconds)
+               .arg(wiped->load(std::memory_order_acquire));
 }
 
 void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bounded() {
@@ -2014,7 +2107,8 @@ void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bou
                                                                        payload.size() - offset)),
             QCryptographicHash::Sha256));
     }
-    SegmentedShareView view;
+    auto allocationPolicy = std::make_shared<OneShotAllocationPolicy>();
+    SegmentedShareView view(allocationPolicy);
     view.resize(720, 240);
     view.show();
     QElapsedTimer install;
@@ -2069,8 +2163,27 @@ void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bou
     auto *text = accessible->textInterface();
     QVERIFY(text != nullptr);
     QCOMPARE(text->characterCount(), int(view.byteSize()));
+    const auto preservedSelection = view.selection();
+    QSignalSpy allocationFailure(&view, &SegmentedShareView::allocationFailed);
+    allocationPolicy->failNext(DesktopAllocationBoundary::AccessibilityPresentation);
+    QCOMPARE(text->text(0, text->characterCount()), QString());
+    QCOMPARE(allocationFailure.count(), 1);
+    QCOMPARE(view.selection(), preservedSelection);
     QCOMPARE(text->text(10, 110).toLatin1(), firstHundred);
     QCOMPARE(text->selectionCount(), 1);
+
+    for (const QPair<qsizetype, qsizetype> range :
+         {QPair<qsizetype, qsizetype>(10, 110),
+          QPair<qsizetype, qsizetype>(0, view.byteSize())}) {
+        view.setSelectionRange(range.first, range.second);
+        QApplication::clipboard()->setText(QStringLiteral("sentinel"));
+        allocationPolicy->failNext(DesktopAllocationBoundary::ClipboardHandoff);
+        view.copySelection();
+        QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("sentinel"));
+        QCOMPARE(view.selection(), range);
+        view.copySelection();
+        QCOMPARE(QApplication::clipboard()->text().size(), int(range.second - range.first));
+    }
 
     for (const bool dark : {false, true}) {
         QPalette palette = view.palette();

@@ -1039,6 +1039,11 @@ void DesktopWindow::synchronizeRecoveryFields() {
 }
 
 void DesktopWindow::recover() {
+    if (!allocationPolicy_->allow(DesktopAllocationBoundary::EditorUtf8)) {
+        setBusy(false);
+        recoveryStatus_->setText(QStringLiteral("Operation could not reserve memory."));
+        return;
+    }
     QByteArray passphraseBytes = recoveryPassphrase_->exactUtf8();
     if (recoveryProtected_ && passphraseBytes.isEmpty()) {
         recoveryStatus_->setText(QStringLiteral("Enter the passphrase required by these Recovery shares."));
@@ -1187,15 +1192,12 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
         return;
     }
     if (purpose == kShareClipboardPurpose) {
-        const bool needsAccessibilityPresentation =
+        const bool needsSegmentedPresentation =
             asciiValidated && lazyGeneratedPresentation_
             && index < static_cast<quint16>(generatedShareDisplays_.size());
-        const bool presentationAllowed =
-            !needsAccessibilityPresentation
-            || allocationPolicy_->allow(DesktopAllocationBoundary::AccessibilityPresentation);
-        const bool clipboardAllowed = presentationAllowed
-                                      && allocationPolicy_->allow(DesktopAllocationBoundary::ClipboardHandoff);
-        if (!presentationAllowed || !clipboardAllowed) {
+        const bool clipboardAllowed =
+            allocationPolicy_->allow(DesktopAllocationBoundary::ClipboardHandoff);
+        if (!clipboardAllowed) {
             createStatus_->setText(QStringLiteral("Operation could not reserve memory."));
         } else if (!asciiValidated) {
             createStatus_->setText(QStringLiteral("Recovery share encoding was not ASCII."));
@@ -1207,10 +1209,10 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
             if (copied)
                 createStatus_->setText(QStringLiteral("Share %1 copied.").arg(index + 1));
         }
-        if (clipboardAllowed && needsAccessibilityPresentation) {
+        if (clipboardAllowed && needsSegmentedPresentation) {
             releaseRevealedGeneratedShare();
             QPlainTextEdit *placeholder = generatedShareDisplays_.at(index);
-            auto *viewer = new SegmentedShareView;
+            auto *viewer = new SegmentedShareView(allocationPolicy_);
             viewer->setObjectName(placeholder->objectName());
             viewer->setAccessibleName(placeholder->accessibleName());
             viewer->setFixedHeight(72);
@@ -1219,6 +1221,9 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
                         if (index < static_cast<quint16>(generatedShareCopyButtons_.size()))
                             generatedShareCopyButtons_.at(index)->click();
                     });
+            connect(viewer, &SegmentedShareView::allocationFailed, this, [this] {
+                createStatus_->setText(QStringLiteral("Operation could not reserve memory."));
+            });
             if (!viewer->setShare(generation, index, std::move(bytes), true)) {
                 viewer->deleteLater();
                 failGeneratedPresentation(QStringLiteral("Recovery share could not be revealed."));

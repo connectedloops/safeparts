@@ -181,7 +181,7 @@ public:
     int cursorPosition() const override { return static_cast<int>(view_->cursorPosition()); }
     void setCursorPosition(int position) override { view_->setCursorPosition(position); }
     QString text(int startOffset, int endOffset) const override {
-        return view_->textRange(startOffset, endOffset);
+        return view_->accessibilityTextRange(startOffset, endOffset);
     }
     int characterCount() const override {
         return static_cast<int>(std::min<qsizetype>(view_->byteSize(),
@@ -210,7 +210,11 @@ QAccessibleInterface *accessibleFactory(const QString &className, QObject *objec
     return nullptr;
 }
 
-SegmentedShareView::SegmentedShareView(QWidget *parent) : QWidget(parent) {
+SegmentedShareView::SegmentedShareView(
+    std::shared_ptr<DesktopAllocationPolicy> allocationPolicy, QWidget *parent)
+    : QWidget(parent), allocationPolicy_(std::move(allocationPolicy)) {
+    if (allocationPolicy_ == nullptr)
+        allocationPolicy_ = defaultDesktopAllocationPolicy();
     static std::once_flag accessibilityFactory;
     std::call_once(accessibilityFactory,
                    [] { QAccessible::installFactory(accessibleFactory); });
@@ -304,9 +308,25 @@ void SegmentedShareView::copySelection() {
         emit copyRequested(generation_, shareIndex_);
         return;
     }
+    if (!allocationPolicy_->allow(DesktopAllocationBoundary::ClipboardHandoff)) {
+        emit allocationFailed();
+        return;
+    }
     const QByteArrayView bytes = model_->bytes();
     if (!writeClipboardUtf8(QByteArrayView(bytes.data() + begin, end - begin)))
         emit copyFailed();
+}
+
+QString SegmentedShareView::accessibilityTextRange(qsizetype begin, qsizetype end) const {
+    begin = std::clamp<qsizetype>(begin, 0, byteSize());
+    end = std::clamp<qsizetype>(end, begin, byteSize());
+    if (begin == end)
+        return {};
+    if (!allocationPolicy_->allow(DesktopAllocationBoundary::AccessibilityPresentation)) {
+        emit const_cast<SegmentedShareView *>(this)->allocationFailed();
+        return {};
+    }
+    return textRange(begin, end);
 }
 
 QString SegmentedShareView::textRange(qsizetype begin, qsizetype end) const {

@@ -711,6 +711,15 @@ fn exact_retained_recovery_limit_is_transactional_and_recovers_maximum_secret() 
     let expected_hash = Sha256::digest(&secret);
     let packets = split_secret(&secret, 2, SHARE_COUNT as u8, None)
         .unwrap_or_else(|error| panic!("maximum retained split failed: {error}"));
+    let generated_packet_bytes = packets
+        .iter()
+        .map(|packet| {
+            packet
+                .encode_binary()
+                .unwrap_or_else(|error| panic!("packet encoding failed: {error}"))
+                .len()
+        })
+        .sum::<usize>();
     let mut shares = packets
         .iter()
         .map(|packet| {
@@ -719,6 +728,8 @@ fn exact_retained_recovery_limit_is_transactional_and_recovers_maximum_secret() 
                 .into_bytes()
         })
         .collect::<Vec<_>>();
+    let encoded_non_whitespace_bytes = shares.iter().map(Vec::len).sum::<usize>();
+    let dwell = || std::thread::sleep(std::time::Duration::from_millis(500));
     let target_batch = RETAINED_LIMIT / SHARE_COUNT;
     assert_eq!(target_batch * SHARE_COUNT, RETAINED_LIMIT);
     for share in &mut shares {
@@ -726,6 +737,10 @@ fn exact_retained_recovery_limit_is_transactional_and_recovers_maximum_secret() 
         share.resize(target_batch, b' ');
     }
     assert_eq!(shares.iter().map(Vec::len).sum::<usize>(), RETAINED_LIMIT);
+    eprintln!(
+        "capacity_facts raw_source_shares_bytes={RETAINED_LIMIT} encoded_non_whitespace_bytes={encoded_non_whitespace_bytes} generated_packet_bytes={generated_packet_bytes} decoded_packet_bytes={generated_packet_bytes} secret_bytes={} supplied_unique_shares={SHARE_COUNT} retained_limit_bytes={RETAINED_LIMIT}",
+        secret.len()
+    );
 
     shares[0].pop();
     {
@@ -743,7 +758,9 @@ fn exact_retained_recovery_limit_is_transactional_and_recovers_maximum_secret() 
         "capacity_phase=below_retained_complete retained_bytes={}",
         RETAINED_LIMIT - 1
     );
+    dwell();
     eprintln!("capacity_phase=exact_retained_begin retained_bytes={RETAINED_LIMIT}");
+    dwell();
     let mut operation = new_operation();
     let inspected = replace_recovery(&mut operation, 1, &shares, ShareEncoding::Base64url);
     assert!(inspected.status == Status::Ok);
@@ -757,16 +774,20 @@ fn exact_retained_recovery_limit_is_transactional_and_recovers_maximum_secret() 
         inspected.supplied_count,
         recovered.bytes.len(),
     );
+    dwell();
 
     shares[0].push(b' ');
     let rejected = replace_recovery(&mut operation, 3, &shares, ShareEncoding::Base64url);
     eprintln!("capacity_phase=above_limit status={}", rejected.status.repr);
+    dwell();
     assert!(rejected.status == Status::RetainedInputTooLarge);
     let preserved = operation.recover_bytes_with_passphrase(4, &[]);
     eprintln!("capacity_phase=preserved status={}", preserved.status.repr);
+    dwell();
     assert!(preserved.status == Status::Ok);
     assert_eq!(Sha256::digest(&preserved.bytes), expected_hash);
     eprintln!("capacity_phase=above_limit_preserved");
+    dwell();
 }
 
 #[test]
