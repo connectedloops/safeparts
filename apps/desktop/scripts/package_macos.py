@@ -241,9 +241,11 @@ def main() -> int:
     for binary in sorted(app.rglob("*")):
         if is_macho(binary):
             run("/usr/bin/codesign", "--force", "--sign", "-", str(binary))
-    license_dir = app / "Contents/Resources/licenses"
+    resources = app / "Contents/Resources"
+    license_dir = resources / "licenses"
     license_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(repo / "LICENSE", license_dir / "Safeparts-MIT.txt")
+    (resources / "qt.conf").write_text("[Paths]\nPrefix = ..\nPlugins = PlugIns\n")
     macho = inspect_bundle(app)
     run("/usr/bin/codesign", "--force", "--sign", "-", str(app))
     run("/usr/bin/codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app))
