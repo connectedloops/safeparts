@@ -2,6 +2,12 @@
 
 Status: investigation only. One owner-approved bounded launch and read-only comparison was performed; no UI action, setting change, restart, or source fix followed. Cause remains unestablished. The package is still blocked, and Qt 6.11, clean-host work, and printing remain deferred.
 
+## Owner-approved packaged-workflow attempt
+
+One owner-approved packaged-workflow attempt used a fresh package bound to commit `1619805f45b0865a76371c08c50864a931da1da0` and manifest SHA-256 `91746826ca4990a0cd1a671a302d906564019a3c6b7452840ac1c51a4cf94eb4`. Attempt `target/desktop-package-workflows/attempts/1619805f45b0-91746826ca49-0f6c4fb3f543/` launched one app process group and stopped during startup readiness, before any workflow case or UI action, when the hardened helper returned AX API error `-25204` (helper exit 8) while looking for the target-owned `AXWindow` named `Safeparts`. Cleanup sent TERM to process group 94484, observed no remaining members, and did not require KILL. No latest-success metadata was published.
+
+This single failure does not establish a product defect, an OS fault, or the cause of the earlier self-root observations. The prior read-only comparison and immutable diagnostics below remain valid; none of the requested Words cases gained packaged evidence from this attempt.
+
 ## Owner-approved bounded comparison result
 
 Attempt `target/desktop-package-workflows/attempts/diagnostic-1dde4cc1a914-97a2aafd844c-0538818cfdb9/` used the retained package from commit `1dde4cc1a91469543c1c193d4d052b8b7c4239b4` (manifest SHA-256 `97a2aafd844c2eada2cdf8bd1e9a59c84f62f9da58900e3d023124d3d064f534`) and probe source commit `1b1522b76fa8fd02a9b2c8a98485c083526cc8c2`. The comparison JSON SHA-256 is `3dc9a24b0c5a8716e372df262efd33af536f30849a55b4adafe306160afe0f63`.
