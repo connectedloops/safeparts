@@ -44,7 +44,8 @@ protected:
 private:
     void setCaret(qsizetype position, bool extend);
     void updateSelection(qsizetype previousAnchor, qsizetype previousCaret);
-    void notifyTextRefresh();
+    void emitTextInserted(QByteArrayView bytes);
+    void emitTextRemoved(QByteArrayView bytes);
     [[nodiscard]] qsizetype offsetAtViewportPoint(const QPoint &point) const;
 
     ShareSegmentModel *model_ = nullptr;

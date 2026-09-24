@@ -346,8 +346,16 @@ mod tests {
     #[test]
     fn malformed_inputs_are_classified_and_canonical_forms_are_exact() {
         assert_eq!(decode(""), Err(Base58CheckError::EmptyInput));
-        for forbidden in ["0", "O", "I", "l", " ", "\t", "\n", "+", "/"] {
-            assert_eq!(decode(forbidden), Err(Base58CheckError::InvalidCharacter));
+        for byte in 0u8..=0x7f {
+            if ALPHABET.contains(&byte) {
+                continue;
+            }
+            let input = core::str::from_utf8(core::slice::from_ref(&byte)).unwrap();
+            assert_eq!(
+                decode(input),
+                Err(Base58CheckError::InvalidCharacter),
+                "forbidden ASCII byte 0x{byte:02x} was not rejected"
+            );
         }
         for non_ascii in ["é", "💣", "3QJmnhé"] {
             assert_eq!(decode(non_ascii), Err(Base58CheckError::InvalidCharacter));

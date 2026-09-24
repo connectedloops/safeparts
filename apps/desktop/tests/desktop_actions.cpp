@@ -203,9 +203,15 @@ public:
     ~WipeObserverReset() { SecureByteBuffer::setWipeObserverForTests({}); }
 };
 
+struct AccessibilityTextRecord final {
+    QAccessible::Event type;
+    int position;
+    int length;
+    int observedCharacterCount;
+    QByteArray sha256;
+};
 struct AccessibilityObservations final {
-    std::atomic<int> value{0};
-    std::atomic<int> reorder{0};
+    QList<AccessibilityTextRecord> text;
     std::atomic<int> cursor{0};
     std::atomic<int> selection{0};
 };
@@ -214,12 +220,30 @@ void observeAccessibility(QAccessibleEvent *event) {
     if (event->object() == nullptr || !event->object()->inherits("SegmentedShareView"))
         return;
     switch (event->type()) {
-    case QAccessible::ValueChanged:
-        accessibilityObservations.value.fetch_add(1, std::memory_order_relaxed);
+    case QAccessible::TextInserted: {
+        const auto *inserted = static_cast<QAccessibleTextInsertEvent *>(event);
+        const QByteArray bytes = inserted->textInserted().toLatin1();
+        QAccessibleInterface *interface = event->accessibleInterface();
+        accessibilityObservations.text.push_back(
+            {event->type(), inserted->changePosition(), static_cast<int>(bytes.size()),
+             interface != nullptr && interface->textInterface() != nullptr
+                 ? interface->textInterface()->characterCount()
+                 : -1,
+             QCryptographicHash::hash(bytes, QCryptographicHash::Sha256)});
         break;
-    case QAccessible::ObjectReorder:
-        accessibilityObservations.reorder.fetch_add(1, std::memory_order_relaxed);
+    }
+    case QAccessible::TextRemoved: {
+        const auto *removed = static_cast<QAccessibleTextRemoveEvent *>(event);
+        const QByteArray bytes = removed->textRemoved().toLatin1();
+        QAccessibleInterface *interface = event->accessibleInterface();
+        accessibilityObservations.text.push_back(
+            {event->type(), removed->changePosition(), static_cast<int>(bytes.size()),
+             interface != nullptr && interface->textInterface() != nullptr
+                 ? interface->textInterface()->characterCount()
+                 : -1,
+             QCryptographicHash::hash(bytes, QCryptographicHash::Sha256)});
         break;
+    }
     case QAccessible::TextCaretMoved:
         accessibilityObservations.cursor.fetch_add(1, std::memory_order_relaxed);
         break;
@@ -1826,8 +1850,7 @@ void DesktopActions::maximum_words_split_keeps_every_share_exportable() {
 }
 
 void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bounded() {
-    accessibilityObservations.value = 0;
-    accessibilityObservations.reorder = 0;
+    accessibilityObservations.text.clear();
     accessibilityObservations.cursor = 0;
     accessibilityObservations.selection = 0;
     AccessibilityObserverReset accessibilityObserver;
@@ -1842,6 +1865,13 @@ void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bou
     for (qsizetype offset = 0; offset < payload.size(); offset += 97)
         payload[offset] = 'z';
     const QByteArray firstHundred = payload.sliced(10, 100);
+    QList<QByteArray> expectedChunkHashes;
+    for (qsizetype offset = 0; offset < payload.size(); offset += 64 * 1024) {
+        expectedChunkHashes.push_back(QCryptographicHash::hash(
+            QByteArrayView(payload).sliced(offset, std::min<qsizetype>(64 * 1024,
+                                                                       payload.size() - offset)),
+            QCryptographicHash::Sha256));
+    }
     SegmentedShareView view;
     view.resize(720, 240);
     view.show();
@@ -1856,8 +1886,15 @@ void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bou
     QVERIFY(view.findChild<QPlainTextEdit *>() == nullptr);
     QCOMPARE(view.textRange(10, 110).toLatin1(), firstHundred);
 
-    QVERIFY(accessibilityObservations.value.load() >= 1);
-    QVERIFY(accessibilityObservations.reorder.load() >= 1);
+    QCOMPARE(accessibilityObservations.text.size(), expectedChunkHashes.size());
+    for (int index = 0; index < accessibilityObservations.text.size(); ++index) {
+        const AccessibilityTextRecord &record = accessibilityObservations.text.at(index);
+        QCOMPARE(record.type, QAccessible::TextInserted);
+        QCOMPARE(record.position, index * 64 * 1024);
+        QVERIFY(record.length > 0 && record.length <= 64 * 1024);
+        QCOMPARE(record.observedCharacterCount, int(8 * 1'048'576));
+        QCOMPARE(record.sha256, expectedChunkHashes.at(index));
+    }
     view.setCursorPosition(9);
     view.setCursorPosition(10);
     QVERIFY(accessibilityObservations.cursor.load() >= 2);
@@ -1908,12 +1945,23 @@ void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bou
         QVERIFY(!rendered.isNull());
     }
 
-    const int refreshBeforeClear = accessibilityObservations.value.load();
+    const int eventsBeforeClear = accessibilityObservations.text.size();
     view.clearSensitive();
     QCOMPARE(view.byteSize(), qsizetype(0));
     QCOMPARE(view.segmentCount(), 0);
     QCOMPARE(wiped->load(std::memory_order_acquire), 1);
-    QVERIFY(accessibilityObservations.value.load() > refreshBeforeClear);
+    QCOMPARE(accessibilityObservations.text.size() - eventsBeforeClear,
+             expectedChunkHashes.size());
+    for (int index = 0; index < expectedChunkHashes.size(); ++index) {
+        const AccessibilityTextRecord &record =
+            accessibilityObservations.text.at(eventsBeforeClear + index);
+        const int expectedChunk = expectedChunkHashes.size() - index - 1;
+        QCOMPARE(record.type, QAccessible::TextRemoved);
+        QCOMPARE(record.position, expectedChunk * 64 * 1024);
+        QVERIFY(record.length > 0 && record.length <= 64 * 1024);
+        QCOMPARE(record.observedCharacterCount, 0);
+        QCOMPARE(record.sha256, expectedChunkHashes.at(expectedChunk));
+    }
     QVERIFY(!view.setShare(8, 0, SecureByteBuffer::take(QByteArray("not admitted")), false));
     QVERIFY(!view.setShare(8, 0, SecureByteBuffer::take(QByteArray(1, char(0xff))), true));
     QCOMPARE(view.byteSize(), qsizetype(0));
@@ -1960,12 +2008,45 @@ void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bou
     controls.render(&controlRendering);
     QVERIFY(!controlRendering.isNull());
 
-    const int refreshBeforeReplacement = accessibilityObservations.value.load();
+    const int eventsBeforeReplacement = accessibilityObservations.text.size();
     QVERIFY(controls.setShare(11, 1, SecureByteBuffer::take(QByteArray("replacement")), true));
-    QVERIFY(accessibilityObservations.value.load() >= refreshBeforeReplacement + 2);
+    QCOMPARE(accessibilityObservations.text.size(), eventsBeforeReplacement + 2);
+    const AccessibilityTextRecord &removed = accessibilityObservations.text.at(eventsBeforeReplacement);
+    const AccessibilityTextRecord &inserted =
+        accessibilityObservations.text.at(eventsBeforeReplacement + 1);
+    QCOMPARE(removed.type, QAccessible::TextRemoved);
+    QCOMPARE(removed.position, 0);
+    QCOMPARE(removed.length, 5);
+    QCOMPARE(removed.observedCharacterCount, 0);
+    QCOMPARE(inserted.type, QAccessible::TextInserted);
+    QCOMPARE(inserted.position, 0);
+    QCOMPARE(inserted.length, 11);
+    QCOMPARE(inserted.observedCharacterCount, 11);
+
+    SegmentedShareView transitions;
+    const int transitionsBegin = accessibilityObservations.text.size();
+    QVERIFY(transitions.setShare(20, 0, SecureByteBuffer::take(QByteArray("1")), true));
+    QVERIFY(transitions.setShare(21, 15, SecureByteBuffer::take(QByteArray(16, 'x')), true));
+    QVERIFY(transitions.setShare(22, 0, SecureByteBuffer::take(QByteArray("1")), true));
+    QCOMPARE(accessibilityObservations.text.size(), transitionsBegin + 5);
+    const QList<QPair<QAccessible::Event, int>> expectedTransitions = {
+        {QAccessible::TextInserted, 1}, {QAccessible::TextRemoved, 1},
+        {QAccessible::TextInserted, 16}, {QAccessible::TextRemoved, 16},
+        {QAccessible::TextInserted, 1}};
+    for (int index = 0; index < expectedTransitions.size(); ++index) {
+        const AccessibilityTextRecord &record =
+            accessibilityObservations.text.at(transitionsBegin + index);
+        QCOMPARE(record.type, expectedTransitions.at(index).first);
+        QCOMPARE(record.length, expectedTransitions.at(index).second);
+        QCOMPARE(record.position, 0);
+    }
 }
 
 void DesktopActions::maximum_accessibility_handoff_remains_bounded_and_responsive() {
+    accessibilityObservations.text.clear();
+    accessibilityObservations.cursor = 0;
+    accessibilityObservations.selection = 0;
+    AccessibilityObserverReset accessibilityObserver;
     QByteArray payload(8 * 1'048'576, '1');
     for (qsizetype offset = 0; offset < payload.size(); offset += 101)
         payload[offset] = 'z';
@@ -1973,7 +2054,6 @@ void DesktopActions::maximum_accessibility_handoff_remains_bounded_and_responsiv
     SegmentedShareView view;
     view.resize(240, 120);
     view.show();
-    QVERIFY(view.setShare(12, 0, SecureByteBuffer::take(std::move(payload)), true));
 
     qint64 maximumHeartbeatGap = 0;
     qint64 lastHeartbeat = 0;
@@ -1991,6 +2071,22 @@ void DesktopActions::maximum_accessibility_handoff_remains_bounded_and_responsiv
     heartbeat.start();
     QTest::qWait(45);
 
+    QElapsedTimer reveal;
+    reveal.start();
+    QVERIFY(view.setShare(12, 0, SecureByteBuffer::take(std::move(payload)), true));
+    const qint64 revealLatency = reveal.elapsed();
+    QCOMPARE(accessibilityObservations.text.size(), 128);
+    qsizetype insertedTotal = 0;
+    for (int index = 0; index < 128; ++index) {
+        const AccessibilityTextRecord &record = accessibilityObservations.text.at(index);
+        QCOMPARE(record.type, QAccessible::TextInserted);
+        QCOMPARE(record.position, index * 64 * 1024);
+        QVERIFY(record.length > 0 && record.length <= 64 * 1024);
+        QCOMPARE(record.observedCharacterCount, int(8 * 1'048'576));
+        insertedTotal += record.length;
+    }
+    QCOMPARE(insertedTotal, qsizetype(8 * 1'048'576));
+
     QAccessibleInterface *accessible = QAccessible::queryAccessibleInterface(&view);
     QVERIFY(accessible != nullptr);
     auto *text = accessible->textInterface();
@@ -2003,18 +2099,38 @@ void DesktopActions::maximum_accessibility_handoff_remains_bounded_and_responsiv
     QCOMPARE(QCryptographicHash::hash(handoff.toLatin1(), QCryptographicHash::Sha256), expectedHash);
     handoff.clear();
     handoff.squeeze();
+
+    QElapsedTimer clear;
+    clear.start();
+    view.clearSensitive();
+    const qint64 clearLatency = clear.elapsed();
+    QCOMPARE(accessibilityObservations.text.size(), 256);
+    qsizetype removedTotal = 0;
+    for (int index = 128; index < 256; ++index) {
+        const AccessibilityTextRecord &record = accessibilityObservations.text.at(index);
+        QCOMPARE(record.type, QAccessible::TextRemoved);
+        QVERIFY(record.length > 0 && record.length <= 64 * 1024);
+        QCOMPARE(record.observedCharacterCount, 0);
+        removedTotal += record.length;
+    }
+    QCOMPARE(removedTotal, qsizetype(8 * 1'048'576));
+
     QCoreApplication::processEvents();
     heartbeat.stop();
     maximumHeartbeatGap = std::max(maximumHeartbeatGap, heartbeatClock.elapsed() - lastHeartbeat);
     QVERIFY(heartbeatCount > 0);
-    QVERIFY2(queryLatency < 500,
-             qPrintable(QStringLiteral("maximum accessibility handoff took %1 ms").arg(queryLatency)));
+    QVERIFY2(std::max({revealLatency, queryLatency, clearLatency}) < 500,
+             qPrintable(QStringLiteral("maximum accessibility phase took %1/%2/%3 ms")
+                            .arg(revealLatency)
+                            .arg(queryLatency)
+                            .arg(clearLatency)));
     QVERIFY2(maximumHeartbeatGap < 500,
              qPrintable(QStringLiteral("maximum accessibility heartbeat gap was %1 ms")
                             .arg(maximumHeartbeatGap)));
-    view.clearSensitive();
-    qInfo().noquote() << QStringLiteral("CAPACITY maximum-accessibility-latency-ms=%1")
-                             .arg(queryLatency)
+    qInfo().noquote() << QStringLiteral("CAPACITY maximum-accessibility-reveal-ms=%1")
+                             .arg(revealLatency)
+                      << QStringLiteral("maximum-accessibility-query-ms=%1").arg(queryLatency)
+                      << QStringLiteral("maximum-accessibility-clear-ms=%1").arg(clearLatency)
                       << QStringLiteral("maximum-heartbeat-gap-ms=%1")
                              .arg(maximumHeartbeatGap);
 }

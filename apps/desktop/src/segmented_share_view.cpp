@@ -5,8 +5,9 @@
 #include <QAbstractListModel>
 #include <QAccessible>
 #include <QAccessibleTextCursorEvent>
+#include <QAccessibleTextInsertEvent>
+#include <QAccessibleTextRemoveEvent>
 #include <QAccessibleTextSelectionEvent>
-#include <QAccessibleValueChangeEvent>
 #include <QAccessibleWidget>
 #include <QApplication>
 #include <QContextMenuEvent>
@@ -28,6 +29,7 @@
 constexpr qsizetype kMaximumShareBytes = 8 * 1'048'576;
 constexpr qsizetype kSegmentBytes = 64;
 constexpr int kHorizontalPadding = 8;
+constexpr qsizetype kAccessibilityEventChunkBytes = 64 * 1024;
 
 QFont segmentFont() { return QFontDatabase::systemFont(QFontDatabase::FixedFont); }
 int segmentCharacterWidth() {
@@ -65,10 +67,12 @@ public:
         endResetModel();
     }
 
-    void clearSensitive() {
+    SecureByteBuffer takeBytes() {
         beginResetModel();
+        SecureByteBuffer previous = std::move(bytes_);
         bytes_ = {};
         endResetModel();
+        return previous;
     }
 
     [[nodiscard]] QByteArrayView bytes() const { return bytes_.view(); }
@@ -240,28 +244,35 @@ bool SegmentedShareView::setShare(quint64 generation, quint16 index, SecureByteB
         bytes = {};
         return false;
     }
-    clearSensitive();
+    SecureByteBuffer previous = model_->takeBytes();
+    anchor_ = 0;
+    caret_ = 0;
+    dragging_ = false;
+    emitTextRemoved(previous.view());
+    previous = {};
+
     generation_ = generation;
     shareIndex_ = index;
     model_->setBytes(std::move(bytes));
     setAccessibleName(QStringLiteral("Recovery share %1").arg(index + 1));
     view_->scrollToTop();
     view_->horizontalScrollBar()->setValue(0);
-    notifyTextRefresh();
+    emitTextInserted(model_->bytes());
     QAccessibleEvent nameEvent(this, QAccessible::NameChanged);
     QAccessible::updateAccessibility(&nameEvent);
     return true;
 }
 
 void SegmentedShareView::clearSensitive() {
-    model_->clearSensitive();
+    SecureByteBuffer previous = model_->takeBytes();
     generation_ = 0;
     shareIndex_ = 0;
     anchor_ = 0;
     caret_ = 0;
     dragging_ = false;
     view_->viewport()->update();
-    notifyTextRefresh();
+    emitTextRemoved(previous.view());
+    previous = {};
 }
 
 bool SegmentedShareView::hasShare() const noexcept { return model_->byteSize() != 0; }
@@ -435,11 +446,24 @@ void SegmentedShareView::updateSelection(qsizetype previousAnchor, qsizetype pre
     }
 }
 
-void SegmentedShareView::notifyTextRefresh() {
-    QAccessibleValueChangeEvent valueEvent(this, QVariant::fromValue(byteSize()));
-    QAccessible::updateAccessibility(&valueEvent);
-    QAccessibleEvent layoutEvent(this, QAccessible::ObjectReorder);
-    QAccessible::updateAccessibility(&layoutEvent);
+void SegmentedShareView::emitTextInserted(QByteArrayView bytes) {
+    for (qsizetype offset = 0; offset < bytes.size(); offset += kAccessibilityEventChunkBytes) {
+        const qsizetype length = std::min(kAccessibilityEventChunkBytes, bytes.size() - offset);
+        QAccessibleTextInsertEvent event(
+            this, static_cast<int>(offset), QString::fromLatin1(bytes.data() + offset, length));
+        QAccessible::updateAccessibility(&event);
+    }
+}
+
+void SegmentedShareView::emitTextRemoved(QByteArrayView bytes) {
+    qsizetype end = bytes.size();
+    while (end > 0) {
+        const qsizetype begin = std::max<qsizetype>(0, end - kAccessibilityEventChunkBytes);
+        QAccessibleTextRemoveEvent event(
+            this, static_cast<int>(begin), QString::fromLatin1(bytes.data() + begin, end - begin));
+        QAccessible::updateAccessibility(&event);
+        end = begin;
+    }
 }
 
 qsizetype SegmentedShareView::offsetAtViewportPoint(const QPoint &point) const {
