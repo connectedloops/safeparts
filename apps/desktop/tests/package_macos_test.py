@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 import importlib.util
+import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 MODULE_PATH = Path(__file__).parents[1] / "scripts/package_macos.py"
@@ -137,16 +141,81 @@ Load command 2
         ]
         self.assertEqual(SMOKE.loaded_paths(lines), ["/tmp/Safeparts.app/Contents/Frameworks/QtCore"])
 
-    def test_smoke_cleanup_refuses_unowned_evidence(self):
+    def test_smoke_cleanup_refuses_unowned_or_overlapping_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
+            package = repo / "target/package"
+            package.mkdir(parents=True)
             evidence = repo / "target/evidence"
             evidence.mkdir(parents=True)
             sentinel = evidence / "keep"
             sentinel.write_text("keep")
             with self.assertRaisesRegex(RuntimeError, "unowned"):
-                SMOKE.prepare_evidence(repo, evidence.resolve())
+                SMOKE.prepare_evidence(repo, evidence.resolve(), (package.resolve(),))
             self.assertTrue(sentinel.exists())
+            with self.assertRaisesRegex(RuntimeError, "proper child"):
+                SMOKE.prepare_evidence(repo, (repo / "target").resolve())
+            with self.assertRaisesRegex(RuntimeError, "overlaps"):
+                SMOKE.prepare_evidence(repo, package.resolve(), (package.resolve(),))
+
+    def test_manifest_requires_exact_safe_typed_tree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory)
+            app = package / "Safeparts.app"
+            file = app / "Contents/MacOS/Safeparts"
+            file.parent.mkdir(parents=True)
+            file.write_bytes(b"app")
+            manifest = {"files": [{"path": "Contents/MacOS/Safeparts", "type": "file",
+                                    "sha256": SMOKE.sha256(file)}]}
+            SMOKE.verify_manifest(package, manifest)
+            extra = app / "extra"
+            extra.write_text("extra")
+            with self.assertRaisesRegex(RuntimeError, "extra"):
+                SMOKE.verify_manifest(package, manifest)
+            extra.unlink()
+            file.unlink()
+            file.symlink_to("elsewhere")
+            with self.assertRaisesRegex(RuntimeError, "changed_type"):
+                SMOKE.verify_manifest(package, manifest)
+            bad_rows = ["../escape", "/absolute", "Contents/../escape"]
+            for path in bad_rows:
+                with self.assertRaisesRegex(RuntimeError, "unsafe"):
+                    SMOKE.manifest_rows({"files": [{"path": path, "type": "file", "sha256": "x"}]})
+            with self.assertRaisesRegex(RuntimeError, "duplicate"):
+                SMOKE.manifest_rows({"files": [manifest["files"][0], manifest["files"][0]]})
+            with self.assertRaisesRegex(RuntimeError, "malformed"):
+                SMOKE.manifest_rows({"files": [{"path": "x", "type": "directory", "target": "y"}]})
+
+    def test_cleanup_terminates_descendant_after_leader_exit(self):
+        code = "import os,time; p=os.fork(); os._exit(0) if p else time.sleep(60)"
+        process = subprocess.Popen([sys.executable, "-c", code], start_new_session=True)
+        pgid = process.pid
+        process.wait(timeout=5)
+        time.sleep(0.1)
+        with tempfile.TemporaryDirectory() as directory:
+            record = SMOKE.cleanup_group(pgid, Path(directory) / "cleanup.json", timeout=1)
+            self.assertTrue(record["term_sent"])
+            self.assertFalse(record["kill_sent"])
+            self.assertEqual(record["final_members"], [])
+
+    def test_cleanup_force_kills_term_resistant_descendant_and_reports_failure(self):
+        code = "import os,signal,time; p=os.fork(); os._exit(0) if p else (signal.signal(signal.SIGTERM, signal.SIG_IGN), time.sleep(60))"
+        process = subprocess.Popen([sys.executable, "-c", code], start_new_session=True)
+        pgid = process.pid
+        process.wait(timeout=5)
+        time.sleep(0.1)
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory) / "cleanup.json"
+            with self.assertRaisesRegex(RuntimeError, "SIGKILL"):
+                SMOKE.cleanup_group(pgid, evidence, timeout=0.2)
+            record = json.loads(evidence.read_text())
+            self.assertTrue(record["kill_sent"])
+            self.assertEqual(record["final_members"], [])
+
+    def test_generated_bridge_defaults_inside_fresh_cmake_tree(self):
+        cmake = (Path(__file__).parents[1] / "CMakeLists.txt").read_text()
+        self.assertIn('${CMAKE_BINARY_DIR}/generated', cmake)
+        self.assertNotIn('${REPO_ROOT}/target/desktop-generated', cmake)
 
 
 if __name__ == "__main__":

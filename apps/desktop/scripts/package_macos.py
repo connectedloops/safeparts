@@ -206,9 +206,10 @@ def main() -> int:
     if not cmake:
         raise SystemExit("cmake is unavailable")
     rust_target = build_dir / "rust-target"
+    generated_dir = build_dir / "generated"
     run(cmake, "-S", str(repo / "apps/desktop"), "-B", str(build_dir),
         "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_TESTING=ON", "-DCMAKE_OSX_ARCHITECTURES=arm64",
-        f"-DDESKTOP_RUST_TARGET_DIR={rust_target}")
+        f"-DDESKTOP_RUST_TARGET_DIR={rust_target}", f"-DDESKTOP_GENERATED_DIR={generated_dir}")
     run(cmake, "--build", str(build_dir), "-j2")
     cache_path = build_dir / "CMakeCache.txt"
     cache_text = cache_path.read_text(errors="replace")
@@ -264,7 +265,7 @@ def main() -> int:
     manifest = {
         "artifact": "local engineering material; not a release or clean-host qualification",
         "source": {"commit": source_commit, "tree": "clean"},
-        "build": {"provenance": "package-owned build and Cargo directories recreated before configuration",
+        "build": {"provenance": "package-owned CMake, Cargo, and generated-CXX directories recreated before configuration",
                   "cmake_cache_sha256": hashlib.sha256(cache_path.read_bytes()).hexdigest(),
                   "installed_executable_sha256": hashlib.sha256((app / "Contents/MacOS/Safeparts").read_bytes()).hexdigest()},
         "bundle_identifier": plist["CFBundleIdentifier"], "deployment_target": plist["LSMinimumSystemVersion"],
