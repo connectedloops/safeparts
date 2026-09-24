@@ -190,14 +190,38 @@ def verify_dialog_cancellation(snapshot: Callable[[], object], present: Callable
     responsive()
 
 
+def validated_evidence_root(repo: Path, evidence_root: Path, package: Path) -> Path:
+    lexical_target = repo.resolve() / "target"
+    if ".." in evidence_root.parts:
+        raise RuntimeError("workflow evidence root must not contain parent aliases")
+    lexical_root = evidence_root if evidence_root.is_absolute() else Path.cwd() / evidence_root
+    try:
+        relative = lexical_root.relative_to(lexical_target)
+    except ValueError as error:
+        raise RuntimeError("workflow evidence root is outside target") from error
+    if not relative.parts or ".." in relative.parts:
+        raise RuntimeError("workflow evidence root must be a proper unaliased child of target")
+    candidate = lexical_target
+    for part in relative.parts:
+        if candidate.is_symlink():
+            raise RuntimeError("refusing symlink workflow evidence component")
+        candidate = candidate / part
+    if candidate.is_symlink():
+        raise RuntimeError("refusing symlink workflow evidence component")
+    resolved_target = lexical_target.resolve()
+    resolved_root = lexical_root.resolve(strict=False)
+    try:
+        resolved_relative = resolved_root.relative_to(resolved_target)
+    except ValueError as error:
+        raise RuntimeError("resolved workflow evidence root is outside target") from error
+    if not resolved_relative.parts or SMOKE.overlaps(resolved_root, package.resolve()):
+        raise RuntimeError("unsafe workflow evidence path")
+    return resolved_root
+
+
 def prepare(repo: Path, evidence_root: Path, package: Path, source_commit: str,
             manifest_digest: str, attempt_id: str | None = None) -> Path:
-    target = (repo / "target").resolve()
-    evidence_root.relative_to(target)
-    if evidence_root == target or SMOKE.overlaps(evidence_root, package):
-        raise RuntimeError("unsafe workflow evidence path")
-    if evidence_root.is_symlink():
-        raise RuntimeError("refusing symlink workflow evidence root")
+    evidence_root = validated_evidence_root(repo, evidence_root, package)
     marker = evidence_root / MARKER
     if evidence_root.exists():
         if not marker.is_file() or marker.read_text() != "owned workflow evidence\n":
@@ -209,6 +233,8 @@ def prepare(repo: Path, evidence_root: Path, package: Path, source_commit: str,
     if attempts.is_symlink():
         raise RuntimeError("refusing symlink attempts directory")
     attempts.mkdir(exist_ok=True)
+    if attempts.resolve() != attempts:
+        raise RuntimeError("attempts directory identity changed")
     identifier = attempt_id or f"{source_commit[:12]}-{manifest_digest[:12]}-{uuid.uuid4().hex[:12]}"
     attempt = attempts / identifier
     attempt.mkdir()
@@ -222,6 +248,34 @@ def prepare(repo: Path, evidence_root: Path, package: Path, source_commit: str,
     }
     (attempt / "attempt.json").write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
     return attempt
+
+
+def publish_latest_success(evidence_root: Path, attempt: Path, source_commit: str,
+                           manifest_digest: str) -> None:
+    result = json.loads((attempt / "result.json").read_text())
+    if result.get("status") != "passed":
+        raise RuntimeError("refusing latest-success for incomplete attempt")
+    latest = evidence_root / "latest-success.json"
+    temporary = evidence_root / f".latest-success.{attempt.name}.{uuid.uuid4().hex}.tmp"
+    payload = json.dumps({"attempt": attempt.name, "source_commit": source_commit,
+                          "manifest_sha256": manifest_digest}, indent=2, sort_keys=True) + "\n"
+    descriptor = None
+    try:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w") as stream:
+            descriptor = None
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, latest)
+    except BaseException:
+        if descriptor is not None:
+            os.close(descriptor)
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def record_failed_attempt(attempt: Path, error: BaseException) -> None:
@@ -240,7 +294,7 @@ def main() -> int:
     args = parser.parse_args()
     global CURRENT_ATTEMPT
     repo, package = args.repo_root.resolve(), args.package_dir.resolve()
-    evidence_root = args.evidence_dir.absolute()
+    evidence_root = args.evidence_dir if args.evidence_dir.is_absolute() else Path.cwd() / args.evidence_dir
     if run_text("/usr/bin/git", "status", "--porcelain", cwd=repo):
         raise SystemExit("dirty source tree")
     manifest_bytes = (package / "manifest.json").read_bytes()
@@ -525,10 +579,7 @@ def main() -> int:
     }
     (evidence / "evidence.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     (evidence / "result.json").write_text(json.dumps({"status": "passed", "cases": [case["case"] for case in results]}, indent=2, sort_keys=True) + "\n")
-    latest = evidence_root / "latest-success.json"
-    temporary_latest = evidence_root / ".latest-success.json.tmp"
-    temporary_latest.write_text(json.dumps({"attempt": evidence.name, "source_commit": head, "manifest_sha256": manifest_digest}, indent=2, sort_keys=True) + "\n")
-    temporary_latest.replace(latest)
+    publish_latest_success(evidence_root, evidence, head, manifest_digest)
     CURRENT_ATTEMPT = None
     print(evidence / "evidence.json")
     return 0

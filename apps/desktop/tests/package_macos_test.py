@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -406,12 +407,69 @@ Load command 2
             with self.assertRaisesRegex(RuntimeError,"unsafe"):
                 WORKFLOW.prepare(repo,package.resolve(),package.resolve(),"commit","manifest","other")
 
-    def test_workflow_evidence_rejects_symlink_root(self):
+    def test_workflow_evidence_rejects_every_symlink_component_without_touching_sentinels(self):
         with tempfile.TemporaryDirectory() as directory:
-            repo=Path(directory).resolve(); package=repo/"target/package"; package.mkdir(parents=True)
-            real=repo/"target/real"; real.mkdir(); link=repo/"target/evidence"; link.symlink_to(real, target_is_directory=True)
+            base=Path(directory).resolve(); repo=base/"repo"; target=repo/"target"; target.mkdir(parents=True)
+            package=target/"package"; package.mkdir(); external=base/"external"; external.mkdir(); sentinel=external/"sentinel"; sentinel.write_text("keep")
+            ancestor=target/"link"; ancestor.symlink_to(external,target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError,"symlink|outside"):
+                WORKFLOW.prepare(repo,ancestor/"out",package,"commit","manifest","attempt")
+            internal=target/"internal"; internal.mkdir(); internal_link=target/"internal-link"; internal_link.symlink_to(internal,target_is_directory=True)
             with self.assertRaisesRegex(RuntimeError,"symlink"):
-                WORKFLOW.prepare(repo,link,package.resolve(),"commit","manifest","attempt")
+                WORKFLOW.prepare(repo,internal_link/"nested",package,"commit","manifest","attempt")
+            direct=target/"direct"; direct.symlink_to(external,target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError,"symlink|outside"):
+                WORKFLOW.prepare(repo,direct,package,"commit","manifest","attempt")
+            root=target/"owned"; root.mkdir(); (root/WORKFLOW.MARKER).write_text("owned workflow evidence\n"); attempts=root/"attempts"; attempts.symlink_to(external,target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError,"symlink"):
+                WORKFLOW.prepare(repo,root,package,"commit","manifest","attempt")
+            self.assertEqual(sentinel.read_text(),"keep")
+
+    def test_workflow_evidence_rejects_target_symlink_parent_alias_and_accepts_safe_nested(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory).resolve(); external=base/"external"; external.mkdir(); sentinel=external/"sentinel"; sentinel.write_text("keep")
+            linked_repo=base/"linked-repo"; linked_repo.mkdir(); (linked_repo/"target").symlink_to(external,target_is_directory=True); package=external/"package"; package.mkdir()
+            with self.assertRaisesRegex(RuntimeError,"symlink"):
+                WORKFLOW.prepare(linked_repo,linked_repo/"target/evidence",package,"commit","manifest","attempt")
+            repo=base/"repo"; package=repo/"target/package"; package.mkdir(parents=True)
+            with self.assertRaisesRegex(RuntimeError,"parent aliases"):
+                WORKFLOW.prepare(repo,repo/"target/new/../evidence",package,"commit","manifest","attempt")
+            safe=WORKFLOW.prepare(repo,repo/"target/new/nested/evidence",package,"commit","manifest","attempt")
+            self.assertTrue((safe/"attempt.json").is_file())
+            self.assertEqual(sentinel.read_text(),"keep")
+
+    def test_workflow_latest_success_uses_attempt_unique_temps_and_preserves_failures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); root.mkdir(exist_ok=True)
+            attempts=[]
+            for name in ("one","two"):
+                attempt=root/name; attempt.mkdir(); (attempt/"result.json").write_text('{"status":"passed"}')
+                attempts.append(attempt)
+            errors=[]; barrier=threading.Barrier(2); real_replace=WORKFLOW.os.replace
+            def interleaved_replace(source,destination):
+                barrier.wait(timeout=2); real_replace(source,destination)
+            def publish(attempt):
+                try: WORKFLOW.publish_latest_success(root,attempt,attempt.name,"manifest")
+                except BaseException as error: errors.append(error)
+            with mock.patch.object(WORKFLOW.os,"replace",side_effect=interleaved_replace):
+                threads=[threading.Thread(target=publish,args=(attempt,)) for attempt in attempts]
+                [thread.start() for thread in threads]; [thread.join() for thread in threads]
+            self.assertEqual(errors,[])
+            pointer=json.loads((root/"latest-success.json").read_text())
+            self.assertIn(pointer["attempt"],{"one","two"})
+            self.assertEqual(list(root.glob(".latest-success.*.tmp")),[])
+            failed=root/"failed"; failed.mkdir(); (failed/"result.json").write_text('{"status":"failed"}')
+            before=(root/"latest-success.json").read_bytes()
+            with self.assertRaisesRegex(RuntimeError,"incomplete"):
+                WORKFLOW.publish_latest_success(root,failed,"failed","manifest")
+            self.assertEqual((root/"latest-success.json").read_bytes(),before)
+            unrelated=root/".latest-success.unrelated.tmp"; unrelated.write_text("keep")
+            with mock.patch.object(WORKFLOW.os,"replace",side_effect=OSError("synthetic")):
+                with self.assertRaises(OSError):
+                    WORKFLOW.publish_latest_success(root,attempts[0],"one","manifest")
+            self.assertEqual(unrelated.read_text(),"keep")
+            self.assertEqual(list(root.glob(".latest-success.one.*.tmp")),[])
+            self.assertTrue(all((attempt/"result.json").is_file() for attempt in attempts+[failed]))
 
     def test_workflow_copy_requires_transition_and_preserves_exact_bytes(self):
         expected=b"  exact bytes with trailing space  \n"
