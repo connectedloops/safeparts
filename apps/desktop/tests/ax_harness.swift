@@ -77,6 +77,15 @@ if command == "actions" {
 } else if command == "selectrow" {
     guard let row = ancestor(element, role: kAXRowRole),
           AXUIElementSetAttributeValue(row, kAXSelectedAttribute as CFString, kCFBooleanTrue) == .success else { exit(6) }
+} else if command == "selectrows" {
+    guard CommandLine.arguments.count > 6 else { exit(2) }
+    let names = CommandLine.arguments[6].split(separator: "\n").map(String.init)
+    let rows = names.compactMap { name in
+        descendants(app).first(where: { matches($0, role: kAXTextFieldRole, title: name) })
+            .flatMap { ancestor($0, role: kAXRowRole) }
+    }
+    guard rows.count == names.count, let outline = ancestor(rows[0], role: kAXOutlineRole),
+          AXUIElementSetAttributeValue(outline, kAXSelectedRowsAttribute as CFString, rows as CFArray) == .success else { exit(6) }
 } else if command == "set" {
     guard CommandLine.arguments.count > 6 else { exit(2) }
     guard AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, CommandLine.arguments[6] as CFTypeRef) == .success else { exit(6) }

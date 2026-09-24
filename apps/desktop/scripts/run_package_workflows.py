@@ -372,7 +372,7 @@ def main() -> int:
             for name in names:
                 poll(lambda name=name: ax_exists(helper, pid, "AXTextField", name, deadline=deadline), bool,
                      deadline=deadline, description=f"share file row {name}")
-                ax_call(helper, pid, "selectrow", "AXTextField", name, deadline=deadline)
+            ax_call(helper, pid, "selectrows", "AXTextField", names[0], value="\n".join(names), deadline=deadline)
             ax_call(helper, pid, "press", "AXButton", "Open", deadline=deadline)
             poll(lambda: ax_exists(helper, pid, "AXWindow", "Load Recovery share files", deadline=deadline),
                  lambda value: not value, deadline=deadline, description="share file dialog dismissal")
