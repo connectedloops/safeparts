@@ -28,7 +28,19 @@ Rust owns generated packets, recovery validation and state, authoritative recove
 - Passphrase editors are exact, masked, limited to 1 MiB of valid UTF-8, and expose no copy action or undo history. Missing passphrases remain a specific readiness condition. Wrong-passphrase and uncertain decryption failures share one content-free message and keep inputs available for correction.
 - Immutable synthetic corpora cover UTF-8 and arbitrary-byte interoperability. The binary corpus pins unprotected output from desktop, CLI, TUI, and generated real WASM, plus protected desktop output, in all four encodings. Core and every applicable active boundary recover the exact 11-byte binary Secret. This is boundary evidence, not a claim that the web UI exposes binary files or protected file workflows.
 
-Printing remains deferred. Packaging and platform qualification remain in issues 148 through 151; the issue 147 development-host capacity work is complete.
+Printing remains deferred by owner priority and is not a passed check. Issue 151 stays open. The first non-printing issue 151 milestone can stage a relocatable local Apple-silicon app bundle, while clean-host, offline, minimum-version, signing, licensing, and distribution qualification remain outstanding. The issue 147 development-host capacity work is complete.
+
+## Local Apple-silicon bundle material
+
+On an Apple-silicon development host with the existing pinned project tools and Qt installation, run:
+
+```bash
+mise run desktop:package:local
+```
+
+The task builds `target/desktop-package/Safeparts.app`, deploys the selected Qt runtime closure, ad-hoc signs it, checks every Mach-O architecture and dependency, rejects Homebrew/build-tree runtime paths and network-capable Qt components, then writes `manifest.json` and `SHA256SUMS`. The manifest records source and tool versions, deployment targets, dependencies, rpaths, plugins, and file hashes.
+
+This directory is local engineering material, not a release or supported installer. It has not been installed on a clean host, tested offline, tested at a claimed minimum macOS version, notarized, or accepted by Gatekeeper after normal downloaded-file quarantine. The configured deployment target is an observed build setting, not a support promise. The bundle includes the Safeparts MIT notice, but Qt LGPL/third-party notices, durable corresponding source and build configuration, and a reviewed replacement/relinking procedure remain explicit blockers in the manifest. Do not distribute this material until those obligations and the final signing/channel policy are resolved.
 
 ## Clipboard acquisition blocker
 

@@ -74,10 +74,25 @@ set_target_properties(desktop-ui PROPERTIES NO_SYSTEM_FROM_IMPORTED ON)
 target_link_libraries(desktop-ui PUBLIC Qt6::Widgets safeparts-rust)
 target_compile_options(desktop-ui PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(safeparts-desktop src/main.cpp)
-set_target_properties(safeparts-desktop PROPERTIES NO_SYSTEM_FROM_IMPORTED ON)
+if(APPLE)
+  add_executable(safeparts-desktop MACOSX_BUNDLE src/main.cpp)
+else()
+  add_executable(safeparts-desktop src/main.cpp)
+endif()
+set_target_properties(safeparts-desktop PROPERTIES
+  NO_SYSTEM_FROM_IMPORTED ON
+  OUTPUT_NAME Safeparts
+  MACOSX_BUNDLE_BUNDLE_NAME Safeparts
+  MACOSX_BUNDLE_GUI_IDENTIFIER org.connectedloops.safeparts.experimental
+  MACOSX_BUNDLE_BUNDLE_VERSION 0.1.0
+  MACOSX_BUNDLE_SHORT_VERSION_STRING 0.1.0
+  MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/resources/Info.plist.in"
+)
 target_link_libraries(safeparts-desktop PRIVATE desktop-ui)
 target_compile_options(safeparts-desktop PRIVATE -Wall -Wextra -Wpedantic -Werror)
+if(APPLE)
+  install(TARGETS safeparts-desktop BUNDLE DESTINATION . COMPONENT desktop)
+endif()
 
 include(CTest)
 if(BUILD_TESTING)

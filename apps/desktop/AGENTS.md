@@ -2,14 +2,15 @@
 
 ## Purpose
 
-Owns the experimental Qt Widgets text and exact-byte file workflow through capacity and fault handling issue 147. This is development-host evidence, not a packaged or platform-qualified release.
+Owns the experimental Qt Widgets text and exact-byte file workflow plus local Apple-silicon bundle material. This is development-host evidence, not a packaged or platform-qualified release. The owner authorized non-printing issue 151 work while printing issues remain deferred; omitted printing is never a passed gate and issue 151 cannot close on that basis.
 
 ## Ownership
 
 - `src/`: single-window Qt UI, one serialized Rust worker, exact text editor, bounded clipboard adapters, and direct file I/O.
 - `tests/`: generated-CXX contract and Qt user-action/lifecycle checks.
-- `scripts/`: deterministic generated-bridge command.
-- `CMakeLists.txt`, `run.sh`: local build, test, and launch entry points.
+- `scripts/`: deterministic generated-bridge command and local macOS bundle staging/closure inspection.
+- `resources/`: application-bundle metadata.
+- `CMakeLists.txt`, `run.sh`: local build, test, install, and launch entry points.
 
 ## Local Contracts
 
@@ -21,6 +22,7 @@ Owns the experimental Qt Widgets text and exact-byte file workflow through capac
 - File acquisition uses bounded streaming actual reads. Exports write directly to only the selected destination with no staging, rename, auto-open, rollback, or source alteration. Paths never cross CXX. Cancellation is a no-op; write failure preserves the operation and may leave a partial selected destination.
 - Qt allocation-failure tests inject a narrow constructor-owned `DesktopAllocationPolicy`, shared with `SegmentedShareView`. Production uses the always-allow default; there is no environment, configuration, UI, or global mutable activation. Test policies fail one named boundary once, report content-free errors, preserve accepted state, suppress the affected handoff, and permit retry. Check accessibility immediately before its `QString` text-range handoff and explicit selection Copy immediately before clipboard writing; empty-selection Copy remains an authoritative worker request.
 - Do not add autonomous networking, persistence, content logs, session restoration, or undo history.
+- Local macOS material is arm64, ad-hoc signed, and inspected for a self-contained Qt runtime closure. Its manifest must retain explicit blocked licensing/source/relinking obligations and untested clean-host, Gatekeeper, offline, and minimum-version gates. Do not describe it as a release or supported installer.
 
 ## Work Guidance
 
@@ -33,6 +35,7 @@ Owns the experimental Qt Widgets text and exact-byte file workflow through capac
 - Build: `mise run desktop:build`
 - Public and Qt actions: `mise run desktop:test`
 - Launch: `mise run desktop:run`
+- Local Apple-silicon bundle: `mise run desktop:package:local`; inspect `target/desktop-package/manifest.json` and `SHA256SUMS`. This is development-host material only.
 - Capacity evidence: run `mise run desktop:evidence:capacity` with a named case from `apps/desktop/scripts/run_capacity_evidence.sh`; every case resolves and hashes its exact native executable, then runs `/usr/bin/time -l` directly around a PID-preserving `exec`, so direct-test RSS and peak private footprint are the independent strict gates. `maximum-retained` additionally samples that stable PID, requires every named phase with bounded gaps and no sampling errors, and derives its ownership ledger from emitted test facts. Treat a timeout, ambiguous identity, executable path/hash change, incomplete samples, or either metric at 1 GiB as a blocker. Timeout cleanup targets only the run's new process group, always probes after TERM/leader wait, KILLs remaining members, and verifies bounded group disappearance before returning 124.
 - Run `mise run verify` before review.
 

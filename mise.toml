@@ -155,6 +155,14 @@ run = [
   "ctest --test-dir target/desktop-build --output-on-failure",
 ]
 
+[tasks."desktop:package:local"]
+description = "Build and inspect a local ad-hoc-signed Apple-silicon app bundle."
+run = [
+  "cmake -S apps/desktop -B target/desktop-package-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_OSX_ARCHITECTURES=arm64",
+  "cmake --build target/desktop-package-build -j2",
+  "python3 apps/desktop/scripts/package_macos.py --build-dir target/desktop-package-build --output-dir target/desktop-package",
+]
+
 [tasks."desktop:evidence:capacity"]
 description = "Run a named desktop capacity case in a fresh process with macOS memory gates."
 run = "apps/desktop/scripts/run_capacity_evidence.sh ${CAPACITY_CASE:-maximum-words}"
