@@ -437,6 +437,15 @@ Load command 2
         with self.assertRaises(TimeoutError):
             WORKFLOW.navigate_dialog_rows(["missing"],lambda value: None,lambda: None,lambda value: False,deadline=time.monotonic()+0.02)
 
+    def test_workflow_save_result_handles_delay_cancel_and_wrong_bytes(self):
+        delayed=[None,None,b"exact\x00bytes"]
+        WORKFLOW.verify_file_result(lambda: delayed.pop(0) if delayed else b"exact\x00bytes",b"exact\x00bytes",canceled=False,deadline=time.monotonic()+1)
+        WORKFLOW.verify_file_result(lambda: None,b"expected",canceled=True,deadline=time.monotonic()+1)
+        with self.assertRaisesRegex(RuntimeError,"canceled Save"):
+            WORKFLOW.verify_file_result(lambda: b"created",b"expected",canceled=True,deadline=time.monotonic()+1)
+        with self.assertRaisesRegex(RuntimeError,"bytes mismatch"):
+            WORKFLOW.verify_file_result(lambda: b"wrong",b"expected",canceled=False,deadline=time.monotonic()+1)
+
     def test_workflow_dialog_requires_open_close_and_preserved_state(self):
         state={"dialog":False,"value":"synthetic"}; responsive=[]
         WORKFLOW.verify_dialog_cancellation(lambda: state["value"],lambda: state["dialog"],lambda: state.__setitem__("dialog",True),lambda: state.__setitem__("dialog",False),lambda: responsive.append(True),deadline=time.monotonic()+1)

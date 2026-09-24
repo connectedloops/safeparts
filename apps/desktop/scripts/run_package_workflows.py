@@ -159,6 +159,18 @@ def navigate_dialog_rows(components: list[str], select: Callable[[str], None],
         submit()
 
 
+def verify_file_result(read: Callable[[], bytes | None], expected: bytes, *, canceled: bool,
+                       deadline: float) -> None:
+    if canceled:
+        if read() is not None:
+            raise RuntimeError("canceled Save created a destination")
+        return
+    value = poll(lambda: read(), lambda result: result is not None, deadline=deadline,
+                 description="saved file creation")
+    if value != expected:
+        raise RuntimeError("saved file bytes mismatch")
+
+
 def verify_dialog_cancellation(snapshot: Callable[[], object], present: Callable[[], bool],
                                open_dialog: Callable[[], None], dismiss: Callable[[], None],
                                responsive: Callable[[], None], *, deadline: float) -> None:
@@ -348,7 +360,7 @@ def main() -> int:
             poll(lambda: ax_exists(helper, pid, "AXWindow", "Choose Secret file", deadline=deadline),
                  lambda value: not value, deadline=deadline, description="Secret file dialog dismissal")
 
-        def save_result(button_occurrence: int, destination: Path, *, cancel: bool = False) -> None:
+        def save_result(button_occurrence: int, destination: Path, expected: bytes, *, cancel: bool = False) -> None:
             if destination.exists():
                 raise RuntimeError("refusing existing workflow Save destination")
             ax_call(helper, pid, "press", "AXButton", "Save…", occurrence=button_occurrence, deadline=time.monotonic() + 5)
@@ -359,11 +371,8 @@ def main() -> int:
             deadline = time.monotonic() + 15
             poll(lambda: ax_exists(helper, pid, "AXWindow", "Save exact bytes", deadline=deadline),
                  lambda value: not value, deadline=deadline, description="Save dialog dismissal")
-            if cancel:
-                if destination.exists():
-                    raise RuntimeError("canceled Save created a destination")
-                return
-            poll(lambda: destination.exists(), bool, deadline=deadline, description="saved file creation")
+            verify_file_result(lambda: destination.read_bytes() if destination.exists() else None,
+                               expected, canceled=cancel, deadline=deadline)
 
         def load_share_files(names: list[str]) -> None:
             ax_call(helper, pid, "press", "AXButton", "Load share files…", deadline=time.monotonic() + 5)
@@ -395,12 +404,9 @@ def main() -> int:
             binary_shares = [wait_value(helper, pid, "AXTextArea", f"Recovery share {index}", deadline=time.monotonic() + 30) for index in (1, 2)]
             prefix = "protected-" if protected else "unprotected-"
             share_paths = [io_directory / f"{prefix}share-{index}.txt" for index in (1, 2)]
-            save_result(0, share_paths[0], cancel=True)
-            save_result(0, share_paths[0])
-            save_result(1, share_paths[1])
-            for expected_share, path in zip(binary_shares, share_paths, strict=True):
-                if path.read_bytes() != expected_share:
-                    raise RuntimeError("saved Recovery share bytes mismatch")
+            save_result(0, share_paths[0], binary_shares[0], cancel=True)
+            save_result(0, share_paths[0], binary_shares[0])
+            save_result(1, share_paths[1], binary_shares[1])
             ax_call(helper, pid, "press", "AXRadioButton", "Combine", deadline=time.monotonic() + 5)
             load_share_files([path.name for path in share_paths])
             entered = time.monotonic() + 30
@@ -420,7 +426,7 @@ def main() -> int:
             poll(lambda: ax_exists(helper, pid, "AXStaticText", binary_status, deadline=recovered_ready), bool,
                  deadline=recovered_ready, description="binary recovery status")
             recovered_path = io_directory / f"{prefix}recovered.bin"
-            save_result(0, recovered_path)
+            save_result(0, recovered_path, binary_fixture)
             recovered = recovered_path.read_bytes()
             if recovered != binary_fixture:
                 raise RuntimeError("recovered binary file bytes mismatch")
