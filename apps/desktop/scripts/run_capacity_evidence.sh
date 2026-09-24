@@ -54,15 +54,16 @@ print(matches[0])
 PY
 )
 fi
+executable=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$executable")
 [ -x "$executable" ] || { echo "resolved executable is not executable: $executable" >&2; exit 1; }
 exe_hash=$(shasum -a 256 "$executable" | awk '{print $1}')
 printf '%s\n' "$executable" >"$out/executable.path"
 printf '%s\n' "$exe_hash" >"$out/executable.sha256"
 printf '{"phase":"run","case":"%s","test":"%s","executable":"%s","sha256":"%s"}\n' "$case_name" "$test_name" "$executable" "$exe_hash"
 
-python3 - "$out" "$executable" "$test_name" "$runner" "${CAPACITY_TIMEOUT_SECONDS:-300}" <<'PY'
+python3 - "$out" "$executable" "$exe_hash" "$test_name" "$runner" "${CAPACITY_TIMEOUT_SECONDS:-300}" <<'PY'
 import hashlib, json, os, re, signal, subprocess, sys, time
-out, executable, test_name, runner, timeout_text = sys.argv[1:]
+out, executable, expected_hash, test_name, runner, timeout_text = sys.argv[1:]
 timeout=int(timeout_text); pid_path=os.path.join(out,"test.pid")
 args=[executable, test_name]
 if runner != "qt": args += ["--ignored", "--exact", "--nocapture"]
@@ -78,10 +79,31 @@ with open(os.path.join(out,"test.stdout"),"w",encoding="utf-8") as stdout, open(
     pid=None
     while process.poll() is None:
         if time.monotonic()-started > timeout:
-            os.killpg(process.pid,signal.SIGTERM)
+            pgid=process.pid
+            def group_members():
+                rows=subprocess.check_output(["ps","-axo","pid=,pgid="],text=True).splitlines()
+                return [int(parts[0]) for row in rows
+                        if len(parts:=row.split())==2 and int(parts[1])==pgid]
+            os.killpg(pgid,signal.SIGTERM)
             try: process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid,signal.SIGKILL); process.wait()
+            except subprocess.TimeoutExpired: pass
+            kill_sent=False
+            if group_members():
+                try: os.killpg(pgid,signal.SIGKILL)
+                except ProcessLookupError: pass
+                kill_sent=True
+            deadline=time.monotonic()+5
+            members=group_members()
+            while members and time.monotonic()<deadline:
+                time.sleep(0.05); members=group_members()
+            gone=not members
+            json.dump({"pgid":pgid,"termSent":True,"killSent":kill_sent,
+                       "leaderExited":process.poll() is not None,"remainingPids":members,"groupGone":gone},
+                      open(os.path.join(out,"timeout-cleanup.json"),"w"),indent=2)
+            if process.poll() is None:
+                try: process.wait(timeout=1)
+                except subprocess.TimeoutExpired: pass
+            if not gone: raise SystemExit("timed-out process group cleanup could not be verified")
             raise SystemExit(124)
         if pid is None and os.path.exists(pid_path):
             text=open(pid_path).read().strip()
@@ -111,8 +133,12 @@ with open(os.path.join(out,"test.stdout"),"w",encoding="utf-8") as stdout, open(
     code=process.wait()
 if code: raise SystemExit(code)
 if pid is None: raise SystemExit("test PID was not recorded")
-identity={"pid":pid,"executable":os.path.realpath(executable),"sha256":hashlib.sha256(open(executable,"rb").read()).hexdigest()}
+post_path=os.path.realpath(executable)
+post_hash=hashlib.sha256(open(post_path,"rb").read()).hexdigest()
+identity={"pid":pid,"executable":post_path,"sha256":post_hash}
 json.dump(identity,open(os.path.join(out,"identity.json"),"w"),indent=2)
+if post_path != executable or post_hash != expected_hash:
+    raise SystemExit(f"test executable identity changed: {identity}")
 if samples:
     with open(os.path.join(out,"samples.jsonl"),"w") as stream:
         for sample in samples: stream.write(json.dumps(sample,sort_keys=True)+"\n")

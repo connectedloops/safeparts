@@ -314,6 +314,10 @@ DesktopWindow::DesktopWindow(std::shared_ptr<DesktopAllocationPolicy> allocation
             Qt::QueuedConnection);
     connect(this, &DesktopWindow::requestRecover, worker_, &RustWorker::recover, Qt::QueuedConnection);
     connect(this, &DesktopWindow::requestRecoveredBytes, worker_, &RustWorker::recoveredBytes, Qt::QueuedConnection);
+    connect(worker_, &RustWorker::recoveryExecutionStarted, this,
+            &DesktopWindow::recoveryExecutionStarted, Qt::DirectConnection);
+    connect(worker_, &RustWorker::recoveryExecutionFinished, this,
+            &DesktopWindow::recoveryExecutionFinished, Qt::DirectConnection);
     connect(worker_, &RustWorker::operationFinished, this, &DesktopWindow::operationFinished);
     connect(worker_, &RustWorker::bytesFinished, this, &DesktopWindow::bytesFinished);
     thread_->start();

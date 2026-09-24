@@ -44,6 +44,8 @@ public:
                                  OpenFilesDialog openFiles, SaveFileDialog saveFile);
 
 signals:
+    void recoveryExecutionStarted(quint64 generation);
+    void recoveryExecutionFinished(quint64 generation);
     void requestReset(quint64 generation);
     void requestCreate(quint64 generation, SecureByteBuffer secret, quint8 threshold,
                        quint8 shareCount, int encoding, SecureByteBuffer passphrase);

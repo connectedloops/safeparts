@@ -2049,6 +2049,14 @@ void DesktopActions::maximum_policy_recovery_rejects_stale_lifecycle_results() {
     QVERIFY(maximumGap < 500);
 
     auto *closing = new DesktopWindow;
+    std::atomic<bool> closeRecoveryStarted{false};
+    std::atomic<bool> closeRecoveryFinished{false};
+    connect(closing, &DesktopWindow::recoveryExecutionStarted, closing,
+            [&](quint64) { closeRecoveryStarted.store(true, std::memory_order_release); },
+            Qt::DirectConnection);
+    connect(closing, &DesktopWindow::recoveryExecutionFinished, closing,
+            [&](quint64) { closeRecoveryFinished.store(true, std::memory_order_release); },
+            Qt::DirectConnection);
     closing->setFileServicesForTests(std::make_shared<FileIo>(), [] { return QString(); },
                                      [] { return QStringList(); }, [&] {
                                          ++saveDialogCalls;
@@ -2061,11 +2069,15 @@ void DesktopActions::maximum_policy_recovery_rejects_stale_lifecycle_results() {
     QTRY_VERIFY_WITH_TIMEOUT(required<QPushButton>(closing, "recoverButton")->isEnabled(), 10'000);
     QApplication::clipboard()->setText(QStringLiteral("lifecycle-sentinel"));
     QTest::mouseClick(required<QPushButton>(closing, "recoverButton"), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(closeRecoveryStarted.load(std::memory_order_acquire), 2'000);
+    QVERIFY(!closeRecoveryFinished.load(std::memory_order_acquire));
+    const int wipesBeforeClose = wiped->load(std::memory_order_acquire);
     QElapsedTimer closeClock;
     closeClock.start();
     closing->close();
     const qint64 closeMilliseconds = closeClock.elapsed();
     QVERIFY(closeMilliseconds < 500);
+    QVERIFY(!closeRecoveryFinished.load(std::memory_order_acquire));
     QCOMPARE(required<ExactTextEdit>(closing, "recoveryPassphrase")->exactUtf8(), QByteArray());
     QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("lifecycle-sentinel"));
     QVERIFY(!QFileInfo::exists(forbiddenDestination));
@@ -2075,13 +2087,18 @@ void DesktopActions::maximum_policy_recovery_rejects_stale_lifecycle_results() {
     delete closing;
     const qint64 destructionMilliseconds = destructionClock.elapsed();
     QVERIFY(destructionMilliseconds < 10'000);
+    QVERIFY(closeRecoveryFinished.load(std::memory_order_acquire));
+    QVERIFY(wiped->load(std::memory_order_acquire) > wipesBeforeClose);
     QVERIFY(maximumGap < 500);
     qInfo().noquote()
-        << QStringLiteral("CAPACITY maximum-policy-heartbeat-gap-ms=%1 close-ms=%2 destruction-wait-ms=%3 wipes=%4")
+        << QStringLiteral("CAPACITY maximum-policy-heartbeat-gap-ms=%1 close-ms=%2 destruction-wait-ms=%3 wipes-before-close=%4 wipes-after-destruction=%5 recovery-started=%6 recovery-finished=%7")
                .arg(maximumGap)
                .arg(closeMilliseconds)
                .arg(destructionMilliseconds)
-               .arg(wiped->load(std::memory_order_acquire));
+               .arg(wipesBeforeClose)
+               .arg(wiped->load(std::memory_order_acquire))
+               .arg(closeRecoveryStarted.load(std::memory_order_acquire))
+               .arg(closeRecoveryFinished.load(std::memory_order_acquire));
 }
 
 void DesktopActions::segmented_share_view_is_exact_selectable_accessible_and_bounded() {

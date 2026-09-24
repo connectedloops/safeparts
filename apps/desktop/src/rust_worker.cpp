@@ -94,7 +94,9 @@ void RustWorker::replaceRecovery(quint64 generation, QList<SecureByteBuffer> inp
 }
 
 void RustWorker::recover(quint64 generation, SecureByteBuffer passphrase) {
+    emit recoveryExecutionStarted(generation);
     BytesOutput output = operation_->recover_bytes_with_passphrase(generation, slice(passphrase));
+    emit recoveryExecutionFinished(generation);
     SecureByteBuffer bytes = copyAndWipeBytes(output.bytes);
     const bool asciiValidated = isCanonicalDisplayAscii(bytes);
     emit bytesFinished(output.generation, statusValue(output.status), std::move(bytes), 1, 0,

@@ -22,6 +22,8 @@ public slots:
     void recoveredBytes(quint64 generation, int purpose);
 
 signals:
+    void recoveryExecutionStarted(quint64 generation);
+    void recoveryExecutionFinished(quint64 generation);
     void operationFinished(quint64 generation, int status, quint8 threshold, quint16 shareCount,
                            quint16 suppliedCount, quint16 batchCount, int encoding, bool protectedInput,
                            bool ready);
