@@ -195,16 +195,25 @@ def main() -> int:
     dirty = run("/usr/bin/git", "status", "--porcelain", cwd=repo)
     if dirty:
         raise SystemExit("refusing package provenance from a dirty source tree")
+    if build_dir == output_dir or build_dir in output_dir.parents or output_dir in build_dir.parents:
+        raise SystemExit("build and output staging directories must be separate")
+    # Both directories are package-owned and recreated before configuration. This
+    # prevents any object, Cargo fingerprint, or generated source from a prior
+    # checkout from entering the installed artifact.
+    prepare_output(repo, build_dir)
     prepare_output(repo, output_dir)
     cmake = shutil.which("cmake")
     if not cmake:
         raise SystemExit("cmake is unavailable")
+    rust_target = build_dir / "rust-target"
+    run(cmake, "-S", str(repo / "apps/desktop"), "-B", str(build_dir),
+        "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_TESTING=ON", "-DCMAKE_OSX_ARCHITECTURES=arm64",
+        f"-DDESKTOP_RUST_TARGET_DIR={rust_target}")
+    run(cmake, "--build", str(build_dir), "-j2")
     cache_path = build_dir / "CMakeCache.txt"
-    if not cache_path.is_file():
-        raise SystemExit("configured build cache is unavailable")
     cache_text = cache_path.read_text(errors="replace")
     if f"CMAKE_HOME_DIRECTORY:INTERNAL={repo / 'apps/desktop'}" not in cache_text:
-        raise SystemExit("build cache belongs to another source tree")
+        raise SystemExit("fresh build cache belongs to another source tree")
     run(cmake, "--install", str(build_dir), "--prefix", str(output_dir), "--component", "desktop")
     app = output_dir / "Safeparts.app"
     if not app.is_dir():
@@ -255,7 +264,8 @@ def main() -> int:
     manifest = {
         "artifact": "local engineering material; not a release or clean-host qualification",
         "source": {"commit": source_commit, "tree": "clean"},
-        "build": {"cmake_cache_sha256": hashlib.sha256(cache_path.read_bytes()).hexdigest(),
+        "build": {"provenance": "package-owned build and Cargo directories recreated before configuration",
+                  "cmake_cache_sha256": hashlib.sha256(cache_path.read_bytes()).hexdigest(),
                   "installed_executable_sha256": hashlib.sha256((app / "Contents/MacOS/Safeparts").read_bytes()).hexdigest()},
         "bundle_identifier": plist["CFBundleIdentifier"], "deployment_target": plist["LSMinimumSystemVersion"],
         "toolchain": {"rust": run("mise", "exec", "--", "rustc", "--version", cwd=repo),

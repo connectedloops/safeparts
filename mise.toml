@@ -157,11 +157,11 @@ run = [
 
 [tasks."desktop:package:local"]
 description = "Build and inspect a local ad-hoc-signed Apple-silicon app bundle."
-run = [
-  "cmake -S apps/desktop -B target/desktop-package-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_OSX_ARCHITECTURES=arm64",
-  "cmake --build target/desktop-package-build -j2",
-  "python3 apps/desktop/scripts/package_macos.py --build-dir target/desktop-package-build --output-dir target/desktop-package",
-]
+run = "python3 apps/desktop/scripts/package_macos.py --build-dir target/desktop-package-work --output-dir target/desktop-package"
+
+[tasks."desktop:package:smoke"]
+description = "Run bounded development-host relocation evidence for the exact local bundle."
+run = "python3 apps/desktop/scripts/smoke_macos_package.py --package-dir target/desktop-package --evidence-dir target/desktop-package-smoke"
 
 [tasks."desktop:evidence:capacity"]
 description = "Run a named desktop capacity case in a fresh process with macOS memory gates."

@@ -21,7 +21,8 @@ add_compile_options("-I${QT_SELECTED_PREFIX}/include")
 get_filename_component(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 set(GENERATED_DIR "${REPO_ROOT}/target/desktop-generated")
 set(BRIDGE_SOURCE "${REPO_ROOT}/crates/safeparts_desktop_bridge/src/bridge.rs")
-set(RUST_LIBRARY "${REPO_ROOT}/target/release/${CMAKE_STATIC_LIBRARY_PREFIX}safeparts_desktop_bridge${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set(DESKTOP_RUST_TARGET_DIR "${REPO_ROOT}/target" CACHE PATH "Cargo target directory for the desktop bridge")
+set(RUST_LIBRARY "${DESKTOP_RUST_TARGET_DIR}/release/${CMAKE_STATIC_LIBRARY_PREFIX}safeparts_desktop_bridge${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 add_custom_command(
   OUTPUT "${GENERATED_DIR}/bridge.rs.cc" "${GENERATED_DIR}/bridge.rs.h" "${GENERATED_DIR}/rust/cxx.h"
@@ -34,6 +35,7 @@ add_custom_target(desktop-bridge-generated DEPENDS
 
 add_custom_target(desktop-rust ALL
   COMMAND ${CMAKE_COMMAND} -E env MACOSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
+          CARGO_TARGET_DIR=${DESKTOP_RUST_TARGET_DIR}
           mise exec -- cargo build --release --locked -p safeparts_desktop_bridge
   WORKING_DIRECTORY "${REPO_ROOT}"
   BYPRODUCTS "${RUST_LIBRARY}"

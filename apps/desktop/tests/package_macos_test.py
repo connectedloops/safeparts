@@ -11,6 +11,11 @@ PACKAGE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = PACKAGE
 SPEC.loader.exec_module(PACKAGE)
 R = PACKAGE.MachORecord
+SMOKE_PATH = Path(__file__).parents[1] / "scripts/smoke_macos_package.py"
+SMOKE_SPEC = importlib.util.spec_from_file_location("smoke_macos_package", SMOKE_PATH)
+SMOKE = importlib.util.module_from_spec(SMOKE_SPEC)
+sys.modules[SMOKE_SPEC.name] = SMOKE
+SMOKE_SPEC.loader.exec_module(SMOKE)
 
 
 class PackageManifestTests(unittest.TestCase):
@@ -98,9 +103,9 @@ class PackageManifestTests(unittest.TestCase):
             self.assertEqual(sentinel.read_text(), "keep")
             owned = target / "owned"
             PACKAGE.prepare_output(repo, owned.resolve())
-            (owned / "old").write_text("old")
+            (owned / "stale-object.o").write_text("built from another checkout")
             PACKAGE.prepare_output(repo, owned.resolve())
-            self.assertFalse((owned / "old").exists())
+            self.assertFalse((owned / "stale-object.o").exists())
             self.assertTrue((owned / PACKAGE.OWNER_MARKER).is_file())
             with self.assertRaisesRegex(RuntimeError, "inside repository target"):
                 PACKAGE.prepare_output(repo, (repo / "elsewhere").resolve())
@@ -123,6 +128,25 @@ Load command 2
         self.assertEqual(dependencies, ("@loader_path/libdep.dylib",))
         self.assertEqual(rpaths, ())
         self.assertEqual(minimum, "15.5")
+
+    def test_loaded_image_parser_ignores_non_image_dyld_messages(self):
+        lines = [
+            "dyld[12]: <UUID> /tmp/Safeparts.app/Contents/Frameworks/QtCore",
+            "dyld[12]: move loaded to delayed: NetworkExtension",
+            "ordinary output",
+        ]
+        self.assertEqual(SMOKE.loaded_paths(lines), ["/tmp/Safeparts.app/Contents/Frameworks/QtCore"])
+
+    def test_smoke_cleanup_refuses_unowned_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            evidence = repo / "target/evidence"
+            evidence.mkdir(parents=True)
+            sentinel = evidence / "keep"
+            sentinel.write_text("keep")
+            with self.assertRaisesRegex(RuntimeError, "unowned"):
+                SMOKE.prepare_evidence(repo, evidence.resolve())
+            self.assertTrue(sentinel.exists())
 
 
 if __name__ == "__main__":
