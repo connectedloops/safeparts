@@ -27,6 +27,7 @@ def load(name: str):
 SMOKE = load("smoke_macos_package")
 MARKER = ".safeparts-desktop-workflows"
 FAILURE_STATUS = "The passphrase may be incorrect or the Recovery shares may be damaged. No output was shown."
+TARGET_EXECUTABLES: dict[int, str] = {}
 
 
 class ElementNotFound(RuntimeError):
@@ -54,6 +55,12 @@ def ax_call(helper: Path, pid: int, command: str, role: str, title: str,
         os.kill(pid, 0)
     except ProcessLookupError as error:
         raise RuntimeError("target app exited") from error
+    expected_executable = TARGET_EXECUTABLES.get(pid)
+    if expected_executable is not None:
+        identity = subprocess.run(["/bin/ps", "-p", str(pid), "-o", "command="], capture_output=True,
+                                  timeout=remaining(deadline)).stdout.decode().strip()
+        if identity != expected_executable:
+            raise RuntimeError("target PID identity changed or app exited")
     args = [str(helper), command, str(pid), role, title, str(occurrence)]
     if value is not None:
         args.append(value)
@@ -197,7 +204,9 @@ def main() -> int:
     env["DYLD_PRINT_LIBRARIES"] = "1"
     stdout = (evidence / "stdout.log").open("wb")
     stderr = (evidence / "loaded-images.log").open("wb")
-    process = subprocess.Popen([str(app / "Contents/MacOS/Safeparts")], env=env, stdout=stdout, stderr=stderr, start_new_session=True)
+    executable = str(app / "Contents/MacOS/Safeparts")
+    process = subprocess.Popen([executable], env=env, stdout=stdout, stderr=stderr, start_new_session=True)
+    TARGET_EXECUTABLES[process.pid] = executable
     results: list[dict[str, object]] = []
     try:
         pid = process.pid
@@ -302,6 +311,7 @@ def main() -> int:
         except BaseException as error:
             cleanup_error = error
         process.wait(timeout=5)
+        TARGET_EXECUTABLES.pop(process.pid, None)
         stdout.close()
         stderr.close()
         if cleanup_error:

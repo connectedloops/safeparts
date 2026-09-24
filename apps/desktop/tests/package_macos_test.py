@@ -425,12 +425,20 @@ Load command 2
         with self.assertRaisesRegex(RuntimeError,"changed app state"):
             WORKFLOW.verify_dialog_cancellation(lambda: state["value"],lambda: state["dialog"],lambda: state.__setitem__("dialog",True),lambda: (state.__setitem__("dialog",False),state.__setitem__("value","after")),lambda: None,deadline=time.monotonic()+1)
 
-    def test_workflow_ax_errors_and_timeouts_are_not_absence(self):
+    def test_workflow_ax_errors_timeouts_and_pid_identity_are_enforced(self):
         result=subprocess.CompletedProcess([],5,b"",b"failure")
         with mock.patch.object(WORKFLOW.os,"kill"), mock.patch.object(WORKFLOW.subprocess,"run",return_value=result) as invoked:
             with self.assertRaisesRegex(RuntimeError,"AX helper failed"):
                 WORKFLOW.ax_call(Path("helper"),123,"get","AXTextArea","Secret",deadline=time.monotonic()+1)
             self.assertLessEqual(invoked.call_args.kwargs["timeout"],1)
+        WORKFLOW.TARGET_EXECUTABLES[123]="/expected/Safeparts"
+        identity=subprocess.CompletedProcess([],0,b"/different/process\n",b"")
+        try:
+            with mock.patch.object(WORKFLOW.os,"kill"), mock.patch.object(WORKFLOW.subprocess,"run",return_value=identity):
+                with self.assertRaisesRegex(RuntimeError,"PID identity"):
+                    WORKFLOW.ax_call(Path("helper"),123,"get","AXTextArea","Secret",deadline=time.monotonic()+1)
+        finally:
+            WORKFLOW.TARGET_EXECUTABLES.pop(123,None)
 
     def test_final_hash_is_recorded_after_all_signing_mutations(self):
         with tempfile.TemporaryDirectory() as directory:
