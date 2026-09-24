@@ -28,11 +28,31 @@ Rust owns generated packets, recovery validation and state, authoritative recove
 - Passphrase editors are exact, masked, limited to 1 MiB of valid UTF-8, and expose no copy action or undo history. Missing passphrases remain a specific readiness condition. Wrong-passphrase and uncertain decryption failures share one content-free message and keep inputs available for correction.
 - Immutable synthetic corpora cover UTF-8 and arbitrary-byte interoperability. The binary corpus pins unprotected output from desktop, CLI, TUI, and generated real WASM, plus protected desktop output, in all four encodings. Core and every applicable active boundary recover the exact 11-byte binary Secret. This is boundary evidence, not a claim that the web UI exposes binary files or protected file workflows.
 
-Printing, packaging, issue 147 capacity certification, and issues 148 through 151 platform qualification remain outside this slice.
+Printing remains deferred. Packaging and platform qualification remain in issues 148 through 151; the issue 147 development-host capacity work is complete.
 
 ## Clipboard acquisition blocker
 
 The development-host adapter calls `-[NSPasteboard dataForType:]`, which returns a complete `NSData`. `NSPasteboardItem` type discovery reports available types but exposes payload bytes through the same complete-data call; AppKit has no supported byte-length query, ranged read, or stream for a string pasteboard item. The fallback Qt interface, `QMimeData::data()`, likewise returns a complete `QByteArray`. The adapter can avoid creating a Qt `QString` until after checking `NSData.length`, but it cannot enforce the 16 MiB limit before AppKit materializes the payload. That check is intentionally documented as post-acquisition and does not satisfy the required pre-materialization clipboard gate.
+
+## Automated issue 147 evidence
+
+Use the named fresh-process runner when you need to reproduce a capacity case:
+
+```bash
+CAPACITY_CASE=maximum-retained mise run desktop:evidence:capacity
+```
+
+The final issue 147 source is `294e955cf78835cd291d07c2f6d972cf5e6d512d`. The runner resolves and hashes the exact native test executable, uses direct-process `/usr/bin/time -l` metrics as independent gates, and requires both maximum resident set size and peak private footprint to stay below 1 GiB. Periodic samples are supporting time-series evidence, not the peak gate.
+
+The exact-retention case admits 160 MiB of Recovery share input, including padding whitespace, from 16 distinct Base64url shares. It recovers the exact 1 MiB synthetic Secret with SHA-256 `3f8a853cfd1416af3ab78fd914f7574dd86045f3f132294cf9ba47717130d3a8`, rejects 160 MiB plus one byte, and preserves the accepted operation after rejection. Across three repeated direct-process runs, the highest RSS was 459,603,968 bytes and the highest private footprint was 398,214,976 bytes.
+
+The maximum-policy lifecycle test uses the accepted Argon2 endpoint: 262,144 KiB, time cost 10, and parallelism 4. In-flight edit, Start over, mode change, and close reject stale results without clipboard or file effects. The final close runs observed the actual worker recovery call start before close and finish before destruction returned. Their largest heartbeat gap was 67 ms, close took at most 41 ms, and the blocking destructor took at most 1,239 ms. This documents the current non-cancelling shutdown behavior rather than promising cancellation.
+
+The named matrix covers maximum valid and Recovery workloads, maximum Words presentation, maximum accessibility handoff, maximum-policy recovery, the maximum Base58Check codec, and isolated maximum Base64url, Base58Check, Words, and BIP-39 cases. Qt tests inject one-shot failures at file acquisition, editor conversion, Recovery transport, generated and recovered presentation, accessibility text conversion, and clipboard handoff. Each denial is content-free and retryable. The generated real-browser WASM suite also passes all nine tests with matching ChromeDriver `153.0.8010.52`, including the 1 MiB Base58Check case.
+
+Ignored development-host evidence is under `target/desktop-evidence/issue-147/`. The production/browser capacity manifest is `d82ee1a8d1227ffa52760a869fbcb2f9a93d38fc6fcc46cd74ad959cc43bf907`; the final accessibility-event manifest is `6be169c866d44b2d079ea4c203a27027dbfa194a048e46a676a76b49e82f18c8`; and the two final correction manifests are `0c36e5687a29a8c6fcced5318fc791feecb3cd8fb57673a80306b32f4c7e8221` and `5a70633950cd28692a52541cdca4b2096c51e6d253a30970c281cdebe064e0dd`. See `target/desktop-evidence/issue-147/final-slices-correction/` and `target/desktop-evidence/issue-147/final-review-correction/` for the repeated runs and timeout-cleanup proof.
+
+This is macOS development-host evidence for the experimental Qt slice. It does not qualify Windows, Linux, Qt 6.11 packaging, signing, or release artifacts. AppKit still materializes a complete `NSData` before the app can enforce the clipboard limit. Issues 148 through 151 own the remaining platform and package work.
 
 ## Automated issue 143 evidence
 
@@ -47,7 +67,7 @@ Fresh issue 143 observations were captured at `bf6536fd20599afcb17563fc471221922
 - `actions.stdout` records 35 passing Qt phases with no failures or skips. The focused `file_workflow_storage_trace` run passed all 3 phases and exited 0.
 - `network.csv` contains five one-second `nettop` samples filtered to the `desktop-actions` PID. Each sample contains only the CSV header, with no target TCP/UDP row or byte count. This sampling does not cover activity between samples, outside the capture interval, from independent OS services, or on another host.
 - `loader.stderr`, `loader-summary.txt`, and `otool.txt` record the focused action's loaded images and direct dependency closure. The process loaded libraries with network, configuration, DBus, curl, TLS, and crypto capabilities. Their presence does not show that the process used those capabilities or initiated network activity.
-- `/usr/bin/time -l` measured the standard maximum-valid action at a 135,253,184-byte peak memory footprint and a 301,924,352-byte maximum resident-set metric. The maximum Words action measured a 335,188,544-byte peak memory footprint and a 1,147,109,376-byte maximum resident-set metric. These are distinct macOS observations, not interchangeable limits or cross-platform bounds. Issue 147 still owns exhaustive workload and allocation-failure certification.
+- `/usr/bin/time -l` measured the standard maximum-valid action at a 135,253,184-byte peak memory footprint and a 301,924,352-byte maximum resident-set metric. The maximum Words action measured a 335,188,544-byte peak memory footprint and a 1,147,109,376-byte maximum resident-set metric. These issue 143 measurements are historical: the Words case exceeded the later issue 147 gate before batching and virtualized presentation were implemented. The corrected issue 147 fresh-process results are recorded above. None of these macOS observations is a cross-platform bound.
 - The owner-approved `fs_usage` capture produced a 4,475,612-byte mixed-process trace with SHA-256 `d794da1c74cce1d534fb008de9c4069c0a0ba7e3b34fdc21687cf4327b231c45`. Filtering on the complete displayed `desktop-actions.` process/thread identity selected 4,651 rows, 1,199,958 bytes, with SHA-256 `7f3b3d3f2a623b822b5580555799d7d25a4a7afa2169d883eda95b452a0d92cc`.
 - The selected rows show direct writes of 376 and 383 bytes to the two selected share files and 12 bytes to the selected recovered file. The cancelled Save opened no destination. The deliberately failed directory destination produced an open error and no data write. No staging path, rename, or unexpected app-attributed persistence appeared.
 - The trace contains 25 descriptor-only writes. Associations to the selected files rely on adjacent trace rows and the focused test procedure; the analysis does not infer unknown descriptor paths. Synthetic source creation, evidence stdout redirection, and `QTemporaryDir` setup and cleanup are test-harness activity. One 219-byte local `AF_UNIX` syslog datagram was observed; it is not TCP or UDP evidence.
