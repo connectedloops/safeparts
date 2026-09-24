@@ -301,6 +301,17 @@ Load command 2
             with self.assertRaisesRegex(RuntimeError,"selected Qt prefix mismatch"):
                 LICENSE.verify_binary_inputs(package,[record],manifest)
 
+    def test_final_hash_is_recorded_after_all_signing_mutations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app=Path(directory)/"Safeparts.app"; binary=app/"Contents/MacOS/Safeparts"
+            binary.parent.mkdir(parents=True); binary.write_bytes(b"pre-sign")
+            provenance={"Contents/MacOS/Safeparts":{"source_sha256":"source","staged_sha256":"source"}}
+            binary.write_bytes(b"post-bundle-sign")
+            PACKAGE.record_final_hashes(app,provenance)
+            self.assertEqual(provenance["Contents/MacOS/Safeparts"]["final_sha256"],PACKAGE.hashlib.sha256(b"post-bundle-sign").hexdigest())
+            self.assertEqual(provenance["Contents/MacOS/Safeparts"]["source_sha256"],"source")
+            self.assertEqual(provenance["Contents/MacOS/Safeparts"]["staged_sha256"],"source")
+
     def test_source_staging_detects_copy_mismatch_and_out_of_prefix_candidate(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory); prefix=root/"qt/6.9.1"; source=prefix/"lib/QtCore"; source.parent.mkdir(parents=True)

@@ -279,6 +279,11 @@ def source_formula(source: Path, selected_qt_prefix: Path) -> tuple[str, Path] |
     return relative.parts[0], prefix
 
 
+def record_final_hashes(app: Path, provenance: dict[str, dict[str, str | None]]) -> None:
+    for relative, entry in provenance.items():
+        entry["final_sha256"] = hashlib.sha256((app / relative).read_bytes()).hexdigest()
+
+
 def stage_source_provenance(sources: dict[str, Path], stage: Path, selected_qt_prefix: Path) -> dict[str, dict[str, str | None]]:
     result = {}
     for destination, source in sorted(sources.items()):
@@ -397,8 +402,7 @@ def main() -> int:
             raise RuntimeError(f"staged deployment input changed during packaging: {staged}")
     run("/usr/bin/codesign", "--force", "--sign", "-", str(app))
     run("/usr/bin/codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app))
-    for relative, provenance in binary_provenance.items():
-        provenance["final_sha256"] = hashlib.sha256((app / relative).read_bytes()).hexdigest()
+    record_final_hashes(app, binary_provenance)
     with (app / "Contents/Info.plist").open("rb") as handle:
         plist = plistlib.load(handle)
     source_commit = run("/usr/bin/git", "rev-parse", "HEAD", cwd=repo)
