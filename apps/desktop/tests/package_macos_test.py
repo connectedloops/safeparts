@@ -26,6 +26,11 @@ LICENSE_SPEC = importlib.util.spec_from_file_location("package_license_material"
 LICENSE = importlib.util.module_from_spec(LICENSE_SPEC)
 sys.modules[LICENSE_SPEC.name] = LICENSE
 LICENSE_SPEC.loader.exec_module(LICENSE)
+WORKFLOW_PATH = Path(__file__).parents[1] / "scripts/run_package_workflows.py"
+WORKFLOW_SPEC = importlib.util.spec_from_file_location("run_package_workflows", WORKFLOW_PATH)
+WORKFLOW = importlib.util.module_from_spec(WORKFLOW_SPEC)
+sys.modules[WORKFLOW_SPEC.name] = WORKFLOW
+WORKFLOW_SPEC.loader.exec_module(WORKFLOW)
 
 
 class PackageManifestTests(unittest.TestCase):
@@ -364,6 +369,23 @@ Load command 2
             changes=[call for call in calls if "-change" in call]
             self.assertEqual({call[2] for call in changes},{"@rpath/QtCore","/outside/libx.dylib"})
             self.assertTrue(any("-delete_rpath" in call for call in calls))
+
+    def test_workflow_evidence_refuses_unowned_and_overlapping_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo=Path(directory); package=repo/"target/package"; package.mkdir(parents=True)
+            evidence=repo/"target/evidence"; evidence.mkdir(); sentinel=evidence/"keep"; sentinel.write_text("keep")
+            with self.assertRaisesRegex(RuntimeError,"unowned"):
+                WORKFLOW.prepare(repo,evidence.resolve(),package.resolve())
+            self.assertTrue(sentinel.exists())
+            marker=package/WORKFLOW.MARKER; marker.write_text("owned workflow evidence\n")
+            with self.assertRaisesRegex(RuntimeError,"unsafe"):
+                WORKFLOW.prepare(repo,package.resolve(),package.resolve())
+
+    def test_workflow_wait_timeout_is_bounded_and_reports_target(self):
+        result=subprocess.CompletedProcess([],4,"","not found")
+        with mock.patch.object(WORKFLOW.subprocess,"run",return_value=result):
+            with self.assertRaisesRegex(RuntimeError,"AXTextArea Secret"):
+                WORKFLOW.wait_get(Path("helper"),123,"AXTextArea","Secret",timeout=0.01)
 
     def test_final_hash_is_recorded_after_all_signing_mutations(self):
         with tempfile.TemporaryDirectory() as directory:

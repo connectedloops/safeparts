@@ -167,6 +167,10 @@ run = "python3 apps/desktop/scripts/smoke_macos_package.py --package-dir target/
 description = "Assemble offline local license and provenance material for the deployed closure."
 run = "python3 apps/desktop/scripts/package_license_material.py --package-dir target/desktop-package --cache-dir target/desktop-license-cache --output-dir target/desktop-license-material"
 
+[tasks."desktop:package:workflows"]
+description = "Drive representative synthetic workflows through the relocated packaged app."
+run = "python3 apps/desktop/scripts/run_package_workflows.py --package-dir target/desktop-package --evidence-dir target/desktop-package-workflows"
+
 [tasks."desktop:evidence:capacity"]
 description = "Run a named desktop capacity case in a fresh process with macOS memory gates."
 run = "apps/desktop/scripts/run_capacity_evidence.sh ${CAPACITY_CASE:-maximum-words}"
