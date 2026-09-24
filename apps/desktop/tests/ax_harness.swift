@@ -77,7 +77,7 @@ if command == "press" {
 } else if command == "escape" {
     postKey(53)
 } else if command == "get" {
-    print(text(element, kAXValueAttribute))
+    FileHandle.standardOutput.write(Data(text(element, kAXValueAttribute).utf8))
 } else if command == "count" {
     print(found.count)
 } else { exit(2) }

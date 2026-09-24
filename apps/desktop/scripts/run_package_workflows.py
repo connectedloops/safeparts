@@ -17,7 +17,7 @@ def wait_get(helper: Path,pid:int,role:str,title:str,occurrence:int=0,timeout:fl
     deadline=time.monotonic()+timeout; last=""
     while time.monotonic()<deadline:
         result=subprocess.run([str(helper),"get",str(pid),role,title,str(occurrence)],text=True,capture_output=True)
-        if result.returncode==0 and result.stdout.strip(): return result.stdout.rstrip("\n")
+        if result.returncode==0 and result.stdout: return result.stdout
         last=result.stderr; time.sleep(.1)
     raise RuntimeError(f"timed out waiting for {role} {title}: {last}")
 def action(helper:Path,pid:int,command:str,role:str,title:str,occurrence:int=0,value:str|None=None)->str:
