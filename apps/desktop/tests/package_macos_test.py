@@ -386,16 +386,32 @@ Load command 2
             self.assertTrue(WORKFLOW.run_text("git","status","--porcelain",cwd=intended))
             self.assertFalse(WORKFLOW.run_text("git","status","--porcelain",cwd=foreign))
 
-    def test_workflow_evidence_refuses_unowned_and_overlapping_paths(self):
+    def test_workflow_evidence_attempts_are_non_destructive_and_collision_safe(self):
         with tempfile.TemporaryDirectory() as directory:
             repo=Path(directory); package=repo/"target/package"; package.mkdir(parents=True)
-            evidence=repo/"target/evidence"; evidence.mkdir(); sentinel=evidence/"keep"; sentinel.write_text("keep")
+            evidence=repo/"target/evidence"; evidence.mkdir(); sentinel=evidence/"old-success"; sentinel.write_text("keep")
             with self.assertRaisesRegex(RuntimeError,"unowned"):
-                WORKFLOW.prepare(repo,evidence.resolve(),package.resolve())
+                WORKFLOW.prepare(repo,evidence.resolve(),package.resolve(),"commit","manifest","attempt")
             self.assertTrue(sentinel.exists())
-            marker=package/WORKFLOW.MARKER; marker.write_text("owned workflow evidence\n")
+            (evidence/WORKFLOW.MARKER).write_text("owned workflow evidence\n")
+            first=WORKFLOW.prepare(repo,evidence.resolve(),package.resolve(),"commit","manifest","attempt")
+            (first/"old-failure").write_text("preserve")
+            with self.assertRaises(FileExistsError):
+                WORKFLOW.prepare(repo,evidence.resolve(),package.resolve(),"commit","manifest","attempt")
+            second=WORKFLOW.prepare(repo,evidence.resolve(),package.resolve(),"commit","manifest","attempt-2")
+            WORKFLOW.record_failed_attempt(second,RuntimeError("synthetic"))
+            self.assertEqual((first/"old-failure").read_text(),"preserve")
+            self.assertEqual(json.loads((second/"result.json").read_text())["status"],"failed")
+            self.assertEqual(json.loads((first/"attempt.json").read_text())["source_commit"],"commit")
             with self.assertRaisesRegex(RuntimeError,"unsafe"):
-                WORKFLOW.prepare(repo,package.resolve(),package.resolve())
+                WORKFLOW.prepare(repo,package.resolve(),package.resolve(),"commit","manifest","other")
+
+    def test_workflow_evidence_rejects_symlink_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo=Path(directory).resolve(); package=repo/"target/package"; package.mkdir(parents=True)
+            real=repo/"target/real"; real.mkdir(); link=repo/"target/evidence"; link.symlink_to(real, target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError,"symlink"):
+                WORKFLOW.prepare(repo,link,package.resolve(),"commit","manifest","attempt")
 
     def test_workflow_copy_requires_transition_and_preserves_exact_bytes(self):
         expected=b"  exact bytes with trailing space  \n"
@@ -465,6 +481,13 @@ Load command 2
             with self.assertRaisesRegex(RuntimeError,"AX helper failed"):
                 WORKFLOW.ax_call(Path("helper"),123,"get","AXTextArea","Secret",deadline=time.monotonic()+1)
             self.assertLessEqual(invoked.call_args.kwargs["timeout"],1)
+        diagnostic=subprocess.CompletedProcess([],8,b"",b"ax-error:-25204\n")
+        with mock.patch.object(WORKFLOW.os,"kill"), mock.patch.object(WORKFLOW.subprocess,"run",return_value=diagnostic):
+            with self.assertRaisesRegex(RuntimeError,"diagnostic exit 8"):
+                WORKFLOW.ax_call(Path("helper"),123,"get","AXTextArea","Secret",deadline=time.monotonic()+1)
+        with mock.patch.object(WORKFLOW.os,"kill"), mock.patch.object(WORKFLOW.subprocess,"run",side_effect=subprocess.TimeoutExpired("helper",0.1)):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                WORKFLOW.ax_call(Path("helper"),123,"get","AXTextArea","Secret",deadline=time.monotonic()+1)
         WORKFLOW.TARGET_EXECUTABLES[123]="/expected/Safeparts"
         identity=subprocess.CompletedProcess([],0,b"/different/process\n",b"")
         try:

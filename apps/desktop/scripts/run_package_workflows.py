@@ -8,10 +8,10 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import time
+import uuid
 from collections.abc import Callable
 
 
@@ -28,6 +28,7 @@ SMOKE = load("smoke_macos_package")
 MARKER = ".safeparts-desktop-workflows"
 FAILURE_STATUS = "The passphrase may be incorrect or the Recovery shares may be damaged. No output was shown."
 TARGET_EXECUTABLES: dict[int, str] = {}
+CURRENT_ATTEMPT: Path | None = None
 
 
 class ElementNotFound(RuntimeError):
@@ -71,6 +72,9 @@ def ax_call(helper: Path, pid: int, command: str, role: str, title: str,
         raise ElementNotFound(f"AX element not found: {role} {title}")
     if result.returncode == 3:
         raise RuntimeError("Accessibility permission became unavailable")
+    if result.returncode in (8, 9, 10, 11):
+        diagnostic = result.stderr.decode(errors="replace").strip()
+        raise RuntimeError(f"AX helper diagnostic exit {result.returncode}: {diagnostic}")
     raise RuntimeError(f"AX helper failed for {command} {role} {title}: exit {result.returncode}")
 
 
@@ -186,18 +190,46 @@ def verify_dialog_cancellation(snapshot: Callable[[], object], present: Callable
     responsive()
 
 
-def prepare(repo: Path, evidence: Path, package: Path) -> None:
+def prepare(repo: Path, evidence_root: Path, package: Path, source_commit: str,
+            manifest_digest: str, attempt_id: str | None = None) -> Path:
     target = (repo / "target").resolve()
-    evidence.relative_to(target)
-    if evidence == target or SMOKE.overlaps(evidence, package):
+    evidence_root.relative_to(target)
+    if evidence_root == target or SMOKE.overlaps(evidence_root, package):
         raise RuntimeError("unsafe workflow evidence path")
-    marker = evidence / MARKER
-    if evidence.exists():
+    if evidence_root.is_symlink():
+        raise RuntimeError("refusing symlink workflow evidence root")
+    marker = evidence_root / MARKER
+    if evidence_root.exists():
         if not marker.is_file() or marker.read_text() != "owned workflow evidence\n":
             raise RuntimeError("refusing unowned workflow evidence")
-        shutil.rmtree(evidence)
-    evidence.mkdir(parents=True)
-    marker.write_text("owned workflow evidence\n")
+    else:
+        evidence_root.mkdir(parents=True)
+        marker.write_text("owned workflow evidence\n")
+    attempts = evidence_root / "attempts"
+    if attempts.is_symlink():
+        raise RuntimeError("refusing symlink attempts directory")
+    attempts.mkdir(exist_ok=True)
+    identifier = attempt_id or f"{source_commit[:12]}-{manifest_digest[:12]}-{uuid.uuid4().hex[:12]}"
+    attempt = attempts / identifier
+    attempt.mkdir()
+    (attempt / MARKER).write_text("owned workflow evidence\n")
+    metadata = {
+        "attempt_id": identifier,
+        "source_commit": source_commit,
+        "manifest_sha256": manifest_digest,
+        "package_dir": str(package),
+        "started_unix_ns": time.time_ns(),
+    }
+    (attempt / "attempt.json").write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+    return attempt
+
+
+def record_failed_attempt(attempt: Path, error: BaseException) -> None:
+    result = {"status": "failed", "error_type": type(error).__name__}
+    cleanup = attempt / "cleanup.json"
+    if cleanup.is_file():
+        result["cleanup"] = json.loads(cleanup.read_text())
+    (attempt / "result.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
 
 
 def main() -> int:
@@ -206,7 +238,9 @@ def main() -> int:
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[3])
     args = parser.parse_args()
-    repo, package, evidence = args.repo_root.resolve(), args.package_dir.resolve(), args.evidence_dir.resolve()
+    global CURRENT_ATTEMPT
+    repo, package = args.repo_root.resolve(), args.package_dir.resolve()
+    evidence_root = args.evidence_dir.absolute()
     if run_text("/usr/bin/git", "status", "--porcelain", cwd=repo):
         raise SystemExit("dirty source tree")
     manifest_bytes = (package / "manifest.json").read_bytes()
@@ -216,7 +250,8 @@ def main() -> int:
     if manifest["source"] != {"commit": head, "tree": "clean"}:
         raise SystemExit("package source mismatch")
     SMOKE.verify_manifest(package, manifest)
-    prepare(repo, evidence, package)
+    evidence = prepare(repo, evidence_root, package, head, manifest_digest)
+    CURRENT_ATTEMPT = evidence
     app = evidence / "Safeparts.app"
     subprocess.run(["/usr/bin/ditto", str(package / "Safeparts.app"), str(app)], check=True)
     SMOKE.verify_manifest(evidence, manifest)
@@ -227,7 +262,14 @@ def main() -> int:
     fixture_path = io_directory / "fixture.bin"
     fixture_path.write_bytes(binary_fixture)
     helper = evidence / "ax-harness"
-    subprocess.run(["/usr/bin/xcrun", "swiftc", str(repo / "apps/desktop/tests/ax_harness.swift"), "-o", str(helper), "-framework", "ApplicationServices"], check=True)
+    helper_source = repo / "apps/desktop/tests/ax_harness.swift"
+    subprocess.run(["/usr/bin/xcrun", "swiftc", str(helper_source), "-o", str(helper), "-framework", "ApplicationServices"], check=True)
+    helper_metadata = {
+        "source_sha256": sha(helper_source.read_bytes()),
+        "binary_sha256": sha(helper.read_bytes()),
+        "permission_identity": "runtime process authorization; helper filename is not treated as identity",
+    }
+    (evidence / "helper.json").write_text(json.dumps(helper_metadata, indent=2, sort_keys=True) + "\n")
     env = {key: value for key, value in os.environ.items() if not key.startswith(("DYLD_", "QT_"))}
     env["DYLD_PRINT_LIBRARIES"] = "1"
     stdout = (evidence / "stdout.log").open("wb")
@@ -353,7 +395,7 @@ def main() -> int:
             path_components = [components[-1]] if ax_exists(helper, pid, "AXTextField", components[-1], deadline=deadline) else components
             navigate_dialog_rows(
                 path_components,
-                lambda name: ax_call(helper, pid, "selectrow", "AXTextField", name, deadline=deadline),
+                lambda name: ax_call(helper, pid, "dialog-selectrow", "AXWindow", "Choose Secret file", value=name, deadline=deadline),
                 lambda: ax_call(helper, pid, "press", "AXButton", "Open", deadline=deadline),
                 lambda name: ax_exists(helper, pid, "AXTextField", name, deadline=deadline),
                 deadline=deadline)
@@ -365,7 +407,7 @@ def main() -> int:
                 raise RuntimeError("refusing existing workflow Save destination")
             ax_call(helper, pid, "press", "AXButton", "Save…", occurrence=button_occurrence, deadline=time.monotonic() + 5)
             wait_dialog("Save exact bytes")
-            ax_call(helper, pid, "set", "AXTextField", "", occurrence=0, value=destination.name, deadline=time.monotonic() + 5)
+            ax_call(helper, pid, "dialog-set-save-name", "AXWindow", "Save exact bytes", value=destination.name, deadline=time.monotonic() + 5)
             control = "Cancel" if cancel else "Save"
             ax_call(helper, pid, "press", "AXButton", control, deadline=time.monotonic() + 5)
             deadline = time.monotonic() + 15
@@ -381,7 +423,7 @@ def main() -> int:
             for name in names:
                 poll(lambda name=name: ax_exists(helper, pid, "AXTextField", name, deadline=deadline), bool,
                      deadline=deadline, description=f"share file row {name}")
-            ax_call(helper, pid, "selectrows", "AXTextField", names[0], value="\n".join(names), deadline=deadline)
+            ax_call(helper, pid, "dialog-selectrows", "AXWindow", "Load Recovery share files", value="\n".join(names), deadline=deadline)
             ax_call(helper, pid, "press", "AXButton", "Open", deadline=deadline)
             poll(lambda: ax_exists(helper, pid, "AXWindow", "Load Recovery share files", deadline=deadline),
                  lambda value: not value, deadline=deadline, description="share file dialog dismissal")
@@ -476,12 +518,26 @@ def main() -> int:
         "external_qt_or_homebrew": 0,
         "cleanup": cleanup,
         "clipboard": "owned synthetic sentinels established before reads; final content is synthetic",
-        "limitations": ["Words encoding only", "text workflows only; arbitrary binary file Save remains pending", "no maximum workload or network/storage qualification"],
+        "limitations": (["Base64url, Base58Check, and BIP-39 packaged selection not executed"]
+                        + ([] if any(str(case.get("case", "")).startswith("words-binary-") for case in results)
+                           else ["arbitrary binary file Save not executed successfully"])
+                        + ["no maximum workload or network/storage qualification"]),
     }
     (evidence / "evidence.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    (evidence / "result.json").write_text(json.dumps({"status": "passed", "cases": [case["case"] for case in results]}, indent=2, sort_keys=True) + "\n")
+    latest = evidence_root / "latest-success.json"
+    temporary_latest = evidence_root / ".latest-success.json.tmp"
+    temporary_latest.write_text(json.dumps({"attempt": evidence.name, "source_commit": head, "manifest_sha256": manifest_digest}, indent=2, sort_keys=True) + "\n")
+    temporary_latest.replace(latest)
+    CURRENT_ATTEMPT = None
     print(evidence / "evidence.json")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except BaseException as error:
+        if CURRENT_ATTEMPT is not None:
+            record_failed_attempt(CURRENT_ATTEMPT, error)
+        raise
