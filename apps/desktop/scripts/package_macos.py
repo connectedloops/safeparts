@@ -10,6 +10,7 @@ import os
 from pathlib import Path, PurePosixPath
 import plistlib
 import shutil
+import stat
 import subprocess
 import sys
 
@@ -212,6 +213,7 @@ def deploy_verified_snapshots(app: Path, package_root: Path, provenance: dict[st
             raise RuntimeError(f"snapshot is not a regular file: {relative}")
         if hashlib.sha256(snapshot.read_bytes()).hexdigest() != entry["staged_sha256"]:
             raise RuntimeError(f"snapshot changed before deployment: {relative}")
+        destination.chmod(destination.stat().st_mode | stat.S_IWUSR)
         shutil.copy2(snapshot, destination)
     deployed = {path.relative_to(app).as_posix() for path in app.rglob("*") if is_macho(path)}
     if deployed != expected:
