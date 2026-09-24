@@ -5,7 +5,7 @@ import argparse, hashlib, json, os
 from pathlib import Path, PurePosixPath
 import shutil, subprocess
 
-CACHE_MANIFEST_SHA256 = "95ba11ba6e8fdb85487cebfdf17252c6fb623d4233c6c1c705f8b91d6442f376"
+CACHE_MANIFEST_SHA256 = "851cfcc05fd2eff53c5f7b5758cf7ea8f6633c3d99259ac31e7458d5fc8befde"
 OWNER = ".safeparts-desktop-license-material"
 COMPONENTS = {
     "Qt": "qt", "libb2": "libb2", "libdbus": "dbus", "libdouble-conversion": "double-conversion",
