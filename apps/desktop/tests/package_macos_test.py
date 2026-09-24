@@ -370,6 +370,22 @@ Load command 2
             self.assertEqual({call[2] for call in changes},{"@rpath/QtCore","/outside/libx.dylib"})
             self.assertTrue(any("-delete_rpath" in call for call in calls))
 
+    def test_workflow_git_commands_honor_explicit_repository(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); intended=root/"intended"; foreign=root/"foreign"
+            for repo in (intended,foreign):
+                repo.mkdir(); subprocess.run(["git","init","-q"],cwd=repo,check=True)
+                subprocess.run(["git","config","user.email","test@example.invalid"],cwd=repo,check=True)
+                subprocess.run(["git","config","user.name","Test"],cwd=repo,check=True)
+                (repo/"tracked").write_text(repo.name); subprocess.run(["git","add","tracked"],cwd=repo,check=True)
+                subprocess.run(["git","commit","-qm","fixture"],cwd=repo,check=True)
+            intended_head=WORKFLOW.run_text("git","rev-parse","HEAD",cwd=intended)
+            foreign_head=WORKFLOW.run_text("git","rev-parse","HEAD",cwd=foreign)
+            self.assertNotEqual(intended_head,foreign_head)
+            (intended/"tracked").write_text("dirty")
+            self.assertTrue(WORKFLOW.run_text("git","status","--porcelain",cwd=intended))
+            self.assertFalse(WORKFLOW.run_text("git","status","--porcelain",cwd=foreign))
+
     def test_workflow_evidence_refuses_unowned_and_overlapping_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             repo=Path(directory); package=repo/"target/package"; package.mkdir(parents=True)
@@ -411,6 +427,15 @@ Load command 2
             WORKFLOW.wait_failure(lambda: working,lambda: True,lambda: True,lambda: b"sentinel",b"sentinel",deadline=time.monotonic()+0.02)
         with self.assertRaisesRegex(RuntimeError,"AX query failed"):
             WORKFLOW.wait_failure(lambda: (_ for _ in ()).throw(RuntimeError("AX query failed")),lambda: True,lambda: True,lambda: b"sentinel",b"sentinel",deadline=time.monotonic()+1)
+
+    def test_workflow_native_dialog_row_navigation_is_ordered_and_bounded(self):
+        visible={"target":0,"owned":0,"fixture.bin":0}; selected=[]; submitted=[]
+        def see(name): visible[name]+=1; return visible[name]>=2
+        WORKFLOW.navigate_dialog_rows(["target","owned","fixture.bin"],selected.append,lambda: submitted.append(True),see,deadline=time.monotonic()+1)
+        self.assertEqual(selected,["target","owned","fixture.bin"])
+        self.assertEqual(len(submitted),3)
+        with self.assertRaises(TimeoutError):
+            WORKFLOW.navigate_dialog_rows(["missing"],lambda value: None,lambda: None,lambda value: False,deadline=time.monotonic()+0.02)
 
     def test_workflow_dialog_requires_open_close_and_preserved_state(self):
         state={"dialog":False,"value":"synthetic"}; responsive=[]

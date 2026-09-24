@@ -38,8 +38,8 @@ def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def run_text(*args: str, timeout: float = 15) -> str:
-    return subprocess.run(args, check=True, text=True, capture_output=True, timeout=timeout).stdout.strip()
+def run_text(*args: str, timeout: float = 15, cwd: Path | None = None) -> str:
+    return subprocess.run(args, check=True, text=True, capture_output=True, timeout=timeout, cwd=cwd).stdout.strip()
 
 
 def remaining(deadline: float, maximum: float = 2) -> float:
@@ -148,6 +148,17 @@ def wait_failure(status: Callable[[], bytes], enabled: Callable[[], bool], absen
         raise RuntimeError("wrong-passphrase attempt changed synthetic clipboard")
 
 
+def navigate_dialog_rows(components: list[str], select: Callable[[str], None],
+                         submit: Callable[[], None], visible: Callable[[str], bool], *, deadline: float) -> None:
+    if not components:
+        raise ValueError("dialog path needs at least one component")
+    for index, component in enumerate(components):
+        poll(lambda component=component: visible(component), bool, deadline=deadline,
+             description=f"native dialog row {index + 1}")
+        select(component)
+        submit()
+
+
 def verify_dialog_cancellation(snapshot: Callable[[], object], present: Callable[[], bool],
                                open_dialog: Callable[[], None], dismiss: Callable[[], None],
                                responsive: Callable[[], None], *, deadline: float) -> None:
@@ -184,12 +195,12 @@ def main() -> int:
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[3])
     args = parser.parse_args()
     repo, package, evidence = args.repo_root.resolve(), args.package_dir.resolve(), args.evidence_dir.resolve()
-    if run_text("/usr/bin/git", "status", "--porcelain"):
+    if run_text("/usr/bin/git", "status", "--porcelain", cwd=repo):
         raise SystemExit("dirty source tree")
     manifest_bytes = (package / "manifest.json").read_bytes()
     manifest_digest = sha(manifest_bytes)
     manifest = json.loads(manifest_bytes)
-    head = run_text("/usr/bin/git", "rev-parse", "HEAD")
+    head = run_text("/usr/bin/git", "rev-parse", "HEAD", cwd=repo)
     if manifest["source"] != {"commit": head, "tree": "clean"}:
         raise SystemExit("package source mismatch")
     SMOKE.verify_manifest(package, manifest)
@@ -198,6 +209,11 @@ def main() -> int:
     subprocess.run(["/usr/bin/ditto", str(package / "Safeparts.app"), str(app)], check=True)
     SMOKE.verify_manifest(evidence, manifest)
     subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)], check=True, capture_output=True)
+    io_directory = evidence / "io"
+    io_directory.mkdir()
+    binary_fixture = bytes.fromhex("00fffe0d0a42696e00807f")
+    fixture_path = io_directory / "fixture.bin"
+    fixture_path.write_bytes(binary_fixture)
     helper = evidence / "ax-harness"
     subprocess.run(["/usr/bin/xcrun", "swiftc", str(repo / "apps/desktop/tests/ax_harness.swift"), "-o", str(helper), "-framework", "ApplicationServices"], check=True)
     env = {key: value for key, value in os.environ.items() if not key.startswith(("DYLD_", "QT_"))}
@@ -312,6 +328,116 @@ def main() -> int:
             lambda: ax_call(helper, pid, "press", "AXRadioButton", "Split", deadline=time.monotonic() + 5),
             deadline=time.monotonic() + 10)
         results.append({"case": "cancel-open-dialog", "status": "passed", "dialog_observed": True, "state_preserved": True, "controls_responsive": True})
+
+        def wait_dialog(title: str) -> None:
+            deadline = time.monotonic() + 10
+            poll(lambda: ax_exists(helper, pid, "AXWindow", title, deadline=deadline), bool,
+                 deadline=deadline, description=f"{title} appearance")
+
+        def open_single_file(button: str, components: list[str]) -> None:
+            ax_call(helper, pid, "press", "AXButton", button, deadline=time.monotonic() + 5)
+            wait_dialog("Choose Secret file")
+            deadline = time.monotonic() + 20
+            path_components = [components[-1]] if ax_exists(helper, pid, "AXTextField", components[-1], deadline=deadline) else components
+            navigate_dialog_rows(
+                path_components,
+                lambda name: ax_call(helper, pid, "selectrow", "AXTextField", name, deadline=deadline),
+                lambda: ax_call(helper, pid, "press", "AXButton", "Open", deadline=deadline),
+                lambda name: ax_exists(helper, pid, "AXTextField", name, deadline=deadline),
+                deadline=deadline)
+            poll(lambda: ax_exists(helper, pid, "AXWindow", "Choose Secret file", deadline=deadline),
+                 lambda value: not value, deadline=deadline, description="Secret file dialog dismissal")
+
+        def save_result(button_occurrence: int, destination: Path, *, cancel: bool = False) -> None:
+            if destination.exists():
+                raise RuntimeError("refusing existing workflow Save destination")
+            ax_call(helper, pid, "press", "AXButton", "Save…", occurrence=button_occurrence, deadline=time.monotonic() + 5)
+            wait_dialog("Save exact bytes")
+            ax_call(helper, pid, "set", "AXTextField", "", occurrence=0, value=destination.name, deadline=time.monotonic() + 5)
+            control = "Cancel" if cancel else "Save"
+            ax_call(helper, pid, "press", "AXButton", control, deadline=time.monotonic() + 5)
+            deadline = time.monotonic() + 15
+            poll(lambda: ax_exists(helper, pid, "AXWindow", "Save exact bytes", deadline=deadline),
+                 lambda value: not value, deadline=deadline, description="Save dialog dismissal")
+            if cancel:
+                if destination.exists():
+                    raise RuntimeError("canceled Save created a destination")
+                return
+            poll(lambda: destination.exists(), bool, deadline=deadline, description="saved file creation")
+
+        def load_share_files(names: list[str]) -> None:
+            ax_call(helper, pid, "press", "AXButton", "Load share files…", deadline=time.monotonic() + 5)
+            wait_dialog("Load Recovery share files")
+            deadline = time.monotonic() + 20
+            for name in names:
+                poll(lambda name=name: ax_exists(helper, pid, "AXTextField", name, deadline=deadline), bool,
+                     deadline=deadline, description=f"share file row {name}")
+                ax_call(helper, pid, "selectrow", "AXTextField", name, deadline=deadline)
+            ax_call(helper, pid, "press", "AXButton", "Open", deadline=deadline)
+            poll(lambda: ax_exists(helper, pid, "AXWindow", "Load Recovery share files", deadline=deadline),
+                 lambda value: not value, deadline=deadline, description="share file dialog dismissal")
+
+        def binary_round_trip(protected: bool) -> None:
+            ax_call(helper, pid, "press", "AXRadioButton", "Split", deadline=time.monotonic() + 5)
+            ax_call(helper, pid, "press", "AXButton", "Start over", deadline=time.monotonic() + 5)
+            open_single_file("Choose file…", ["target", evidence.name, "io", fixture_path.name])
+            metadata = f"{fixture_path.name} · {len(binary_fixture)} bytes"
+            if not ax_exists(helper, pid, "AXStaticText", metadata, deadline=time.monotonic() + 5):
+                raise RuntimeError("selected binary fixture metadata was not shown")
+            if protected:
+                ax_call(helper, pid, "press", "AXCheckBox", "Protect with passphrase", deadline=time.monotonic() + 5)
+                ax_call(helper, pid, "type", "AXTextArea", "Passphrase input (contents hidden)", value="binary-synthetic-pass", deadline=time.monotonic() + 5)
+                ax_call(helper, pid, "type", "AXTextArea", "Passphrase confirmation (contents hidden)", value="binary-synthetic-pass", deadline=time.monotonic() + 5)
+            split_ready = time.monotonic() + 10
+            poll(lambda: ax_enabled(helper, pid, "AXButton", "Split", deadline=split_ready), bool,
+                 deadline=split_ready, description="binary Split readiness")
+            ax_call(helper, pid, "press", "AXButton", "Split", deadline=time.monotonic() + 5)
+            binary_shares = [wait_value(helper, pid, "AXTextArea", f"Recovery share {index}", deadline=time.monotonic() + 30) for index in (1, 2)]
+            prefix = "protected-" if protected else "unprotected-"
+            share_paths = [io_directory / f"{prefix}share-{index}.txt" for index in (1, 2)]
+            save_result(0, share_paths[0], cancel=True)
+            save_result(0, share_paths[0])
+            save_result(1, share_paths[1])
+            for expected_share, path in zip(binary_shares, share_paths, strict=True):
+                if path.read_bytes() != expected_share:
+                    raise RuntimeError("saved Recovery share bytes mismatch")
+            ax_call(helper, pid, "press", "AXRadioButton", "Combine", deadline=time.monotonic() + 5)
+            load_share_files([path.name for path in share_paths])
+            entered = time.monotonic() + 30
+            poll(lambda: ax_exists(helper, pid, "AXStaticText", "2 of 2 Recovery shares entered", deadline=entered), bool,
+                 deadline=entered, description="loaded Recovery shares inspection")
+            if protected:
+                passphrase_ready = time.monotonic() + 20
+                poll(lambda: ax_exists(helper, pid, "AXTextArea", "Passphrase input (contents hidden)", deadline=passphrase_ready), bool,
+                     deadline=passphrase_ready, description="binary recovery passphrase editor")
+                ax_call(helper, pid, "type", "AXTextArea", "Passphrase input (contents hidden)", value="binary-synthetic-pass", deadline=time.monotonic() + 5)
+            combine_ready = time.monotonic() + 20
+            poll(lambda: ax_enabled(helper, pid, "AXButton", "Combine", deadline=combine_ready), bool,
+                 deadline=combine_ready, description="binary Combine readiness")
+            ax_call(helper, pid, "press", "AXButton", "Combine", deadline=time.monotonic() + 5)
+            binary_status = "Recovered binary Secret. Save exact bytes."
+            recovered_ready = time.monotonic() + 40
+            poll(lambda: ax_exists(helper, pid, "AXStaticText", binary_status, deadline=recovered_ready), bool,
+                 deadline=recovered_ready, description="binary recovery status")
+            recovered_path = io_directory / f"{prefix}recovered.bin"
+            save_result(0, recovered_path)
+            recovered = recovered_path.read_bytes()
+            if recovered != binary_fixture:
+                raise RuntimeError("recovered binary file bytes mismatch")
+            results.append({
+                "case": f"words-binary-{'protected' if protected else 'unprotected'}-file-round-trip",
+                "status": "passed",
+                "encoding": "Words",
+                "fixture_sha256": sha(binary_fixture),
+                "fixture_size": len(binary_fixture),
+                "share_files_verified": 2,
+                "save_cancel_retry": True,
+                "recovered_sha256": sha(recovered),
+                "recovered_size": len(recovered),
+            })
+
+        binary_round_trip(False)
+        binary_round_trip(True)
     finally:
         cleanup_error = None
         try:

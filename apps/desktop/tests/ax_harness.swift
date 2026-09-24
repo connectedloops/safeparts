@@ -39,6 +39,14 @@ let app = AXUIElementCreateApplication(pid)
 let found = descendants(app).filter { matches($0, role: role, title: title) }
 guard occurrence >= 0 && occurrence < found.count else { fputs("element not found\n", stderr); exit(4) }
 let element = found[occurrence]
+func ancestor(_ start: AXUIElement, role: String) -> AXUIElement? {
+    var current: AXUIElement? = start
+    while let candidate = current {
+        if text(candidate, kAXRoleAttribute) == role { return candidate }
+        current = attribute(candidate, kAXParentAttribute) as! AXUIElement?
+    }
+    return nil
+}
 func postKey(_ key: CGKeyCode, flags: CGEventFlags = []) {
     let source = CGEventSource(stateID: .hidSystemState)
     let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)!
@@ -66,6 +74,9 @@ if command == "actions" {
     guard AXUIElementPerformAction(element, "AXConfirm" as CFString) == .success else { exit(5) }
 } else if command == "select" {
     guard AXUIElementSetAttributeValue(element, kAXSelectedAttribute as CFString, kCFBooleanTrue) == .success else { exit(6) }
+} else if command == "selectrow" {
+    guard let row = ancestor(element, role: kAXRowRole),
+          AXUIElementSetAttributeValue(row, kAXSelectedAttribute as CFString, kCFBooleanTrue) == .success else { exit(6) }
 } else if command == "set" {
     guard CommandLine.arguments.count > 6 else { exit(2) }
     guard AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, CommandLine.arguments[6] as CFTypeRef) == .success else { exit(6) }
