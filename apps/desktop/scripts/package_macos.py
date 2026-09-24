@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import plistlib
 import shutil
 import subprocess
@@ -15,6 +15,12 @@ import sys
 
 FORBIDDEN_TEXT = ("/opt/homebrew", "/usr/local", "/target/desktop-", "QtNetwork.framework")
 NETWORK_NAMES = ("libqnetwork", "bearer", "networkinformation", "tls/")
+FORMULA_BY_BINARY_PREFIX = {
+    "libb2": "libb2", "libdbus": "dbus", "libdouble-conversion": "double-conversion",
+    "libfreetype": "freetype", "libglib": "glib", "libgthread": "glib", "libgraphite2": "graphite2",
+    "libharfbuzz": "harfbuzz", "libicu": "icu4c@77", "libintl": "gettext", "libmd4c": "md4c",
+    "libpcre2": "pcre2", "libpng": "libpng", "libzstd": "zstd",
+}
 OWNER_MARKER = ".safeparts-desktop-package"
 LOAD_COMMANDS = {"LC_LOAD_DYLIB", "LC_LOAD_WEAK_DYLIB", "LC_REEXPORT_DYLIB", "LC_LOAD_UPWARD_DYLIB"}
 
@@ -183,6 +189,27 @@ def normalize_load_paths(app: Path) -> None:
             run("/usr/bin/install_name_tool", "-change", dependency, replacement, str(binary))
 
 
+def homebrew_provenance(macho: list[dict[str, object]], qt_prefix: Path) -> dict[str, dict[str, str | None]]:
+    formulas = {"qt"}
+    for record in macho:
+        path = str(record["path"])
+        if not path.startswith("Contents/Frameworks/lib"):
+            continue
+        name = PurePosixPath(path).name
+        matches = {formula for prefix, formula in FORMULA_BY_BINARY_PREFIX.items() if name.startswith(prefix)}
+        if len(matches) != 1:
+            raise RuntimeError(f"cannot bind deployed binary to one Homebrew formula: {path}")
+        formulas.update(matches)
+    result = {}
+    for formula in sorted(formulas):
+        prefix = qt_prefix if formula == "qt" else Path(run("brew", "--prefix", formula)).resolve()
+        receipt = prefix / "INSTALL_RECEIPT.json"
+        sbom = prefix / "sbom.spdx.json"
+        result[formula] = {"version": prefix.name, "prefix": str(prefix), "receipt_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
+                           "sbom_sha256": hashlib.sha256(sbom.read_bytes()).hexdigest() if sbom.is_file() else None}
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--build-dir", type=Path, required=True)
@@ -267,7 +294,8 @@ def main() -> int:
         "source": {"commit": source_commit, "tree": "clean"},
         "build": {"provenance": "package-owned CMake, Cargo, and generated-CXX directories recreated before configuration",
                   "cmake_cache_sha256": hashlib.sha256(cache_path.read_bytes()).hexdigest(),
-                  "installed_executable_sha256": hashlib.sha256((app / "Contents/MacOS/Safeparts").read_bytes()).hexdigest()},
+                  "installed_executable_sha256": hashlib.sha256((app / "Contents/MacOS/Safeparts").read_bytes()).hexdigest(),
+                  "homebrew_inputs": homebrew_provenance(macho, qt_prefix)},
         "bundle_identifier": plist["CFBundleIdentifier"], "deployment_target": plist["LSMinimumSystemVersion"],
         "toolchain": {"rust": run("mise", "exec", "--", "rustc", "--version", cwd=repo),
                       "cmake": run(cmake, "--version").splitlines()[0],

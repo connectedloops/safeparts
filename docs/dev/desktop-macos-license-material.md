@@ -11,9 +11,9 @@ mise run desktop:package:local
 mise run desktop:package:licenses
 ```
 
-Inspect `target/desktop-license-material/inventory.json` and verify `SHA256SUMS`. The output includes the repository MIT text, CXX 1.0.195 MIT and Apache texts, the exact Qtbase 6.9.1 license set, installed Homebrew receipts, Qt/Homebrew SPDX records, the deployed Mach-O-to-component map, and the locked Rust dependency graph.
+Inspect `target/desktop-license-material/inventory.json` and verify `SHA256SUMS`. Before replacing any output, the command requires the package source to match clean `HEAD`, verifies the exact bundle tree, freshly inspects its Mach-O closure, and matches package-recorded build-time Homebrew receipt identities. The output includes the repository MIT text, CXX 1.0.195 MIT and Apache texts, the exact Qtbase 6.9.1 license set, package-bound Homebrew receipts, Qt/Homebrew SPDX records, and the deployed Mach-O-to-component map. Rust entries are target-filtered conservative Cargo candidates split into runtime and host build/proc-macro groups; without a link map they are not proof that every candidate is statically linked.
 
-The inventory deliberately reports `distribution_ready: false`. The current material is still missing exact notices or license texts for several separately bundled Homebrew dylibs, a durably retained Qt 6.9.1 corresponding-source archive, complete build configuration or modification records, and a reviewed distribution replacement procedure.
+The cache manifest is pinned and must exactly describe a canonical regular-file tree; extra, missing, linked, duplicate, malformed, absolute, or traversing entries fail. The inventory deliberately reports `distribution_ready: false`. The current material is still missing exact notices or license texts for several separately bundled Homebrew dylibs, a durably retained Qt 6.9.1 corresponding-source archive, complete build configuration or modification records, and a reviewed distribution replacement procedure.
 
 ## Local replacement rehearsal
 

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 MODULE_PATH = Path(__file__).parents[1] / "scripts/package_macos.py"
 SPEC = importlib.util.spec_from_file_location("package_macos", MODULE_PATH)
@@ -194,21 +195,84 @@ Load command 2
                 with self.assertRaisesRegex(RuntimeError, "non-canonical"):
                     SMOKE.manifest_rows({"files": [{"path": path, "type": "file", "sha256": "x"}]})
 
-    def test_license_inventory_maps_only_actual_closure_names(self):
+    def test_license_inventory_maps_only_verified_closure_names(self):
         self.assertEqual(LICENSE.component_for("Contents/Frameworks/QtCore.framework/Versions/A/QtCore"), "qt")
         self.assertEqual(LICENSE.component_for("Contents/PlugIns/styles/libqmacstyle.dylib"), "qt")
         self.assertEqual(LICENSE.component_for("Contents/Frameworks/libglib-2.0.0.dylib"), "glib")
         self.assertEqual(LICENSE.component_for("Contents/MacOS/Safeparts"), "safeparts")
+        with self.assertRaisesRegex(RuntimeError, "unverified deployed plugin"):
+            LICENSE.component_for("Contents/PlugIns/other/libunknown.dylib")
         with self.assertRaisesRegex(RuntimeError, "unmapped"):
             LICENSE.component_for("Contents/Frameworks/libunknown.dylib")
 
-    def test_license_output_refuses_unowned_or_target_root(self):
+    def test_license_output_refuses_unowned_root_and_overlapping_inputs_without_deletion(self):
         with tempfile.TemporaryDirectory() as directory:
             repo=Path(directory); unowned=repo/"target/material"; unowned.mkdir(parents=True)
+            sentinel=unowned/"keep"; sentinel.write_text("keep")
             with self.assertRaisesRegex(RuntimeError,"unowned"):
-                LICENSE.owned_output(repo,unowned.resolve())
+                LICENSE.owned_output(repo,unowned.resolve(),())
+            self.assertTrue(sentinel.exists())
             with self.assertRaisesRegex(RuntimeError,"proper"):
-                LICENSE.owned_output(repo,(repo/"target").resolve())
+                LICENSE.owned_output(repo,(repo/"target").resolve(),())
+            protected=repo/"target/package"; protected.mkdir()
+            marker=protected/LICENSE.OWNER; marker.write_text("owned license material\n")
+            sentinel=protected/"package"; sentinel.write_text("keep")
+            with self.assertRaisesRegex(RuntimeError,"overlaps"):
+                LICENSE.owned_output(repo,protected.resolve(),(protected.resolve(),))
+            self.assertTrue(sentinel.exists())
+
+    def test_license_cache_requires_exact_safe_regular_file_set(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache=Path(directory); licenses=cache/"qtbase-6.9.1/LICENSES"; licenses.mkdir(parents=True)
+            file=licenses/"MIT.txt"; file.write_text("license")
+            def write_manifest(lines):
+                manifest=cache/"SHA256SUMS"; manifest.write_text("\n".join(lines)+"\n")
+                LICENSE.CACHE_MANIFEST_SHA256=LICENSE.sha(manifest)
+            row=f"{LICENSE.sha(file)}  qtbase-6.9.1/LICENSES/MIT.txt"
+            write_manifest([row]); self.assertEqual(len(LICENSE.cache_rows(cache)),1)
+            extra=licenses/"extra"; extra.write_text("extra")
+            with self.assertRaisesRegex(RuntimeError,"tree mismatch"): LICENSE.cache_rows(cache)
+            extra.unlink(); file.unlink(); file.symlink_to("missing")
+            with self.assertRaisesRegex(RuntimeError,"tree mismatch"): LICENSE.cache_rows(cache)
+            file.unlink(); file.write_text("license")
+            for bad in ("../escape", "/absolute", "qtbase-6.9.1/LICENSES/../x", "qtbase-6.9.1/LICENSES//MIT.txt"):
+                write_manifest([f"{'0'*64}  {bad}"])
+                with self.assertRaisesRegex(RuntimeError,"unsafe|non-canonical"): LICENSE.cache_rows(cache)
+            write_manifest([row,row])
+            with self.assertRaisesRegex(RuntimeError,"duplicate"): LICENSE.cache_rows(cache)
+            write_manifest(["malformed"])
+            with self.assertRaisesRegex(RuntimeError,"malformed"): LICENSE.cache_rows(cache)
+
+    def test_license_package_binding_rejects_stale_source_modified_tree_and_closure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package=Path(directory); app=package/"Safeparts.app"; file=app/"Contents/MacOS/Safeparts"
+            file.parent.mkdir(parents=True); file.write_bytes(b"app")
+            row={"path":"Contents/MacOS/Safeparts","type":"file","sha256":SMOKE.sha256(file)}
+            record={"path":"Contents/MacOS/Safeparts","architectures":["arm64"],"minimum_macos":"15.5","install_id":None,"dependencies":[],"rpaths":[]}
+            manifest={"source":{"commit":"head","tree":"clean"},"files":[row],"macho":[record]}
+            (package/"manifest.json").write_text(json.dumps(manifest))
+            with mock.patch.object(LICENSE.PACKAGE,"inspect_bundle",return_value=[record]):
+                LICENSE.verified_package(package,"head")
+                with self.assertRaisesRegex(RuntimeError,"clean HEAD"): LICENSE.verified_package(package,"other")
+                file.write_bytes(b"changed")
+                with self.assertRaisesRegex(RuntimeError,"hash mismatch"): LICENSE.verified_package(package,"head")
+                file.write_bytes(b"app")
+            with mock.patch.object(LICENSE.PACKAGE,"inspect_bundle",return_value=[]):
+                with self.assertRaisesRegex(RuntimeError,"closure differs"): LICENSE.verified_package(package,"head")
+
+    def test_rust_inventory_filters_dev_and_separates_host_build_candidates(self):
+        packages=[]
+        for name,kind in (("root",["lib"]),("runtime",["lib"]),("builder",["lib"]),("macro",["proc-macro"]),("dev",["lib"])):
+            packages.append({"id":name,"name":name,"targets":[{"kind":kind}]})
+        nodes=[{"id":"root","deps":[
+            {"pkg":"runtime","dep_kinds":[{"kind":"normal","target":None}]},
+            {"pkg":"builder","dep_kinds":[{"kind":"build","target":None}]},
+            {"pkg":"macro","dep_kinds":[{"kind":"normal","target":None}]},
+            {"pkg":"dev","dep_kinds":[{"kind":"dev","target":None}]}]},
+            {"id":"runtime","deps":[]},{"id":"builder","deps":[]},{"id":"macro","deps":[]},{"id":"dev","deps":[]}]
+        runtime,host=LICENSE.classify_dependencies({"packages":packages,"resolve":{"nodes":nodes}},"root")
+        self.assertEqual(runtime,{"root","runtime"})
+        self.assertEqual(host,{"builder","macro"})
 
     def test_cleanup_terminates_descendant_after_leader_exit(self):
         code = "import os,time; p=os.fork(); os._exit(0) if p else time.sleep(60)"
