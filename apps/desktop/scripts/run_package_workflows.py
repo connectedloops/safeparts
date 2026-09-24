@@ -81,7 +81,7 @@ def main()->int:
         action(helper,pid,"press","AXButton","Combine"); wait_enabled(helper,pid,"AXButton","Combine")
         if subprocess.run([str(helper),"count",str(pid),"AXTextArea","Recovered secret","0"],capture_output=True).returncode==0: raise RuntimeError("wrong passphrase exposed output")
         action(helper,pid,"type","AXTextArea","Passphrase input (contents hidden)",value="synthetic-pass")
-        action(helper,pid,"press","AXButton","Combine");protected=wait_get(helper,pid,"AXTextArea","Recovered secret")
+        wait_enabled(helper,pid,"AXButton","Combine"); action(helper,pid,"press","AXButton","Combine");protected=wait_get(helper,pid,"AXTextArea","Recovered secret",timeout=30)
         if protected!="protected synthetic": raise RuntimeError("protected retry mismatch")
         results.append({"case":"words-protected-wrong-passphrase-retry","status":"passed","secret_sha256":sha(protected.encode())})
         action(helper,pid,"press","AXRadioButton","Split");action(helper,pid,"press","AXButton","Start over");time.sleep(.2)
