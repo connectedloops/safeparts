@@ -88,6 +88,8 @@ def verify_binary_inputs(package: Path, fresh: list[dict[str, object]], manifest
             raise RuntimeError(f"packaged source input changed: {relative}")
         if not staged.is_file() or sha(staged)!=evidence["staged_sha256"] or evidence["staged_sha256"]!=evidence["source_sha256"]:
             raise RuntimeError(f"unmodified staged input does not match source: {relative}")
+        if evidence.get("deployed_raw_sha256") != evidence["staged_sha256"]:
+            raise RuntimeError(f"verified raw deployed input does not match snapshot: {relative}")
         if sha(final)!=evidence["final_sha256"]:
             raise RuntimeError(f"final deployed binary changed: {relative}")
         if relative.startswith(("Contents/Frameworks/","Contents/PlugIns/")) and not evidence.get("formula"):

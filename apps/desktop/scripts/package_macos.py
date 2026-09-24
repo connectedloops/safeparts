@@ -172,21 +172,73 @@ def prepare_output(repo: Path, output: Path) -> None:
     (output / OWNER_MARKER).write_text("owned staging directory\n")
 
 
-def normalize_load_paths(app: Path) -> None:
-    frameworks = app / "Contents/Frameworks"
-    for binary in sorted(app.rglob("*")):
-        if not is_macho(binary):
-            continue
-        install_id, dependencies, rpaths, _ = parse_load_commands(run("/usr/bin/otool", "-l", str(binary)))
-        del install_id
-        for rpath in rpaths:
-            run("/usr/bin/install_name_tool", "-delete_rpath", rpath, str(binary))
-        for dependency in dependencies:
-            if not dependency.startswith("@rpath/"):
-                continue
-            target = frameworks / dependency.removeprefix("@rpath/")
+def derive_selected_qt_prefix(sources: dict[str, dict[str, object]], qt_version: str) -> Path:
+    qt_sources = [record["source"] for destination, record in sources.items()
+                  if destination.startswith("Contents/Frameworks/Qt") or destination.startswith("Contents/PlugIns/")]
+    prefixes = set()
+    for source in qt_sources:
+        parts = source.resolve().parts
+        try:
+            index = parts.index("Cellar")
+        except ValueError as error:
+            raise RuntimeError(f"selected Qt source is outside a formula prefix: {source}") from error
+        if len(parts) <= index + 2 or parts[index + 1] != "qt":
+            raise RuntimeError(f"selected Qt source is not from the Qt formula: {source}")
+        prefixes.add(Path(*parts[:index + 3]))
+    if len(prefixes) != 1:
+        raise RuntimeError(f"selected Qt sources span formula prefixes: {sorted(map(str, prefixes))}")
+    prefix = prefixes.pop()
+    if prefix.name != qt_version:
+        raise RuntimeError(f"selected Qt source version {prefix.name} does not match Qt tools {qt_version}")
+    return prefix
+
+
+def deploy_verified_snapshots(app: Path, package_root: Path, provenance: dict[str, dict[str, object]]) -> None:
+    expected = set(provenance)
+    existing = {path.relative_to(app).as_posix() for path in app.rglob("*") if is_macho(path)}
+    if existing != expected:
+        raise RuntimeError(f"scaffold Mach-O set differs from snapshots: missing={sorted(expected-existing)}, extra={sorted(existing-expected)}")
+    app_real = app.resolve()
+    for relative, entry in provenance.items():
+        destination = app / relative
+        if destination.is_symlink() or not destination.is_file():
+            raise RuntimeError(f"snapshot destination is not a regular file: {relative}")
+        try:
+            destination.resolve().relative_to(app_real)
+        except ValueError as error:
+            raise RuntimeError(f"snapshot destination escapes bundle: {relative}") from error
+        snapshot = package_root / entry["staged_path"]
+        if snapshot.is_symlink() or not snapshot.is_file():
+            raise RuntimeError(f"snapshot is not a regular file: {relative}")
+        if hashlib.sha256(snapshot.read_bytes()).hexdigest() != entry["staged_sha256"]:
+            raise RuntimeError(f"snapshot changed before deployment: {relative}")
+        shutil.copy2(snapshot, destination)
+    deployed = {path.relative_to(app).as_posix() for path in app.rglob("*") if is_macho(path)}
+    if deployed != expected:
+        raise RuntimeError(f"raw deployed Mach-O set differs from snapshots: missing={sorted(expected-deployed)}, extra={sorted(deployed-expected)}")
+    for relative, entry in provenance.items():
+        digest = hashlib.sha256((app / relative).read_bytes()).hexdigest()
+        if digest != entry["source_sha256"] or digest != entry["staged_sha256"]:
+            raise RuntimeError(f"raw deployed binary differs from verified snapshot: {relative}")
+        entry["deployed_raw_sha256"] = digest
+
+
+def normalize_recorded_load_paths(app: Path, provenance: dict[str, dict[str, object]]) -> None:
+    for relative, entry in provenance.items():
+        binary = app / relative
+        _, dependencies, rpaths, _ = parse_load_commands(run("/usr/bin/otool", "-l", str(binary)))
+        non_system = {dependency for dependency in dependencies if not dependency.startswith(("/System/Library/", "/usr/lib/"))}
+        edges = entry["dependency_edges"]
+        if non_system != set(edges):
+            raise RuntimeError(f"recorded dependency edges differ from raw binary: {relative}")
+        for dependency, target_relative in edges.items():
+            target = app / target_relative
+            if target_relative not in provenance or not target.is_file():
+                raise RuntimeError(f"recorded dependency target is absent: {relative}: {target_relative}")
             replacement = "@loader_path/" + os.path.relpath(target, binary.parent)
             run("/usr/bin/install_name_tool", "-change", dependency, replacement, str(binary))
+        for rpath in rpaths:
+            run("/usr/bin/install_name_tool", "-delete_rpath", rpath, str(binary))
 
 
 def resolve_source_load(binary: Path, dependency: str, rpaths: tuple[str, ...], executable: Path) -> Path:
@@ -233,12 +285,12 @@ def dependency_destination(dependency: str) -> str:
     return "Contents/Frameworks/" + PurePosixPath(relative).name
 
 
-def collect_deployment_sources(app_source: Path, plugin_sources: dict[Path, str]) -> dict[str, Path]:
+def collect_deployment_sources(app_source: Path, plugin_sources: dict[Path, str]) -> dict[str, dict[str, object]]:
     executable = app_source.resolve()
     plugins = {path.resolve(): relative for path, relative in plugin_sources.items()}
     pending = [(executable, "Contents/MacOS/Safeparts")]
     pending.extend((source, "Contents/PlugIns/" + relative) for source, relative in plugins.items())
-    by_destination = {}
+    by_destination: dict[str, dict[str, object]] = {}
     visited = set()
     while pending:
         source, destination = pending.pop()
@@ -248,15 +300,17 @@ def collect_deployment_sources(app_source: Path, plugin_sources: dict[Path, str]
             continue
         visited.add(identity)
         previous = by_destination.get(destination)
-        if previous is not None and previous != source:
-            raise RuntimeError(f"ambiguous deployment destination {destination}: {previous} and {source}")
-        by_destination[destination] = source
+        if previous is not None and previous["source"] != source:
+            raise RuntimeError(f"ambiguous deployment destination {destination}: {previous['source']} and {source}")
+        record = by_destination.setdefault(destination, {"source": source, "dependency_edges": {}})
         _, dependencies, rpaths, _ = parse_load_commands(run("/usr/bin/otool", "-l", str(source)))
         for dependency in dependencies:
             if dependency.startswith(("/System/Library/", "/usr/lib/")):
                 continue
             resolved = resolve_source_load(source, dependency, rpaths, executable)
-            pending.append((resolved, dependency_destination(dependency)))
+            target_destination = dependency_destination(dependency)
+            record["dependency_edges"][dependency] = target_destination
+            pending.append((resolved, target_destination))
     return by_destination
 
 
@@ -284,9 +338,10 @@ def record_final_hashes(app: Path, provenance: dict[str, dict[str, str | None]])
         entry["final_sha256"] = hashlib.sha256((app / relative).read_bytes()).hexdigest()
 
 
-def stage_source_provenance(sources: dict[str, Path], stage: Path, selected_qt_prefix: Path) -> dict[str, dict[str, str | None]]:
+def stage_source_provenance(sources: dict[str, dict[str, object]], stage: Path, selected_qt_prefix: Path) -> dict[str, dict[str, object]]:
     result = {}
-    for destination, source in sorted(sources.items()):
+    for destination, source_record in sorted(sources.items()):
+        source = source_record["source"]
         staged = stage / destination
         staged.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, staged)
@@ -297,6 +352,7 @@ def stage_source_provenance(sources: dict[str, Path], stage: Path, selected_qt_p
         formula = source_formula(source, selected_qt_prefix)
         entry = {"source_path": str(source), "source_sha256": source_hash,
                  "staged_path": staged.relative_to(stage.parent).as_posix(), "staged_sha256": staged_hash,
+                 "dependency_edges": source_record["dependency_edges"],
                  "formula": None, "formula_prefix": None, "formula_version": None,
                  "receipt_sha256": None, "sbom_sha256": None}
         if formula:
@@ -357,30 +413,26 @@ def main() -> int:
         raise SystemExit(f"selected Qt does not provide macdeployqt: {macdeployqt}")
     qt_libs = Path(run(str(qtpaths), "--query", "QT_INSTALL_LIBS"))
     qt_plugins = Path(run(str(qtpaths), "--query", "QT_INSTALL_PLUGINS"))
-    selected_qt_prefix = Path(run("brew", "--prefix", "qt")).resolve()
+    qt_version = run(str(qtpaths), "--qt-version")
     plugin_sources = {qt_plugins / relative: relative for relative in ("platforms/libqcocoa.dylib", "styles/libqmacstyle.dylib")}
     deployment_sources = collect_deployment_sources(build_dir / "Safeparts.app/Contents/MacOS/Safeparts", plugin_sources)
+    selected_qt_prefix = derive_selected_qt_prefix(deployment_sources, qt_version)
     binary_provenance = stage_source_provenance(deployment_sources, output_dir / "provenance-inputs", selected_qt_prefix)
     run(str(macdeployqt), str(app), "-always-overwrite", "-no-plugins", "-verbose=1")
     frameworks = app / "Contents/Frameworks"
     qt_dbus = frameworks / "QtDBus.framework"
     if not qt_dbus.exists():
         shutil.copytree(qt_libs / "QtDBus.framework", qt_dbus, symlinks=True)
-    qt_dbus_binary = qt_dbus / "Versions/A/QtDBus"
-    dbus_source = next(Path(line.strip().split(" (", 1)[0]) for line in run("/usr/bin/otool", "-L", str(qt_dbus_binary)).splitlines()[1:] if "libdbus-1" in line)
-    dbus_target = frameworks / dbus_source.name
-    shutil.copy2(dbus_source, dbus_target)
-    run("/usr/bin/install_name_tool", "-id", "@rpath/QtDBus.framework/Versions/A/QtDBus", str(qt_dbus_binary))
-    run("/usr/bin/install_name_tool", "-change", str(dbus_source), f"@rpath/{dbus_target.name}", str(qt_dbus_binary))
-    qt_core_source = next(line.strip().split(" (", 1)[0] for line in run("/usr/bin/otool", "-L", str(qt_dbus_binary)).splitlines()[1:] if "QtCore.framework" in line)
-    run("/usr/bin/install_name_tool", "-change", qt_core_source, "@rpath/QtCore.framework/Versions/A/QtCore", str(qt_dbus_binary))
-    run("/usr/bin/install_name_tool", "-id", f"@rpath/{dbus_target.name}", str(dbus_target))
+    dbus_relative = next(relative for relative in binary_provenance if relative.startswith("Contents/Frameworks/libdbus-"))
+    dbus_target = app / dbus_relative
+    shutil.copy2(output_dir / binary_provenance[dbus_relative]["staged_path"], dbus_target)
     plugins = app / "Contents/PlugIns"
     for relative in ("platforms/libqcocoa.dylib", "styles/libqmacstyle.dylib"):
         destination = plugins / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(qt_plugins / relative, destination)
-    normalize_load_paths(app)
+        shutil.copy2(output_dir / binary_provenance[f"Contents/PlugIns/{relative}"]["staged_path"], destination)
+    deploy_verified_snapshots(app, output_dir, binary_provenance)
+    normalize_recorded_load_paths(app, binary_provenance)
     for binary in sorted(app.rglob("*")):
         if is_macho(binary):
             run("/usr/bin/codesign", "--force", "--sign", "-", str(binary))
@@ -418,7 +470,7 @@ def main() -> int:
                       "cmake": run(cmake, "--version").splitlines()[0],
                       "xcode": run("/usr/bin/xcodebuild", "-version").replace("\n", "; "),
                       "sdk": run("/usr/bin/xcrun", "--show-sdk-version"),
-                      "qt": run(str(qtpaths), "--qt-version"), "cxx": "1.0.195 (Cargo.lock and generated bridge command)"},
+                      "qt": qt_version, "cxx": "1.0.195 (Cargo.lock and generated bridge command)"},
         "macho": macho,
         "plugins": sorted(p.relative_to(app).as_posix() for p in plugins.rglob("*") if p.is_file()),
         "licensing": {"safeparts_mit_notice": "bundled",

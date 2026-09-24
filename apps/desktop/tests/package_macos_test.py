@@ -285,7 +285,7 @@ Load command 2
             final=package/"Safeparts.app/Contents/Frameworks/QtCore"; final.parent.mkdir(parents=True); final.write_bytes(b"final")
             relative="Contents/Frameworks/QtCore"; record={"path":relative}
             evidence={"source_path":str(source),"source_sha256":LICENSE.sha(source),"staged_path":"provenance-inputs/Contents/Frameworks/QtCore",
-                "staged_sha256":LICENSE.sha(staged),"final_sha256":LICENSE.sha(final),"formula":"qt","formula_prefix":str(prefix),
+                "staged_sha256":LICENSE.sha(staged),"deployed_raw_sha256":LICENSE.sha(staged),"final_sha256":LICENSE.sha(final),"formula":"qt","formula_prefix":str(prefix),
                 "formula_version":"6.9.1","receipt_sha256":LICENSE.sha(prefix/"INSTALL_RECEIPT.json"),"sbom_sha256":None}
             manifest={"build":{"binary_inputs":{relative:evidence}}}
             LICENSE.verify_binary_inputs(package,[record],manifest)
@@ -300,6 +300,70 @@ Load command 2
             staged.write_bytes(b"raw"); evidence["formula"]="other"
             with self.assertRaisesRegex(RuntimeError,"selected Qt prefix mismatch"):
                 LICENSE.verify_binary_inputs(package,[record],manifest)
+
+    def test_verified_snapshots_are_actual_raw_deployment_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package=Path(directory); app=package/"Safeparts.app"; relative="Contents/MacOS/Safeparts"
+            destination=app/relative; destination.parent.mkdir(parents=True); destination.write_bytes(b"scaffold")
+            snapshot=package/"provenance-inputs"/relative; snapshot.parent.mkdir(parents=True); snapshot.write_bytes(b"verified-raw")
+            digest=PACKAGE.hashlib.sha256(b"verified-raw").hexdigest()
+            provenance={relative:{"staged_path":snapshot.relative_to(package).as_posix(),"staged_sha256":digest,"source_sha256":digest,"dependency_edges":{}}}
+            with mock.patch.object(PACKAGE,"is_macho",side_effect=lambda path: path==destination):
+                PACKAGE.deploy_verified_snapshots(app,package,provenance)
+            self.assertEqual(destination.read_bytes(),b"verified-raw")
+            self.assertEqual(provenance[relative]["deployed_raw_sha256"],digest)
+
+    def test_raw_deployment_gate_rejects_substitution_corruption_and_set_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package=Path(directory); app=package/"Safeparts.app"; relative="Contents/MacOS/Safeparts"
+            destination=app/relative; destination.parent.mkdir(parents=True); destination.write_bytes(b"scaffold")
+            snapshot=package/"provenance-inputs"/relative; snapshot.parent.mkdir(parents=True); snapshot.write_bytes(b"raw")
+            digest=PACKAGE.hashlib.sha256(b"raw").hexdigest()
+            provenance={relative:{"staged_path":snapshot.relative_to(package).as_posix(),"staged_sha256":digest,"source_sha256":digest,"dependency_edges":{}}}
+            original=PACKAGE.shutil.copy2
+            def substitute(src,dst):
+                value=original(src,dst); Path(dst).write_bytes(b"same-name-substitute"); return value
+            with mock.patch.object(PACKAGE,"is_macho",side_effect=lambda path: path==destination), mock.patch.object(PACKAGE.shutil,"copy2",side_effect=substitute):
+                with self.assertRaisesRegex(RuntimeError,"differs from verified snapshot"):
+                    PACKAGE.deploy_verified_snapshots(app,package,provenance)
+            snapshot.write_bytes(b"corrupt")
+            with mock.patch.object(PACKAGE,"is_macho",side_effect=lambda path: path==destination):
+                with self.assertRaisesRegex(RuntimeError,"snapshot changed"):
+                    PACKAGE.deploy_verified_snapshots(app,package,provenance)
+            snapshot.write_bytes(b"raw"); extra=app/"Contents/Frameworks/extra"; extra.parent.mkdir(parents=True); extra.write_bytes(b"extra")
+            with mock.patch.object(PACKAGE,"is_macho",side_effect=lambda path: path in (destination,extra)):
+                with self.assertRaisesRegex(RuntimeError,"extra"):
+                    PACKAGE.deploy_verified_snapshots(app,package,provenance)
+
+    def test_source_graph_rejects_destination_collision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); executable=root/"Safeparts"; first=root/"a/libx.dylib"; second=root/"b/libx.dylib"
+            for path in (executable,first,second): path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(b"x")
+            def loads(text):
+                return (None,("/a/libx.dylib","/b/libx.dylib"),(),"15.5") if text=="root" else (None,(),(),"15.5")
+            def fake_run(*args,**kwargs): return "root" if Path(args[-1]).resolve()==executable.resolve() else "child"
+            def resolve(binary,dependency,rpaths,app): return first if dependency.startswith("/a/") else second
+            with mock.patch.object(PACKAGE,"run",side_effect=fake_run), mock.patch.object(PACKAGE,"parse_load_commands",side_effect=loads), mock.patch.object(PACKAGE,"resolve_source_load",side_effect=resolve):
+                with self.assertRaisesRegex(RuntimeError,"ambiguous deployment destination"):
+                    PACKAGE.collect_deployment_sources(executable,{})
+
+    def test_recorded_edges_rewrite_absolute_and_rpath_loads(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app=Path(directory)/"Safeparts.app"; binary=app/"Contents/MacOS/Safeparts"; one=app/"Contents/Frameworks/QtCore"; two=app/"Contents/Frameworks/libx.dylib"
+            for path in (binary,one,two): path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(b"x")
+            provenance={"Contents/MacOS/Safeparts":{"dependency_edges":{"@rpath/QtCore":"Contents/Frameworks/QtCore","/outside/libx.dylib":"Contents/Frameworks/libx.dylib"}} ,
+                        "Contents/Frameworks/QtCore":{"dependency_edges":{}},"Contents/Frameworks/libx.dylib":{"dependency_edges":{}}}
+            calls=[]
+            def parse(text):
+                return (None,("@rpath/QtCore","/outside/libx.dylib"),("@loader_path/../Frameworks",),"15.5") if text=="binary" else (None,(),(),"15.5")
+            def fake_run(*args,**kwargs):
+                if args[:2]==("/usr/bin/otool","-l"): return "binary" if Path(args[2])==binary else "other"
+                calls.append(args); return ""
+            with mock.patch.object(PACKAGE,"parse_load_commands",side_effect=parse), mock.patch.object(PACKAGE,"run",side_effect=fake_run):
+                PACKAGE.normalize_recorded_load_paths(app,provenance)
+            changes=[call for call in calls if "-change" in call]
+            self.assertEqual({call[2] for call in changes},{"@rpath/QtCore","/outside/libx.dylib"})
+            self.assertTrue(any("-delete_rpath" in call for call in calls))
 
     def test_final_hash_is_recorded_after_all_signing_mutations(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -316,7 +380,8 @@ Load command 2
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory); prefix=root/"qt/6.9.1"; source=prefix/"lib/QtCore"; source.parent.mkdir(parents=True)
             source.write_bytes(b"raw"); (prefix/"INSTALL_RECEIPT.json").write_text("receipt")
-            result=PACKAGE.stage_source_provenance({"Contents/Frameworks/QtCore":source},root/"stage",prefix)
+            sources={"Contents/Frameworks/QtCore":{"source":source,"dependency_edges":{}}}
+            result=PACKAGE.stage_source_provenance(sources,root/"stage",prefix)
             self.assertEqual(result["Contents/Frameworks/QtCore"]["source_sha256"],result["Contents/Frameworks/QtCore"]["staged_sha256"])
             outside=root/"outside/QtCore"; outside.parent.mkdir(); outside.write_bytes(b"raw")
             self.assertIsNone(PACKAGE.source_formula(outside,prefix))
@@ -325,7 +390,7 @@ Load command 2
                 value=original(src,dst); Path(dst).write_bytes(b"changed"); return value
             with mock.patch.object(PACKAGE.shutil,"copy2",side_effect=corrupt):
                 with self.assertRaisesRegex(RuntimeError,"differs from source"):
-                    PACKAGE.stage_source_provenance({"Contents/Frameworks/QtCore":source},root/"bad-stage",prefix)
+                    PACKAGE.stage_source_provenance(sources,root/"bad-stage",prefix)
 
     def test_cleanup_terminates_descendant_after_leader_exit(self):
         code = "import os,time; p=os.fork(); os._exit(0) if p else time.sleep(60)"
