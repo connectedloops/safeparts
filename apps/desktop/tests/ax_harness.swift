@@ -72,6 +72,7 @@ if command == "actions" {
 } else if command == "type" {
     guard CommandLine.arguments.count > 6 else { exit(2) }
     guard AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success else { exit(6) }
+    guard ["1", "true"].contains(text(element, kAXFocusedAttribute)) else { exit(6) }
     postKey(0, flags: .maskCommand)
     usleep(50_000)
     postText(CommandLine.arguments[6])
