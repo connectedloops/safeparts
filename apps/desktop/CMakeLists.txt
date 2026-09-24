@@ -96,6 +96,10 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(NAME desktop-package-safety
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/package_macos_test.py")
+
   add_executable(desktop-bridge-contract tests/bridge_contract.cpp "${GENERATED_DIR}/bridge.rs.cc")
   add_dependencies(desktop-bridge-contract desktop-rust)
   target_include_directories(desktop-bridge-contract PRIVATE "${GENERATED_DIR}")
