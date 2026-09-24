@@ -1,6 +1,14 @@
 # Desktop issue 151: packaged macOS Accessibility source investigation
 
-Status: investigation only; no restart, launch, Accessibility call, UI action, setting change, or source fix was performed. Cause remains unestablished. The package is still blocked, and Qt 6.11, clean-host work, and printing remain deferred.
+Status: investigation only. One owner-approved bounded launch and read-only comparison was performed; no UI action, setting change, restart, or source fix followed. Cause remains unestablished. The package is still blocked, and Qt 6.11, clean-host work, and printing remain deferred.
+
+## Owner-approved bounded comparison result
+
+Attempt `target/desktop-package-workflows/attempts/diagnostic-1dde4cc1a914-97a2aafd844c-0538818cfdb9/` used the retained package from commit `1dde4cc1a91469543c1c193d4d052b8b7c4239b4` (manifest SHA-256 `97a2aafd844c2eada2cdf8bd1e9a59c84f62f9da58900e3d023124d3d064f534`) and probe source commit `1b1522b76fa8fd02a9b2c8a98485c083526cc8c2`. The comparison JSON SHA-256 is `3dc9a24b0c5a8716e372df262efd33af536f30849a55b4adafe306160afe0f63`.
+
+The one launch produced three samples at 1.062, 3.013, and 5.010 seconds. In every sample, public CoreGraphics inventory was available and reported one on-screen layer-0 window with bounds 740 by 618 for the exact PID; all-window inventory independently returned ten PID-filtered records with its broader semantics. Every retained and fresh AX read succeeded for `AXWindows`, `AXMainWindow`, `AXFocusedWindow`, and `AXChildren`. Each window attribute returned one distinct `AXWindow`, while application children returned that window and an `AXMenuBar`. Fresh roots were `CFEqual` to the retained root, but the returned window was unequal to both. Its bounded first-level children consistently began `AXTabGroup`, `AXButton`, `AXButton`, and `AXGroup` (four of eight, explicitly truncated). Every reported element owner PID matched before role inspection. No labels, titles, or values were read.
+
+This run contradicts the predicted persistent malformed relationship in **H1**, found no time transition or retained/fresh disagreement for **H2**, and recovered both a distinct native window and Qt semantic children, contradicting the tested prediction for **H3**. It contradicts **H4** because both inventories found a usable window. It found no equality disagreement supporting **H5**. The retained earlier self-root observations remain real but were not reproduced, so the bounded evidence is most consistent with a transient state or client/runtime condition not captured by this series; it does not prove an OS defect or a Qt cause. The smallest next step is owner review of this evidence before deciding whether a separately approved upstream-minimal reproducer is warranted. Do not resume product workflows from this diagnostic result.
 
 ## Retained evidence
 
