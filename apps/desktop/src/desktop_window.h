@@ -1,5 +1,6 @@
 #pragma once
 
+#include "allocation_policy.h"
 #include "secure_byte_buffer.h"
 
 #include <QList>
@@ -36,6 +37,8 @@ public:
     using SaveFileDialog = std::function<QString()>;
 
     explicit DesktopWindow(QWidget *parent = nullptr);
+    explicit DesktopWindow(std::shared_ptr<DesktopAllocationPolicy> allocationPolicy,
+                           QWidget *parent = nullptr);
     ~DesktopWindow() override;
     void setFileServicesForTests(std::shared_ptr<FileIo> fileIo, OpenFileDialog openFile,
                                  OpenFilesDialog openFiles, SaveFileDialog saveFile);
@@ -164,6 +167,7 @@ private:
     QPushButton *copyRecovered_ = nullptr;
     QPushButton *saveRecovered_ = nullptr;
 
+    std::shared_ptr<DesktopAllocationPolicy> allocationPolicy_;
     std::shared_ptr<FileIo> fileIo_;
     OpenFileDialog openFileDialog_;
     OpenFilesDialog openFilesDialog_;

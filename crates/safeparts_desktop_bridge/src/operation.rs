@@ -429,7 +429,7 @@ impl Operation {
         if retained > MAX_RETAINED_INPUT_BYTES {
             return Err(Status::RetainedInputTooLarge);
         }
-        if !self.recovery_batch_fits_memory(input.len(), token_count, requested_encoding) {
+        if !self.recovery_batch_fits_memory(input_text, token_count, requested_encoding) {
             return Err(Status::ResourceLimit);
         }
         let mut retained_input = Vec::new();
@@ -738,10 +738,11 @@ impl Operation {
 
     fn recovery_batch_fits_memory(
         &self,
-        input_len: usize,
+        input_text: &str,
         token_count: usize,
         requested_encoding: CoreEncoding,
     ) -> bool {
+        let input_len = input_text.len();
         let Some(current_state) = operation_state_bytes(
             &self.created_packets,
             self.created_packets.capacity(),
@@ -785,12 +786,25 @@ impl Operation {
         else {
             return false;
         };
-        // Before packet metadata is available, the retained text itself is the only
-        // trustworthy upper bound. Compact decoders cannot produce more bytes than
-        // their input (Base64url is tighter); mnemonic decoders are also bounded by
-        // input length. Account that decoded storage before invoking the parser.
-        let decoded_payload_bound =
-            decoded_bytes_upper_bound(raw_payload_after, requested_encoding);
+        // Framing whitespace is retained and counts toward raw admission, but contributes no
+        // decoder bytes. Bound decoded state from every non-whitespace token byte instead of
+        // charging valid padding twice; the parser still receives and validates all content.
+        let Some(input_token_bytes) = input_text
+            .split_whitespace()
+            .try_fold(0usize, |total, token| total.checked_add(token.len()))
+        else {
+            return false;
+        };
+        let encoded_token_bytes_after =
+            self.recovery_batches
+                .iter()
+                .try_fold(input_token_bytes, |total, batch| {
+                    let text = str::from_utf8(batch).ok()?;
+                    text.split_whitespace()
+                        .try_fold(total, |sum, token| sum.checked_add(token.len()))
+                });
+        let decoded_payload_bound = encoded_token_bytes_after
+            .and_then(|bytes| decoded_bytes_upper_bound(bytes, requested_encoding));
         let decoded_state = decoded_payload_bound
             .and_then(|payload| {
                 MAX_ACCEPTED_SHARES
@@ -812,6 +826,7 @@ impl Operation {
             return false;
         }
 
+        let mut largest_encoded_batch = input_token_bytes;
         let mut largest_batch = input_len;
         let mut largest_tokens = token_count;
         for batch in &self.recovery_batches {
@@ -821,6 +836,13 @@ impl Operation {
             };
             largest_tokens =
                 largest_tokens.max(text.split_whitespace().take(MAX_PASTE_TOKENS + 1).count());
+            let Some(encoded_bytes) = text
+                .split_whitespace()
+                .try_fold(0usize, |total, token| total.checked_add(token.len()))
+            else {
+                return false;
+            };
+            largest_encoded_batch = largest_encoded_batch.max(encoded_bytes);
         }
         let parser_refs = largest_tokens
             .checked_mul(size_of::<&str>())
@@ -831,7 +853,7 @@ impl Operation {
             .map(|bits| bits / 8);
         let parser_packet_headers =
             largest_tokens.checked_mul(size_of::<safeparts_core::packet::DecodedSharePacket>());
-        let largest_decoded = decoded_bytes_upper_bound(largest_batch, requested_encoding);
+        let largest_decoded = decoded_bytes_upper_bound(largest_encoded_batch, requested_encoding);
         let workspace = input_len
             .checked_mul(3)
             .and_then(|bytes| {

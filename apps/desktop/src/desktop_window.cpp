@@ -288,7 +288,15 @@ QWidget *centeredPage(QWidget *content) {
 }
 } // namespace
 
-DesktopWindow::DesktopWindow(QWidget *parent) : QMainWindow(parent), fileIo_(std::make_shared<FileIo>()) {
+DesktopWindow::DesktopWindow(QWidget *parent)
+    : DesktopWindow(defaultDesktopAllocationPolicy(), parent) {}
+
+DesktopWindow::DesktopWindow(std::shared_ptr<DesktopAllocationPolicy> allocationPolicy,
+                             QWidget *parent)
+    : QMainWindow(parent), allocationPolicy_(std::move(allocationPolicy)),
+      fileIo_(std::make_shared<FileIo>()) {
+    if (allocationPolicy_ == nullptr)
+        allocationPolicy_ = defaultDesktopAllocationPolicy();
     openFileDialog_ = [this] { return QFileDialog::getOpenFileName(this, QStringLiteral("Choose Secret file")); };
     openFilesDialog_ = [this] { return QFileDialog::getOpenFileNames(this, QStringLiteral("Load Recovery share files")); };
     saveFileDialog_ = [this] { return QFileDialog::getSaveFileName(this, QStringLiteral("Save exact bytes")); };
@@ -737,6 +745,10 @@ void DesktopWindow::chooseSecretFile() {
     const QString path = openFileDialog_();
     if (path.isEmpty())
         return;
+    if (!allocationPolicy_->allow(DesktopAllocationBoundary::FileAcquisition)) {
+        createStatus_->setText(QStringLiteral("Operation could not reserve memory."));
+        return;
+    }
     const qsizetype logicalMaximum = (16 * 1'048'576) / shareCount_->value();
     const qsizetype maximum = std::min(kMaximumSecretBytes, logicalMaximum);
     FileIo::ReadResult result = fileIo_->readBounded(path, maximum);
@@ -795,6 +807,10 @@ void DesktopWindow::loadShareFiles() {
     }
     QList<SecureByteBuffer> acquired;
     for (const QString &path : paths) {
+        if (!allocationPolicy_->allow(DesktopAllocationBoundary::FileAcquisition)) {
+            recoveryStatus_->setText(QStringLiteral("Operation could not reserve memory."));
+            return;
+        }
         FileIo::ReadResult result = fileIo_->readBounded(path, kMaximumShareFileBytes);
         if (result.status != FileIo::Status::Ok) {
             recoveryStatus_->setText(result.status == FileIo::Status::TooLarge
@@ -840,6 +856,10 @@ void DesktopWindow::loadShareFiles() {
 }
 
 void DesktopWindow::createShares() {
+    if (!allocationPolicy_->allow(DesktopAllocationBoundary::EditorUtf8)) {
+        createStatus_->setText(QStringLiteral("Operation could not reserve memory."));
+        return;
+    }
     QByteArray passphraseBytes = createPassphrase_->exactUtf8();
     QByteArray confirmationBytes = confirmPassphrase_->exactUtf8();
     if (protectWithPassphrase_->isChecked()
@@ -997,6 +1017,10 @@ void DesktopWindow::synchronizeRecoveryFields() {
         ++nonempty;
     }
 
+    if (!allocationPolicy_->allow(DesktopAllocationBoundary::RecoveryTransport)) {
+        recoveryStatus_->setText(QStringLiteral("Operation could not reserve memory."));
+        return;
+    }
     QList<SecureByteBuffer> inputs;
     inputs.reserve(nonempty);
     for (ExactTextEdit *editor : std::as_const(recoveryFields_)) {
@@ -1127,6 +1151,10 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
             finishLazyGeneratedPresentation();
             return;
         }
+        if (!allocationPolicy_->allow(DesktopAllocationBoundary::GeneratedPresentation)) {
+            failGeneratedPresentation(QStringLiteral("Operation could not reserve memory."));
+            return;
+        }
         retainedGeneratedPresentationBytes_ += bytes.size() * kGeneratedPresentationExpansion;
         generatedShareDisplays_.at(index)->setPlainText(
             QString::fromUtf8(bytes.data(), bytes.size()));
@@ -1159,7 +1187,17 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
         return;
     }
     if (purpose == kShareClipboardPurpose) {
-        if (!asciiValidated) {
+        const bool needsAccessibilityPresentation =
+            asciiValidated && lazyGeneratedPresentation_
+            && index < static_cast<quint16>(generatedShareDisplays_.size());
+        const bool presentationAllowed =
+            !needsAccessibilityPresentation
+            || allocationPolicy_->allow(DesktopAllocationBoundary::AccessibilityPresentation);
+        const bool clipboardAllowed = presentationAllowed
+                                      && allocationPolicy_->allow(DesktopAllocationBoundary::ClipboardHandoff);
+        if (!presentationAllowed || !clipboardAllowed) {
+            createStatus_->setText(QStringLiteral("Operation could not reserve memory."));
+        } else if (!asciiValidated) {
             createStatus_->setText(QStringLiteral("Recovery share encoding was not ASCII."));
         } else {
             QElapsedTimer clipboardTimer;
@@ -1169,8 +1207,7 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
             if (copied)
                 createStatus_->setText(QStringLiteral("Share %1 copied.").arg(index + 1));
         }
-        if (asciiValidated && lazyGeneratedPresentation_
-            && index < static_cast<quint16>(generatedShareDisplays_.size())) {
+        if (clipboardAllowed && needsAccessibilityPresentation) {
             releaseRevealedGeneratedShare();
             QPlainTextEdit *placeholder = generatedShareDisplays_.at(index);
             auto *viewer = new SegmentedShareView;
@@ -1200,6 +1237,15 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
                                    ? QStringLiteral("Share %1 saved.").arg(index + 1)
                                    : QStringLiteral("Share could not be saved."));
     } else if (purpose == kRecoveredDisplayPurpose) {
+        if (!allocationPolicy_->allow(DesktopAllocationBoundary::RecoveredPresentation)) {
+            recoveryResult_->hide();
+            recoveredDisplay_->clear();
+            recoverButton_->setEnabled(true);
+            recoveryStatus_->setText(QStringLiteral("Operation could not reserve memory."));
+            clearPendingExport();
+            pending_ = Pending::None;
+            return;
+        }
         QStringDecoder decoder(QStringDecoder::Utf8);
         const QString text = decoder.decode(bytes.view());
         const bool validUtf8 = !decoder.hasError();
@@ -1216,8 +1262,11 @@ void DesktopWindow::bytesFinished(quint64 generation, int status, SecureByteBuff
         recoverButton_->setEnabled(true);
         recoveryStatus_->setText(validUtf8 ? QStringLiteral("Recovered exact valid UTF-8 Secret.")
                                            : QStringLiteral("Recovered binary Secret. Save exact bytes."));
-    } else if (purpose == kRecoveredClipboardPurpose && writeClipboardUtf8(bytes.view())) {
-        recoveryStatus_->setText(QStringLiteral("Recovered Secret copied."));
+    } else if (purpose == kRecoveredClipboardPurpose) {
+        if (!allocationPolicy_->allow(DesktopAllocationBoundary::ClipboardHandoff))
+            recoveryStatus_->setText(QStringLiteral("Operation could not reserve memory."));
+        else if (writeClipboardUtf8(bytes.view()))
+            recoveryStatus_->setText(QStringLiteral("Recovered Secret copied."));
     } else if (purpose == kRecoveredSavePurpose) {
         const FileIo::Status result = fileIo_->writeDirect(pendingDestination_, bytes);
         recoveryStatus_->setText(result == FileIo::Status::Ok

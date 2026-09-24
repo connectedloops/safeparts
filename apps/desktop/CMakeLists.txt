@@ -45,6 +45,8 @@ set_target_properties(safeparts-rust PROPERTIES IMPORTED_LOCATION "${RUST_LIBRAR
 add_dependencies(safeparts-rust desktop-rust)
 
 add_library(desktop-ui STATIC
+  src/allocation_policy.cpp
+  src/allocation_policy.h
   src/clipboard_write.cpp
   src/desktop_window.cpp
   src/desktop_window.h

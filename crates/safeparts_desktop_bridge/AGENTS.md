@@ -24,7 +24,7 @@ Owns the generated CXX seam between the experimental Qt desktop app and `safepar
 - Add behavior through the existing operation interface. Do not expose packet layouts or create a second decoder.
 - Run admission checks before allocation-heavy parsing and preserve accepted recovery batches after handled errors.
 - Keep deterministic allocation/resource failpoints behind the opt-in `capacity-test-hooks` feature. Production desktop builds leave the feature disabled; each failpoint is one-shot, content-free, and must permit a later valid operation.
-- Account with checked arithmetic for current operation-owned state and the next recovery phase: the prior accepted set, queued incoming Qt bytes, incrementally staged candidate bytes, decoded packets, parser workspace, and fixed UI/runtime headroom. Preserve the published logical limits.
+- Account with checked arithmetic for current operation-owned state and the next recovery phase: the prior accepted set, queued incoming Qt bytes, incrementally staged candidate bytes, decoded packets, parser workspace, and fixed UI/runtime headroom. Raw bytes, including whitespace, count toward each import and the 160 MiB retained-input limit; decoded-state preflight counts only non-whitespace token bytes. Preserve the published logical limits.
 
 ## Verification
 

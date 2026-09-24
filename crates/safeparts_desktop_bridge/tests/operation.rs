@@ -5,6 +5,7 @@ use safeparts_core::{split_secret, split_secret_with_work_factor};
 #[cfg(feature = "capacity-test-hooks")]
 use safeparts_desktop_bridge::CapacityFailpoint;
 use safeparts_desktop_bridge::{Operation, OperationOutput, ShareEncoding, Status, new_operation};
+use sha2::{Digest, Sha256};
 
 const FIDELITY_TEXT: &str = "\0 leading\nline\u{00a0}space\u{2028}separator\u{2029}paragraph\ne\u{301} \u{1f600}\ntrailing \n";
 
@@ -697,6 +698,75 @@ fn public_operation_covers_threshold_endpoints_and_reordered_subsets() {
             .status
             == Status::TooManyShares
     );
+}
+
+#[test]
+#[ignore = "run through the fresh-process desktop capacity evidence task"]
+fn exact_retained_recovery_limit_is_transactional_and_recovers_maximum_secret() {
+    const RETAINED_LIMIT: usize = 160 * 1_048_576;
+    const SHARE_COUNT: usize = 16;
+    let secret = (0..1_048_576usize)
+        .map(|index| ((index * 131 + 17) % 251) as u8)
+        .collect::<Vec<_>>();
+    let expected_hash = Sha256::digest(&secret);
+    let packets = split_secret(&secret, 2, SHARE_COUNT as u8, None)
+        .unwrap_or_else(|error| panic!("maximum retained split failed: {error}"));
+    let mut shares = packets
+        .iter()
+        .map(|packet| {
+            encode_packet(packet, Encoding::Base64url)
+                .unwrap_or_else(|error| panic!("maximum retained encode failed: {error}"))
+                .into_bytes()
+        })
+        .collect::<Vec<_>>();
+    let target_batch = RETAINED_LIMIT / SHARE_COUNT;
+    assert_eq!(target_batch * SHARE_COUNT, RETAINED_LIMIT);
+    for share in &mut shares {
+        assert!(share.len() < target_batch);
+        share.resize(target_batch, b' ');
+    }
+    assert_eq!(shares.iter().map(Vec::len).sum::<usize>(), RETAINED_LIMIT);
+
+    shares[0].pop();
+    {
+        let mut below = new_operation();
+        let inspected = replace_recovery(&mut below, 1, &shares, ShareEncoding::Base64url);
+        assert!(inspected.status == Status::Ok);
+        assert_eq!(inspected.supplied_count, SHARE_COUNT as u16);
+        assert_eq!(
+            Sha256::digest(&below.recover_bytes_with_passphrase(2, &[]).bytes),
+            expected_hash
+        );
+    }
+    shares[0].push(b' ');
+    eprintln!(
+        "capacity_phase=below_retained_complete retained_bytes={}",
+        RETAINED_LIMIT - 1
+    );
+    eprintln!("capacity_phase=exact_retained_begin retained_bytes={RETAINED_LIMIT}");
+    let mut operation = new_operation();
+    let inspected = replace_recovery(&mut operation, 1, &shares, ShareEncoding::Base64url);
+    assert!(inspected.status == Status::Ok);
+    assert_eq!(inspected.supplied_count, SHARE_COUNT as u16);
+    let recovered = operation.recover_bytes_with_passphrase(2, &[]);
+    assert!(recovered.status == Status::Ok);
+    assert_eq!(recovered.bytes.len(), secret.len());
+    assert_eq!(Sha256::digest(&recovered.bytes), expected_hash);
+    eprintln!(
+        "capacity_phase=exact_retained_recovered supplied={} secret_bytes={} sha256={expected_hash:x}",
+        inspected.supplied_count,
+        recovered.bytes.len(),
+    );
+
+    shares[0].push(b' ');
+    let rejected = replace_recovery(&mut operation, 3, &shares, ShareEncoding::Base64url);
+    eprintln!("capacity_phase=above_limit status={}", rejected.status.repr);
+    assert!(rejected.status == Status::RetainedInputTooLarge);
+    let preserved = operation.recover_bytes_with_passphrase(4, &[]);
+    eprintln!("capacity_phase=preserved status={}", preserved.status.repr);
+    assert!(preserved.status == Status::Ok);
+    assert_eq!(Sha256::digest(&preserved.bytes), expected_hash);
+    eprintln!("capacity_phase=above_limit_preserved");
 }
 
 #[test]

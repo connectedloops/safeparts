@@ -2075,6 +2075,7 @@ dependencies = [
  "cxx",
  "cxx-build",
  "safeparts_core",
+ "sha2",
  "zeroize",
 ]
 
