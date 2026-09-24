@@ -20,6 +20,14 @@ def wait_get(helper: Path,pid:int,role:str,title:str,occurrence:int=0,timeout:fl
         if result.returncode==0 and result.stdout: return result.stdout
         last=result.stderr; time.sleep(.1)
     raise RuntimeError(f"timed out waiting for {role} {title}: {last}")
+def wait_enabled(helper:Path,pid:int,role:str,title:str,timeout:float=30)->None:
+    deadline=time.monotonic()+timeout
+    while time.monotonic()<deadline:
+        result=subprocess.run([str(helper),"enabled",str(pid),role,title,"0"],text=True,capture_output=True)
+        if result.returncode==0 and result.stdout.strip() in ("1","true"): return
+        time.sleep(.1)
+    raise RuntimeError(f"timed out waiting for enabled {role} {title}")
+
 def action(helper:Path,pid:int,command:str,role:str,title:str,occurrence:int=0,value:str|None=None)->str:
     args=[str(helper),command,str(pid),role,title,str(occurrence)]
     if value is not None: args.append(value)
@@ -70,7 +78,7 @@ def main()->int:
         action(helper,pid,"press","AXRadioButton","Combine");time.sleep(.2)
         for i,share in enumerate(pshares,1): action(helper,pid,"type","AXTextArea",f"Recovery share {i}",value=share); time.sleep(.3)
         action(helper,pid,"type","AXTextArea","Passphrase input (contents hidden)",value="wrong-synthetic")
-        action(helper,pid,"press","AXButton","Combine");time.sleep(3)
+        action(helper,pid,"press","AXButton","Combine"); wait_enabled(helper,pid,"AXButton","Combine")
         if subprocess.run([str(helper),"count",str(pid),"AXTextArea","Recovered secret","0"],capture_output=True).returncode==0: raise RuntimeError("wrong passphrase exposed output")
         action(helper,pid,"type","AXTextArea","Passphrase input (contents hidden)",value="synthetic-pass")
         action(helper,pid,"press","AXButton","Combine");protected=wait_get(helper,pid,"AXTextArea","Recovered secret")

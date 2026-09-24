@@ -78,6 +78,8 @@ if command == "press" {
     postKey(53)
 } else if command == "get" {
     FileHandle.standardOutput.write(Data(text(element, kAXValueAttribute).utf8))
+} else if command == "enabled" {
+    print(text(element, kAXEnabledAttribute))
 } else if command == "count" {
     print(found.count)
 } else { exit(2) }
