@@ -142,8 +142,8 @@ test('public WASM rejects unsupported packet and crypto parameters without leaki
   expect(failure(() => combine_share_input(crypto.toString('base64url'), 'base64url'))).toEqual({ code: 'unsupported_parameters' })
   const version = Buffer.from(shares[0], 'base64url')
   version[4] = 255
-  // Core deliberately groups unsupported versions with malformed packets.
-  expect(failure(() => combine_share_input(version.toString('base64url'), 'base64url'))).toEqual({ code: 'invalid_share' })
+  // Unsupported packet versions use the same content-free code as unsupported flags and crypto parameters.
+  expect(failure(() => combine_share_input(version.toString('base64url'), 'base64url'))).toEqual({ code: 'unsupported_parameters' })
 })
 
 test('public WASM recovery errors redact malformed input and encoding names', () => {
