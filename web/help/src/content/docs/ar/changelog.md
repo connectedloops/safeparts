@@ -174,6 +174,7 @@ description: تاريخ الفرع الرئيسي والإصدارات المن�
 
 ### اختبارات
 
+- <span dir="ltr">test&#40;web&#41;&#58; expect typed unsupported&#45;version error ([32377bf](https://github.com/connectedloops/safeparts/commit/32377bfcaa899c301769df8ffefa805aa9cd9c22))</span>
 - <span dir="ltr">test&#40;desktop&#41;&#58; add bounded AX window comparison ([1b1522b](https://github.com/connectedloops/safeparts/commit/1b1522b76fa8fd02a9b2c8a98485c083526cc8c2))</span>
 - <span dir="ltr">test&#40;desktop&#41;&#58; verify packaged file save outcomes ([03a156e](https://github.com/connectedloops/safeparts/commit/03a156ee680b24a914efeec923b428cd4f5b147b))</span>
 - <span dir="ltr">test&#40;desktop&#41;&#58; cover packaged binary file round trips ([5f70965](https://github.com/connectedloops/safeparts/commit/5f70965c0dacfb4fa895718b2a8812f2406716a0))</span>
