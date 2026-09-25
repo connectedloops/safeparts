@@ -30,6 +30,23 @@ Rust owns generated packets, recovery validation and state, authoritative recove
 
 Printing remains deferred by owner priority and is not a passed check. Issue 151 stays open. The first non-printing issue 151 milestone can stage a relocatable local Apple-silicon app bundle, while clean-host, offline, minimum-version, signing, licensing, and distribution qualification remain outstanding. The issue 147 development-host capacity work is complete.
 
+## Owner-guided package checkpoint
+
+The owner ended the issue 151 manual campaign after representative checks of the package built from `9db3d4a6d237f4e58a21a94657ed054d9cf7e6a6` (manifest SHA-256 `3e60aecadff43e22c2d027b45727e88f808d6f5d99fc5f79089dc095af652e1c`, executable SHA-256 `a5d7ff6a1ff121efd9cb9d5dd7eacac2d1a2bb69b46c165c3ce10050b8bbc578`). Resume manual testing only on explicit owner direction. The owner's working assumption is that the package functions well enough for this development checkpoint. It does not turn untested cases into passes or authorize release, publication, or issue closure.
+
+The owner performed the UI actions. Bounded file checks independently verified the saved outputs:
+
+- Words, unprotected text, threshold 2 of 3: two saved shares loaded with Auto and the recovered file matched the 25-byte ASCII Secret `Safeparts manual test 123`, without a newline.
+- Words, protected text, threshold 2 of 3: the owner observed a wrong-passphrase recovery error with no recovered Secret, then corrected the passphrase in the same session and recovered the expected display. The saved recovered file matched the same 25 bytes. The file check did not inspect share contents or prove protection metadata.
+- Words, unprotected binary file, threshold 2 of 3: native Open, share Save, Auto Load, binary recovery, and recovered Save produced the exact 11-byte fixture with SHA-256 `2cea2d74f893f6d6a277afdb5912ef25660f511f0a0a793165318424f4d39aef`.
+- Base64url, unprotected text, threshold 2 of 3: Advanced selection, two share Saves, Auto Load, recovery, and recovered Save produced the expected 25 bytes.
+
+The text output hash in all three text cases was `5e1ac8f4ef2afd137ab9a35eb94f9aabe8ef9f12b10797468302b622696cad25`. The exact verification records are under `target/desktop-manual-checks/attempts/9db3d4a6d237-3e60aecadff4-38ffd5ec7c0f/`. The first Words verifier looked in an empty attempt-output directory; the owner then identified the files in Downloads. That retained missing-location record is not a product failure.
+
+The owner also reported that startup showed Split and Combine, canceled recovered Save preserved the result and Save action, canceled Recovery-share Load preserved both shares and the binary result, and Start over cleared both fields and the result and disabled Combine. These are UI attestations, without independent filesystem-side-effect certification. The initial Combine view had a vertical scrollbar at the starting window height; it disappeared when the window was made slightly taller. This layout observation remains unresolved.
+
+Base58Check, BIP-39, protected binary, Copy-specific clipboard behavior, broader combinations, maximum and lifecycle cases, storage and network behavior, clean-host and offline use, minimum macOS, Gatekeeper, licenses, and replacement remain untested in this manual campaign. Historical issue 147 development evidence is separate. Qt 6.11, printing, and VM work remain deferred, and `distribution_ready` remains false.
+
 ## Local Apple-silicon bundle material
 
 On an Apple-silicon development host with the existing pinned project tools and Qt installation, run:
