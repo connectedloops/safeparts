@@ -1,6 +1,6 @@
 # Desktop issue 151: packaged macOS Accessibility source investigation
 
-Status: investigation only. One owner-approved bounded launch and read-only comparison was performed; no UI action, setting change, restart, or source fix followed. Cause remains unestablished. The package is still blocked, and Qt 6.11, clean-host work, and printing remain deferred.
+Status: historical investigation. The later owner-guided manual package checkpoint at source `9db3d4a` completed representative Words and Base64url workflows, so this earlier Accessibility failure is not a current request for more manual testing. Its cause remains unestablished and the immutable failure evidence below is unchanged. The owner has stopped the manual campaign unless they explicitly resume it. Issue 151 remains open; distribution readiness is false, and Qt 6.11, clean-host work, and printing remain deferred.
 
 ## Owner-approved packaged-workflow attempt
 
