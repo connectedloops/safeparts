@@ -13,12 +13,88 @@ description: تاريخ الفرع الرئيسي والإصدارات المن�
 
 ### ميزات
 
+- <span dir="ltr">feat&#40;desktop&#41;&#58; inventory local bundle licenses ([8a11ae0](https://github.com/connectedloops/safeparts/commit/8a11ae0676723a7613a1773779709693a796c1ca))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; stage local macOS app bundle ([c8d5966](https://github.com/connectedloops/safeparts/commit/c8d5966af3c864bcc0c6b50695f7e99d37529af3))</span>
+- <span dir="ltr">feat&#40;core&#41;&#58; support bounded protection work factors ([d86bd3f](https://github.com/connectedloops/safeparts/commit/d86bd3ff9b42e76d2500cece99dcdc9396eb06f0))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; add direct file workflows ([4627bc6](https://github.com/connectedloops/safeparts/commit/4627bc62a5d53c03725af8dc55401ad143293c36))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; preserve authoritative recovered bytes ([5871b5e](https://github.com/connectedloops/safeparts/commit/5871b5eee8405d7b4af05ce9ac7c1cd05acfac58))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; add passphrase&#45;protected text workflow ([a06c0a0](https://github.com/connectedloops/safeparts/commit/a06c0a0f8d12ed7777475348db9c860668236cf3))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; support share encodings and legacy recovery ([90c27b6](https://github.com/connectedloops/safeparts/commit/90c27b6301c8bef3db9c92508d6c46ab44af9d42))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; expose encoding&#45;aware core operations ([853a629](https://github.com/connectedloops/safeparts/commit/853a6297f555474007cb84505c5203d7d30c4293))</span>
+- <span dir="ltr">feat&#40;core&#41;&#58; preserve versions across share encodings ([9cd8edd](https://github.com/connectedloops/safeparts/commit/9cd8edd7847be397ba78f3bc53fb0eebb1867a42))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; show generated recovery shares ([9851d0a](https://github.com/connectedloops/safeparts/commit/9851d0acfce8958cd698d51d3b42b087dddfce0f))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; align native flow with web ([9487111](https://github.com/connectedloops/safeparts/commit/9487111cf9c73e59e99fdca72fdf1bc0b1431a4b))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; add native text round trip ([8183db0](https://github.com/connectedloops/safeparts/commit/8183db09e02fbb1e8c8eb9d0713d67769a474441))</span>
+- <span dir="ltr">feat&#40;core&#41;&#58; expose bounded share&#45;set inspection ([41adc25](https://github.com/connectedloops/safeparts/commit/41adc25a5b5db619b478db1ea85ca56ed932e64d))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; redesign Qt prototype from visual reference ([56be614](https://github.com/connectedloops/safeparts/commit/56be61433c79364b355e07c6117292c7e5baa188))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; redesign macOS prototype ([42c93e3](https://github.com/connectedloops/safeparts/commit/42c93e3ac159e3b7823046301480a60f5ad52b92))</span>
+- <span dir="ltr">feat&#40;desktop&#41;&#58; add Qt UI checkpoint prototype ([a1e7b03](https://github.com/connectedloops/safeparts/commit/a1e7b03cde49115ce53cb7ba08a513d6654f52da))</span>
 - <span dir="ltr">feat&#40;web&#41;&#58; retire desktop guidance and browser targets &#40;&#35;97&#41; ([753b297](https://github.com/connectedloops/safeparts/commit/753b2971978418422e2366f566261a6851ece86d))</span>
 - <span dir="ltr">feat&#40;web&#41;&#58; add a quiet localized changelog footer link &#40;&#35;98&#41; ([853c984](https://github.com/connectedloops/safeparts/commit/853c984c02d48f74951c5b74d6532aed6e4cd3c0))</span>
 - <span dir="ltr">feat&#40;docs&#41;&#58; generate repository and help changelogs from main history &#40;&#35;98&#41; ([ae84e5a](https://github.com/connectedloops/safeparts/commit/ae84e5a48ad7e7579b47623f7c8a10fee49d4133))</span>
 
 ### إصلاحات
 
+- <span dir="ltr">fix&#40;desktop&#41;&#58; confine workflow evidence writes ([fd08c35](https://github.com/connectedloops/safeparts/commit/fd08c359e1f290056dad5af66bc58227df5bc37f))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; harden packaged AX evidence ([1dde4cc](https://github.com/connectedloops/safeparts/commit/1dde4cc1a91469543c1c193d4d052b8b7c4239b4))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; select native share rows atomically ([b428e33](https://github.com/connectedloops/safeparts/commit/b428e330986287bde01724d45afbd55df9efd48f))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; await each share inspection ([9b23f83](https://github.com/connectedloops/safeparts/commit/9b23f838fe0a25b4db2ed80b3388da1a1d3180f7))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; cancel the observed native panel ([2ca0414](https://github.com/connectedloops/safeparts/commit/2ca04141534261c43b39ab13fbe65debb2896707))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; verify focused native dialog ([ee496a1](https://github.com/connectedloops/safeparts/commit/ee496a1cdee7322815a6d537cfd039f57663c9fe))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; await protected recovery inspection ([d08cf9c](https://github.com/connectedloops/safeparts/commit/d08cf9c616752db011a7ed2d5cb2c3c0939f6ba7))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; make packaged AX evidence causal ([5b0a398](https://github.com/connectedloops/safeparts/commit/5b0a398e6972de9e01f98e929e82b7d02da1c472))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; await corrected passphrase inspection ([b4bef06](https://github.com/connectedloops/safeparts/commit/b4bef065336a98bb4fc111e36e0f8bb3c9293089))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; await protected retry readiness ([355e796](https://github.com/connectedloops/safeparts/commit/355e79621b81cf93eda04d77908512b2b4ddb2b8))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; target masked AX editors ([f895588](https://github.com/connectedloops/safeparts/commit/f895588527b10ae08dc93415159fd1be2c8f4810))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; await packaged share inspection ([6743a2b](https://github.com/connectedloops/safeparts/commit/6743a2b40a0732a647156ebe9e8f30f4d764c8c7))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; await packaged clipboard handoff ([d8b36c0](https://github.com/connectedloops/safeparts/commit/d8b36c0f976a8a8f43b8edf0410fbdb827ae1940))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; preserve AX text framing ([7f1787c](https://github.com/connectedloops/safeparts/commit/7f1787c02e8c0d433b62a6a82304d9bd471c38dd))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; replace read&#45;only framework binaries ([2a9f62c](https://github.com/connectedloops/safeparts/commit/2a9f62cd128730e9833d485e74ead91b2626bf7e))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; deploy verified binary snapshots ([6eca25f](https://github.com/connectedloops/safeparts/commit/6eca25f42e5b9ecdab7652da90dd6170421e6863))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; bind post&#45;sign deployed hashes ([0eb3fc2](https://github.com/connectedloops/safeparts/commit/0eb3fc2199f1ee070f0fa5ed78cde7e21394923b))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; prove deployed binary origins ([5612088](https://github.com/connectedloops/safeparts/commit/561208850587e709ca3b4e79b09fa165553ea8ee))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; classify normal Cargo dependencies ([a3c8cdf](https://github.com/connectedloops/safeparts/commit/a3c8cdf94539aaab32f621d7cffc87b003f41845))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; resolve selected Qt formula receipt ([20d4a28](https://github.com/connectedloops/safeparts/commit/20d4a28777f850c2394bcf8a90e5a97f623152ba))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; bind license material to package ([ec9fc73](https://github.com/connectedloops/safeparts/commit/ec9fc73a392a9007ac4437d415dee24a1aff376a))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; collect installed Qt formula record ([9310f68](https://github.com/connectedloops/safeparts/commit/9310f68630c68694018174268fd1c7ccf878512f))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; resolve Qt receipt prefix ([065455a](https://github.com/connectedloops/safeparts/commit/065455a3c25ad1ca8ef328091c97f02e551a5816))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; pin license cache manifest ([32909a8](https://github.com/connectedloops/safeparts/commit/32909a83f0577050b2b14d4957a844a9e158e9ac))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; harden package evidence isolation ([8ed6b56](https://github.com/connectedloops/safeparts/commit/8ed6b56a1654438353d9fa8f2156798588a1db20))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; bind package to fresh build ([c7d4ce5](https://github.com/connectedloops/safeparts/commit/c7d4ce539493b1b9d983e2689059d052cdbef282))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; prefer bundled Qt plugins ([ff416c4](https://github.com/connectedloops/safeparts/commit/ff416c4322f8be9c062f3977985998f0a2b69154))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; bind Qt plugin search to bundle ([09281ae](https://github.com/connectedloops/safeparts/commit/09281aef8e8d091fe9902f2565451d838d9ffa3e))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; validate relocated bundle closure ([747bf12](https://github.com/connectedloops/safeparts/commit/747bf125b40d167d13f5f1cf6a2f297a8bfc5645))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; prove recovery shutdown lifecycle ([294e955](https://github.com/connectedloops/safeparts/commit/294e955cf78835cd291d07c2f6d972cf5e6d512d))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; close capacity evidence gaps ([209db6d](https://github.com/connectedloops/safeparts/commit/209db6df4a69f560ffa158abbc0b726002ef12b7))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; report segmented accessibility text changes ([bce8658](https://github.com/connectedloops/safeparts/commit/bce8658b50a476f3e66a8df3ad2ed0b0be0a50d8))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; complete virtual reveal semantics ([7789400](https://github.com/connectedloops/safeparts/commit/77894006fa535a4b213320ce565133cfa641059c))</span>
+- <span dir="ltr">fix&#40;core&#41;&#58; harden bounded base58check buffers ([bd68c2e](https://github.com/connectedloops/safeparts/commit/bd68c2eb4a63336d9b3519991f81abfeaf535898))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; release prior lazy share reveal ([f48a5fc](https://github.com/connectedloops/safeparts/commit/f48a5fcc5fa4033f07dbecdecde4b08c78037753))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; stage recovery input incrementally ([9180e99](https://github.com/connectedloops/safeparts/commit/9180e998a158a143db63a1a3c0272b107932c8e2))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; account for protected recovery memory ([2203efe](https://github.com/connectedloops/safeparts/commit/2203efe1f356a346da18772bcd7b3a4f1494ea61))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; stabilize advanced disclosure ([de04bec](https://github.com/connectedloops/safeparts/commit/de04becfcffe249136aef17cb4eeae2984100191))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; refine split controls ([128061e](https://github.com/connectedloops/safeparts/commit/128061e2c0fbdc54c5d86ce271eb49c6569caed6))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; retain one bounded file buffer ([bf6536f](https://github.com/connectedloops/safeparts/commit/bf6536fd20599afcb17563fc471221922a65afbb))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; harden file workflow ownership ([a90ddfe](https://github.com/connectedloops/safeparts/commit/a90ddfe97ca864ba9271204ce764882a5022e664))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; clear stale recovery output ([4c64d45](https://github.com/connectedloops/safeparts/commit/4c64d45914243bf8fd75e356d559a898a6a9ed0c))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; preserve protected recovery state ([cf34894](https://github.com/connectedloops/safeparts/commit/cf348946a2cd6ada83a0e33e29407dd6aa59fb01))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; bound exact passphrase input ([0da9288](https://github.com/connectedloops/safeparts/commit/0da9288681d15aba188415deb8b8cb2cf7469724))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; complete interoperability validation ([85add3c](https://github.com/connectedloops/safeparts/commit/85add3c91acf72d58a495bb123ec519a7a15f7b5))</span>
+- <span dir="ltr">fix&#40;wasm&#41;&#58; map unsupported packet versions ([d4c652d](https://github.com/connectedloops/safeparts/commit/d4c652d83ac118da8093bb367aed79c3ca9810ad))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; close share encoding review gaps ([f1e3a8e](https://github.com/connectedloops/safeparts/commit/f1e3a8e1b9e004c5e4f290a3b879a9108f29e77f))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; stabilize recovery inspection state ([fc8f1f8](https://github.com/connectedloops/safeparts/commit/fc8f1f877c6a104f039d4fd6a1c1c5b3f8d1fd3e))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; retain complete visible recovery set ([a437a86](https://github.com/connectedloops/safeparts/commit/a437a867dcd4084171d8cff43452f55d7d2262fd))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; refine create share layout ([c98eef6](https://github.com/connectedloops/safeparts/commit/c98eef6464d34431d17604bf7d41397b70bf8944))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; wipe queued sensitive buffers ([153859c](https://github.com/connectedloops/safeparts/commit/153859cbefa98d1167ae7229396c532b567ce6f3))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; bound normalized paste results ([cf4dc69](https://github.com/connectedloops/safeparts/commit/cf4dc6956e03f827bddcf016500b7393701d370d))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; clear sensitive error buffers ([9c1db86](https://github.com/connectedloops/safeparts/commit/9c1db86d54f7e76fb1613db4504cc86d082e2fd8))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; keep text edits authoritative ([dd7a7f3](https://github.com/connectedloops/safeparts/commit/dd7a7f3e79f1ce10dcc1d40d9d1e911c914422bf))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; harden text and recovery boundaries ([d5fca0f](https://github.com/connectedloops/safeparts/commit/d5fca0fd2cd30e1b59c137eedaffe9c642784ea5))</span>
+- <span dir="ltr">fix&#40;dx&#41;&#58; scan the experimental desktop bridge ([0d55ea1](https://github.com/connectedloops/safeparts/commit/0d55ea18458af8464fad1a2ca24fc66cea150b18))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; upgrade the pinned CXX family ([f279406](https://github.com/connectedloops/safeparts/commit/f279406257fbe88b8d716141200855b422d5fcb3))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; tighten lifecycle and text fidelity ([9887fa3](https://github.com/connectedloops/safeparts/commit/9887fa309028f78338abafdc062a9b401ad7c72f))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; balance prototype task layout ([874c5e7](https://github.com/connectedloops/safeparts/commit/874c5e7dd0eeaacd3d84842896f7d53dcd9ac1e1))</span>
+- <span dir="ltr">fix&#40;desktop&#41;&#58; align prototype recovery and reset behavior ([32b4307](https://github.com/connectedloops/safeparts/commit/32b43074ab17f5fd68ffe797795a0704e460f5b6))</span>
 - <span dir="ltr">fix&#40;help&#41;&#58; localize app links and make new&#45;tab navigation explicit ([3ebd0de](https://github.com/connectedloops/safeparts/commit/3ebd0de97addf1405f3e0c8ef76d3e43a0e4def5))</span>
 - <span dir="ltr">fix&#40;web&#41;&#58; refresh compatible nested dependencies for &#35;122 ([a7efcab](https://github.com/connectedloops/safeparts/commit/a7efcabd4f17f406d634061ce35daa03fc38a062))</span>
 - <span dir="ltr">fix&#40;security&#41;&#58; reconcile all Bun advisory identities ([6f89cb3](https://github.com/connectedloops/safeparts/commit/6f89cb37fbee65df6214fdda6569949239c506e9))</span>
@@ -43,8 +119,45 @@ description: تاريخ الفرع الرئيسي والإصدارات المن�
 - <span dir="ltr">fix&#40;web&#41;&#58; restore placeholder contrast ([fc0404d](https://github.com/connectedloops/safeparts/commit/fc0404ddffccc6f4ea51060ee8fbb9f4923eab37))</span>
 - <span dir="ltr">fix&#40;web&#41;&#58; pin background gradient to viewport ([76be1a5](https://github.com/connectedloops/safeparts/commit/76be1a523d8081aedaa624276f970c32b4dd7000))</span>
 
+### الأداء
+
+- <span dir="ltr">perf&#40;desktop&#41;&#58; virtualize maximum share reveal ([17b3805](https://github.com/connectedloops/safeparts/commit/17b3805871fad2e0419102e320f5f65514d3acbc))</span>
+- <span dir="ltr">perf&#40;core&#41;&#58; bound maximum base58check encoding ([be95ce7](https://github.com/connectedloops/safeparts/commit/be95ce7a5a01c7b3450f9d1f720accd5dcb444c9))</span>
+- <span dir="ltr">perf&#40;desktop&#41;&#58; bound maximum workload presentation ([356e2fa](https://github.com/connectedloops/safeparts/commit/356e2fa72a5f00a1ac74c85a16c3debd9077be1f))</span>
+- <span dir="ltr">perf&#40;desktop&#41;&#58; replace recovery input transactionally ([2fbe8b8](https://github.com/connectedloops/safeparts/commit/2fbe8b8c5526f24b4bf561b5d8c45b0b308f91a5))</span>
+
 ### التوثيق
 
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record bounded workflow startup failure ([a03929d](https://github.com/connectedloops/safeparts/commit/a03929d1e35746792bfb205dd88fc6ea30aff745))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record bounded AX comparison ([1619805](https://github.com/connectedloops/safeparts/commit/1619805f45b0865a76371c08c50864a931da1da0))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record issue 151 AX source investigation ([a6f63f3](https://github.com/connectedloops/safeparts/commit/a6f63f31dbf90dabfb6a00d427e27125552fa7c5))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record issue 147 capacity evidence ([dcb8f44](https://github.com/connectedloops/safeparts/commit/dcb8f44682da5118489417ccb4bd6b30a590b272))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record phase two capacity boundaries ([690528a](https://github.com/connectedloops/safeparts/commit/690528a01d20f798c6f7688e2978ae6f10343613))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; restore bounded lazy share reveal ([f76d6be](https://github.com/connectedloops/safeparts/commit/f76d6be586139a5d6d26941fa79aef5e9fd04562))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record capacity workflow contracts ([8cb32f7](https://github.com/connectedloops/safeparts/commit/8cb32f7c20368581a307a5c50ea268f2563549d4))</span>
+- <span dir="ltr">docs&#58; defer desktop printing roadmap ([8568085](https://github.com/connectedloops/safeparts/commit/85680858dd7beedbce3622113773d0b3eed01e97))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record owner file workflow acceptance ([8c912c7](https://github.com/connectedloops/safeparts/commit/8c912c7cc4a280512e4aca6d9b7d1c50f967d316))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record file workflow host evidence ([3e09ed6](https://github.com/connectedloops/safeparts/commit/3e09ed681576cbda45de4aa828ba167c2416991b))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; close file workflow validation ([4b7fc92](https://github.com/connectedloops/safeparts/commit/4b7fc92fcfeec3a3037cd15b003ec74994cb03c6))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; document exact&#45;byte file ownership ([5c2b2a1](https://github.com/connectedloops/safeparts/commit/5c2b2a1eb25a8fea377902d7d6fe7f8dd510f111))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; close issue 142 evidence ([461ebf8](https://github.com/connectedloops/safeparts/commit/461ebf81787c26f07b98cc1f9fedc6de9dd30d13))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record passphrase protection contracts ([11cf393](https://github.com/connectedloops/safeparts/commit/11cf393d61bd1aeb8143c4bfac1ef97c0e283e4f))</span>
+- <span dir="ltr">docs&#40;agents&#41;&#58; record delegated execution preference ([3dcc4d2](https://github.com/connectedloops/safeparts/commit/3dcc4d241170eb821f0b3c7dfd102820bfe41fdc))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; refresh final encoding evidence ([c6c47f4](https://github.com/connectedloops/safeparts/commit/c6c47f44a1c5b54f5d55a825d054401403b07485))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; refresh encoding evidence ([e085fb7](https://github.com/connectedloops/safeparts/commit/e085fb7ce2a68dfe3b555394854dcd970d3397b7))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record encoding&#45;aware host evidence ([f1301cf](https://github.com/connectedloops/safeparts/commit/f1301cf6d7a71bd922dfeb0eff2c66afdeec51ed))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record encoding&#45;aware behavior ([136087e](https://github.com/connectedloops/safeparts/commit/136087e3a5f3e8d729acfd6fc7b34ebe47f59ca9))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record complete&#45;set evidence ([8e17bd5](https://github.com/connectedloops/safeparts/commit/8e17bd5f2c77b3a3a2ad0a8debf508c944273a2c))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; refresh final split&#45;combine evidence ([d01f6ee](https://github.com/connectedloops/safeparts/commit/d01f6eeac562ae867c5eb9640ae7afb9079a4612))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record secure&#45;buffer evidence ([b49a61f](https://github.com/connectedloops/safeparts/commit/b49a61f0d7c4bbd3ccfd2eb90f639b76984322f5))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; refresh final host evidence ([f9b51a6](https://github.com/connectedloops/safeparts/commit/f9b51a6f7032459644ad906f1cc5935c922ab645))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; clarify text and evidence scope ([f8e38be](https://github.com/connectedloops/safeparts/commit/f8e38be4a7df3b028eb53258cea053a95ebfb9a4))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record storage trace evidence ([3928269](https://github.com/connectedloops/safeparts/commit/39282692a313ffcdcdba3742443d84cc02f9c67b))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record issue 140 development evidence ([fd83282](https://github.com/connectedloops/safeparts/commit/fd83282121213b14f624819a6157af288e446393))</span>
+- <span dir="ltr">docs&#40;desktop&#41;&#58; record accepted Qt visual direction ([c38a164](https://github.com/connectedloops/safeparts/commit/c38a164a8018f13107763a2af7bf3e063807df50))</span>
+- <span dir="ltr">docs&#58; link approved desktop specification handoff ([658bf0a](https://github.com/connectedloops/safeparts/commit/658bf0a221a7b58128ca6e4fe4872f76f06b8ac5))</span>
+- <span dir="ltr">docs&#58; require existing core reuse in desktop planning ([4040d05](https://github.com/connectedloops/safeparts/commit/4040d056177dd3e0153a8f865ba2383ea617e081))</span>
+- <span dir="ltr">docs&#58; link new desktop wayfinding map ([2d366c6](https://github.com/connectedloops/safeparts/commit/2d366c6928de6f8357808181d8286dd7cf3f9f9d))</span>
 - <span dir="ltr">docs&#58; reconcile scan guidance after main rebase ([81a2c6e](https://github.com/connectedloops/safeparts/commit/81a2c6e22669c6b21058647ff455622bb75434c3))</span>
 - <span dir="ltr">docs&#58; complete dependency setup without mise ([c10818c](https://github.com/connectedloops/safeparts/commit/c10818cbba71077d5450503ad41935b5dc9b0c8e))</span>
 - <span dir="ltr">docs&#40;help&#41;&#58; distinguish theft exposure from outage tolerance ([fd6bbfc](https://github.com/connectedloops/safeparts/commit/fd6bbfc41067e55379dc6d32d6f01a35c71933b7))</span>
@@ -61,6 +174,27 @@ description: تاريخ الفرع الرئيسي والإصدارات المن�
 
 ### اختبارات
 
+- <span dir="ltr">test&#40;desktop&#41;&#58; add bounded AX window comparison ([1b1522b](https://github.com/connectedloops/safeparts/commit/1b1522b76fa8fd02a9b2c8a98485c083526cc8c2))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; verify packaged file save outcomes ([03a156e](https://github.com/connectedloops/safeparts/commit/03a156ee680b24a914efeec923b428cd4f5b147b))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; cover packaged binary file round trips ([5f70965](https://github.com/connectedloops/safeparts/commit/5f70965c0dacfb4fa895718b2a8812f2406716a0))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; pin AX calls to process identity ([81744b3](https://github.com/connectedloops/safeparts/commit/81744b305b25355e11c8c122a4e0238e1ce5c99f))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; snapshot dialog input identity ([4c2aa9e](https://github.com/connectedloops/safeparts/commit/4c2aa9e57ffcf24a6b704796522198bb736e3b03))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; verify AX input focus ([dca5209](https://github.com/connectedloops/safeparts/commit/dca52095b10343666ebe08a0066dfd60e42f1f65))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; expose native dialog AX actions ([e776d4a](https://github.com/connectedloops/safeparts/commit/e776d4ac396b74bf0d53816fea6fdb8d4e728151))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; drive packaged workflows with AX ([611df38](https://github.com/connectedloops/safeparts/commit/611df38d6071895f21d5446c7b201b13b4ebc71e))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; pin final hash ordering ([ef6b978](https://github.com/connectedloops/safeparts/commit/ef6b978294211b26194c5ee525e928d0e7d90c99))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; complete capacity fault evidence ([5ca90ef](https://github.com/connectedloops/safeparts/commit/5ca90efb85f2162ae1342b0b80f004f32b2d4367))</span>
+- <span dir="ltr">test&#40;wasm&#41;&#58; run maximum base58 browser evidence ([5542b58](https://github.com/connectedloops/safeparts/commit/5542b58091f4ef9b209849596f872345e57772a6))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; add maximum codec accessibility gates ([3eeab86](https://github.com/connectedloops/safeparts/commit/3eeab86a9b8ac25fcfb6bb7c20566bf65a01795b))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; cover virtual reveal lifecycle ([46dbb21](https://github.com/connectedloops/safeparts/commit/46dbb21b397c4b37de357dfc0bf68cf61c4ba9dd))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; inject recoverable capacity failures ([d32fda2](https://github.com/connectedloops/safeparts/commit/d32fda24ca3dc1fe1a7df3e5d29940db1936e16f))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; split maximum encoding capacity cases ([1ff356e](https://github.com/connectedloops/safeparts/commit/1ff356ee03aa0960e345e4c62459fe104d417373))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; pin binary surface interoperability ([e20cb22](https://github.com/connectedloops/safeparts/commit/e20cb221ea956a3fd2fccfd0bf5f203d9e023cd2))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; close file workflow evidence gaps ([839d8fc](https://github.com/connectedloops/safeparts/commit/839d8fc8f3a739bb0d39ecba0693734437ccfe90))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; attribute passphrase boundary evidence ([7d24786](https://github.com/connectedloops/safeparts/commit/7d24786fb65d2b60951ba808c07fdb26aacd6233))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; pin protected interoperability corpus ([5aeb9f5](https://github.com/connectedloops/safeparts/commit/5aeb9f54def48d79add74ab82909c6aca729075a))</span>
+- <span dir="ltr">test&#40;desktop&#41;&#58; exercise released fixtures through native seams ([9c057d2](https://github.com/connectedloops/safeparts/commit/9c057d278a607005c39ee4d5ebf9fbe166426b42))</span>
+- <span dir="ltr">test&#40;dx&#41;&#58; recognize experimental desktop bridge ([c7f8f57](https://github.com/connectedloops/safeparts/commit/c7f8f57a8a5c2fa3d4392529fd70514ed2b6c72b))</span>
 - <span dir="ltr">test&#40;ci&#41;&#58; align changelog handoff with supported workloads &#40;&#35;97&#41; ([adff569](https://github.com/connectedloops/safeparts/commit/adff56970d12ba033daf296e32602ab5d8455585))</span>
 - <span dir="ltr">test&#40;web&#41;&#58; intercept built WASM recovery mocks &#40;&#35;93&#41; ([e6e56ce](https://github.com/connectedloops/safeparts/commit/e6e56cea656d0b27c88258e5bc8f8babdd7b1348))</span>
 
