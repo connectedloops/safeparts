@@ -266,185 +266,199 @@ export function SplitForm({ strings }: SplitFormProps) {
           </div>
         </label>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <label className="block" htmlFor="split-k">
-            <span className="field-label block sm:min-h-10" id="k-label">
-              {strings.kLabel}
-            </span>
-            {isCoarsePointer ? (
-              <div className="input-stepper-shell mt-2">
-                <input
-                  id="split-k"
-                  type="number"
-                  inputMode="numeric"
-                  min={2}
-                  max={Math.min(255, n)}
-                  value={k}
-                  onChange={(e) => updateK(Number(e.target.value))}
-                  onFocus={selectAllOnFocus}
-                  onClick={selectAllOnClick}
-                  className="input-stepper-field"
-                  aria-labelledby="k-label"
+        <p className="split-settings" data-testid="split-settings">
+          <span>{encodingOptions.find((option) => option.value === encoding)?.label}</span>
+          <span>{strings.kLabel}: {k}</span>
+          <span>{strings.nLabel}: {n}</span>
+          {passphrase.length > 0 ? <span>{strings.protectionEnabled}</span> : null}
+        </p>
+        {!passphrasesMatch ? <p className="text-xs text-rose-400" id="split-passphrase-mismatch" role="alert">{strings.passphraseMismatch}</p> : null}
+
+        <div className="split-options">
+          <details data-testid="split-passphrase-options">
+            <summary>{strings.passphraseLabel}</summary>
+            <div className="grid gap-4 pt-3">
+              <div className="block">
+                <label className="field-label" id="split-passphrase-label" htmlFor="split-passphrase">
+                  {strings.passphraseLabel}
+                </label>
+                <p className="field-hint mt-1" id="split-passphrase-hint">
+                  {strings.passphraseHint}
+                </p>
+                <PassphraseInput
+                  id="split-passphrase"
+                  value={passphrase}
+                  onChange={updatePassphrase}
+                  autoComplete="new-password"
+                  labelledBy="split-passphrase-label"
+                  describedBy="split-passphrase-hint"
+                  showLabel={strings.showPassphrase}
+                  hideLabel={strings.hidePassphrase}
+                  pasteLabel={strings.pastePassphrase}
+                  clearLabel={strings.clearPassphrase}
                 />
-                <div className="stepper-controls items-center gap-1 p-1">
-                  <button
-                    type="button"
-                    className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={() => updateK(k - 1)}
-                    disabled={k <= 2}
-                    aria-label={strings.decrement}
-                    title={strings.decrement}
-                  >
-                    −
-                  </button>
-                  <button
-                    type="button"
-                    className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={() => updateK(k + 1)}
-                    disabled={k >= Math.min(255, n)}
-                    aria-label={strings.increment}
-                    title={strings.increment}
-                  >
-                    +
-                  </button>
-                </div>
               </div>
-            ) : (
-              <input
-                id="split-k"
-                type="number"
-                min={2}
-                max={Math.min(255, n)}
-                value={k}
-                onChange={(e) => updateK(Number(e.target.value))}
-                className="input mt-2"
-                aria-labelledby="k-label"
-              />
-            )}
-          </label>
 
-          <label className="block" htmlFor="split-n">
-            <span className="field-label block sm:min-h-10" id="n-label">
-              {strings.nLabel}
-            </span>
-            {isCoarsePointer ? (
-              <div className="input-stepper-shell mt-2">
-                <input
-                  id="split-n"
-                  type="number"
-                  inputMode="numeric"
-                  min={2}
-                  max={255}
-                  value={n}
-                  onChange={(e) => updateN(Number(e.target.value))}
-                  onFocus={selectAllOnFocus}
-                  onClick={selectAllOnClick}
-                  className="input-stepper-field"
-                  aria-labelledby="n-label"
-                />
-                <div className="stepper-controls items-center gap-1 p-1">
-                  <button
-                    type="button"
-                    className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={() => updateN(n - 1)}
-                    disabled={n <= 2}
-                    aria-label={strings.decrement}
-                    title={strings.decrement}
+              {passphrase.length > 0 ? (
+                <div className="block">
+                  <label
+                    className="field-label"
+                    id="split-passphrase-confirmation-label"
+                    htmlFor="split-passphrase-confirmation"
                   >
-                    −
-                  </button>
-                  <button
-                    type="button"
-                    className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={() => updateN(n + 1)}
-                    disabled={n >= 255}
-                    aria-label={strings.increment}
-                    title={strings.increment}
-                  >
-                    +
-                  </button>
+                    {strings.confirmPassphraseLabel}
+                  </label>
+                  <PassphraseInput
+                    id="split-passphrase-confirmation"
+                    value={passphraseConfirmation}
+                    onChange={updatePassphraseConfirmation}
+                    autoComplete="new-password"
+                    labelledBy="split-passphrase-confirmation-label"
+                    describedBy={
+                      passphrasesMatch
+                        ? "split-passphrase-hint"
+                        : "split-passphrase-mismatch"
+                    }
+                    showLabel={strings.showPassphraseConfirmation}
+                    hideLabel={strings.hidePassphraseConfirmation}
+                    pasteLabel={strings.pastePassphraseConfirmation}
+                    clearLabel={strings.clearPassphraseConfirmation}
+                    invalid={!passphrasesMatch}
+                  />
                 </div>
+              ) : null}
+            </div>
+          </details>
+          <details data-testid="split-count-options">
+            <summary>{strings.shareCountsLabel}</summary>
+            <div className="pt-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block" htmlFor="split-k">
+                  <span className="field-label block sm:min-h-10" id="k-label">
+                    {strings.kLabel}
+                  </span>
+                  {isCoarsePointer ? (
+                    <div className="input-stepper-shell mt-2">
+                      <input
+                        id="split-k"
+                        type="number"
+                        inputMode="numeric"
+                        min={2}
+                        max={Math.min(255, n)}
+                        value={k}
+                        onChange={(e) => updateK(Number(e.target.value))}
+                        onFocus={selectAllOnFocus}
+                        onClick={selectAllOnClick}
+                        className="input-stepper-field"
+                        aria-labelledby="k-label"
+                      />
+                      <div className="stepper-controls items-center gap-1 p-1">
+                        <button
+                          type="button"
+                          className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => updateK(k - 1)}
+                          disabled={k <= 2}
+                          aria-label={strings.decrement}
+                          title={strings.decrement}
+                        >
+                          −
+                        </button>
+                        <button
+                          type="button"
+                          className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => updateK(k + 1)}
+                          disabled={k >= Math.min(255, n)}
+                          aria-label={strings.increment}
+                          title={strings.increment}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <input
+                      id="split-k"
+                      type="number"
+                      min={2}
+                      max={Math.min(255, n)}
+                      value={k}
+                      onChange={(e) => updateK(Number(e.target.value))}
+                      className="input mt-2"
+                      aria-labelledby="k-label"
+                    />
+                  )}
+                </label>
+
+                <label className="block" htmlFor="split-n">
+                  <span className="field-label block sm:min-h-10" id="n-label">
+                    {strings.nLabel}
+                  </span>
+                  {isCoarsePointer ? (
+                    <div className="input-stepper-shell mt-2">
+                      <input
+                        id="split-n"
+                        type="number"
+                        inputMode="numeric"
+                        min={2}
+                        max={255}
+                        value={n}
+                        onChange={(e) => updateN(Number(e.target.value))}
+                        onFocus={selectAllOnFocus}
+                        onClick={selectAllOnClick}
+                        className="input-stepper-field"
+                        aria-labelledby="n-label"
+                      />
+                      <div className="stepper-controls items-center gap-1 p-1">
+                        <button
+                          type="button"
+                          className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => updateN(n - 1)}
+                          disabled={n <= 2}
+                          aria-label={strings.decrement}
+                          title={strings.decrement}
+                        >
+                          −
+                        </button>
+                        <button
+                          type="button"
+                          className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => updateN(n + 1)}
+                          disabled={n >= 255}
+                          aria-label={strings.increment}
+                          title={strings.increment}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <input
+                      id="split-n"
+                      type="number"
+                      min={2}
+                      max={255}
+                      value={n}
+                      onChange={(e) => updateN(Number(e.target.value))}
+                      className="input mt-2"
+                      aria-labelledby="n-label"
+                    />
+                  )}
+                </label>
               </div>
-            ) : (
-              <input
-                id="split-n"
-                type="number"
-                min={2}
-                max={255}
-                value={n}
-                onChange={(e) => updateN(Number(e.target.value))}
-                className="input mt-2"
-                aria-labelledby="n-label"
-              />
-            )}
-          </label>
-
-          <div className="block sm:col-span-3">
-            <span className="field-label block" id="encoding-label">
-              {strings.encodingLabel}
-            </span>
-            <EncodingSelector value={encoding} onChange={updateEncoding} options={encodingOptions} />
-          </div>
+            </div>
+          </details>
+          <details data-testid="split-format-options">
+            <summary>{strings.advancedFormatsLabel}</summary>
+            <div className="pt-3">
+              <div className="block">
+                <span className="field-label block" id="encoding-label">
+                  {strings.encodingLabel}
+                </span>
+                <EncodingSelector value={encoding} onChange={updateEncoding} options={encodingOptions} />
+              </div>
+            </div>
+          </details>
         </div>
-
-        <div className="block">
-          <label className="field-label" id="split-passphrase-label" htmlFor="split-passphrase">
-            {strings.passphraseLabel}
-          </label>
-          <p className="field-hint mt-1" id="split-passphrase-hint">
-            {strings.passphraseHint}
-          </p>
-          <PassphraseInput
-            id="split-passphrase"
-            value={passphrase}
-            onChange={updatePassphrase}
-            autoComplete="new-password"
-            labelledBy="split-passphrase-label"
-            describedBy="split-passphrase-hint"
-            showLabel={strings.showPassphrase}
-            hideLabel={strings.hidePassphrase}
-            pasteLabel={strings.pastePassphrase}
-            clearLabel={strings.clearPassphrase}
-          />
-        </div>
-
-        {passphrase.length > 0 ? (
-          <div className="block">
-            <label
-              className="field-label"
-              id="split-passphrase-confirmation-label"
-              htmlFor="split-passphrase-confirmation"
-            >
-              {strings.confirmPassphraseLabel}
-            </label>
-            <PassphraseInput
-              id="split-passphrase-confirmation"
-              value={passphraseConfirmation}
-              onChange={updatePassphraseConfirmation}
-              autoComplete="new-password"
-              labelledBy="split-passphrase-confirmation-label"
-              describedBy={
-                passphrasesMatch
-                  ? "split-passphrase-hint"
-                  : "split-passphrase-mismatch"
-              }
-              showLabel={strings.showPassphraseConfirmation}
-              hideLabel={strings.hidePassphraseConfirmation}
-              pasteLabel={strings.pastePassphraseConfirmation}
-              clearLabel={strings.clearPassphraseConfirmation}
-              invalid={!passphrasesMatch}
-            />
-            {!passphrasesMatch ? (
-              <p
-                className="mt-1 text-xs text-rose-400"
-                id="split-passphrase-mismatch"
-                role="alert"
-              >
-                {strings.passphraseMismatch}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
 
         <div className="dir-row flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <button

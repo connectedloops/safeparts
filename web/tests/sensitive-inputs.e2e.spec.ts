@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test'
 
-import { waitForWasmReady } from './a11y-utils'
+import { openSplitOptions, waitForWasmReady } from './a11y-utils'
 
 async function expectWritingAssistanceOff(field: Locator) {
   await expect(field).toHaveJSProperty('spellcheck', false)
@@ -14,6 +14,7 @@ for (const language of ['en', 'ar'] as const) {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await page.goto('/')
     await waitForWasmReady(page)
+    await openSplitOptions(page)
     if (language === 'ar') await page.getByRole('button', { name: 'العربية' }).click()
 
     const secretField = page.locator('#split-panel textarea')
@@ -69,6 +70,7 @@ for (const language of ['en', 'ar'] as const) {
   test(`sensitive inputs disable writing assistance in ${language} @smoke`, async ({ page }) => {
     await page.goto('/')
     await waitForWasmReady(page)
+    await openSplitOptions(page)
     if (language === 'ar') await page.getByRole('button', { name: 'العربية' }).click()
 
     await expectWritingAssistanceOff(page.locator('#split-panel textarea'))

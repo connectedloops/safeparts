@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { waitForWasmReady } from './a11y-utils'
+import { openSplitOptions, waitForWasmReady } from './a11y-utils'
 
 // Wait past the focus handler's deferred work, not just the focus dispatch.
 async function nextFrames(page: Page) {
@@ -17,6 +17,7 @@ test.describe('Split touch focus @smoke', () => {
     page.on('pageerror', (error) => errors.push(error.message))
     await page.goto('/')
     await waitForWasmReady(page)
+    await openSplitOptions(page)
 
     for (const id of ['split-k', 'split-n']) {
       // Both focus events happen in one browser task, before any animation frame can run.
@@ -36,6 +37,7 @@ test.describe('Split touch focus @smoke', () => {
       page.on('pageerror', (error) => errors.push(error.message))
       await page.goto('/')
       await waitForWasmReady(page)
+      await openSplitOptions(page)
       expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true)
 
       if (language === 'ar') await page.getByRole('button', { name: 'العربية' }).click()
@@ -64,6 +66,7 @@ test.describe('Split touch focus @smoke', () => {
     page.on('pageerror', (error) => errors.push(error.message))
     await page.goto('/')
     await waitForWasmReady(page)
+    await openSplitOptions(page)
     // Freeze the browser clock so tab navigation and remount finish before focus work runs.
     await page.clock.install()
     await page.clock.pauseAt(new Date())
@@ -92,6 +95,7 @@ test.describe('Split touch focus @smoke', () => {
     page.on('pageerror', (error) => errors.push(error.message))
     await page.goto('/')
     await waitForWasmReady(page)
+    await openSplitOptions(page)
     const panel = page.locator('#split-panel')
     const threshold = panel.getByRole('spinbutton', { name: 'Minimum shares to recover (k)', exact: true })
     const count = panel.getByRole('spinbutton', { name: 'Total shares to create (n)', exact: true })
@@ -157,6 +161,7 @@ test('fine-pointer focus keeps native caret behavior @smoke', async ({ page }) =
   page.on('pageerror', (error) => errors.push(error.message))
   await page.goto('/')
   await waitForWasmReady(page)
+  await openSplitOptions(page)
   expect(await page.evaluate(() => matchMedia('(pointer: fine)').matches)).toBe(true)
   await expect(page.getByRole('button', { name: 'Increase', exact: true })).toHaveCount(0)
   for (const [id, initial, expected] of [['split-n', '3', '34'], ['split-k', '2', '24']]) {
