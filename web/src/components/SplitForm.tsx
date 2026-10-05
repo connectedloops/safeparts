@@ -382,9 +382,6 @@ export function SplitForm({ strings }: SplitFormProps) {
           </div>
         </div>
 
-
-        {!passphrasesMatch ? <p className="text-xs text-rose-400" id="split-passphrase-mismatch" role="alert">{strings.passphraseMismatch}</p> : null}
-
         <div className="split-options">
           <details data-testid="split-advanced-options">
             <summary>{strings.advancedLabel}</summary>
@@ -436,6 +433,7 @@ export function SplitForm({ strings }: SplitFormProps) {
                     clearLabel={strings.clearPassphraseConfirmation}
                     invalid={!passphrasesMatch}
                   />
+                  {!passphrasesMatch ? <p className="text-xs text-rose-400" id="split-passphrase-mismatch" role="alert">{strings.passphraseMismatch}</p> : null}
                 </div>
               ) : null}
             </div>

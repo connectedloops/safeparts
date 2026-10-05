@@ -16,7 +16,7 @@ Owns the Vite + React browser application source and generated WASM package boun
 
 ## Local Contracts
 
-- Split shows the original Secret, Threshold, Share count, and Split controls. Both count inputs sit directly below Secret, before one initially closed native Advanced disclosure containing optional passphrase/confirmation and Words/Letters controls. Closing Advanced retains settings and results; mismatch feedback stays visible outside it.
+- Split shows the original Secret, Threshold, Share count, and Split controls. Both count inputs sit directly below Secret, before one initially closed native Advanced disclosure containing optional passphrase/confirmation and Words/Letters controls. Closing Advanced retains settings and results. Passphrase mismatch feedback sits directly beneath the confirmation input inside Advanced; Split stays disabled while confirmation mismatches, including when Advanced is closed.
 - Split/combine stays local to the browser through WASM.
 - Do not hand-edit `wasm_pkg/` unless the task explicitly targets generated artifacts.
 - Preserve accessibility, keyboard behavior, live-region feedback, and RTL support when changing UI.
