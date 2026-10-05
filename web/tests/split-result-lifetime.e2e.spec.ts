@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test'
 
-import { waitForWasmReady } from './a11y-utils'
+import { openSplitOptions, waitForWasmReady } from './a11y-utils'
 
 const splitPanel = (page: Page) => page.locator('#split-panel')
 const recoverySharesHeading = (page: Page) =>
@@ -30,6 +30,7 @@ async function openCoarsePointerPage(browser: Browser): Promise<{ page: Page; cl
   const page = await context.newPage()
   await page.goto('/')
   await waitForWasmReady(page)
+  await openSplitOptions(page)
   return { page, close: () => context.close() }
 }
 
@@ -37,6 +38,7 @@ test.describe('Split result lifetime @smoke', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
     await waitForWasmReady(page)
+    await openSplitOptions(page)
   })
 
   test('changing each Split input invalidates generated Recovery shares', async ({ page }) => {
@@ -55,7 +57,7 @@ test.describe('Split result lifetime @smoke', () => {
       },
       {
         name: 'Share encoding',
-        change: () => splitPanel(page).getByText('Letters', { exact: true }).click(),
+        change: () => splitPanel(page).locator('label').filter({ hasText: 'Letters' }).click(),
       },
       {
         name: 'Passphrase protection',
@@ -76,6 +78,7 @@ test.describe('Split result lifetime @smoke', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await page.reload()
     await waitForWasmReady(page)
+    await openSplitOptions(page)
 
     await generateRecoveryShares(page)
     await splitPanel(page).getByRole('button', { name: /clear secret/i }).click()
@@ -143,6 +146,7 @@ test.describe('Split pending work @smoke', () => {
 
     await page.goto('/')
     await waitForWasmReady(page)
+    await openSplitOptions(page)
     await splitPanel(page).locator('textarea').fill('synthetic-pending-secret')
     await splitPanel(page).getByRole('button', { name: /^(split|قسم)$/i }).click()
     await wasmStarted
@@ -172,3 +176,68 @@ test.describe('Split coarse-pointer controls @smoke', () => {
     }
   })
 })
+
+for (const language of ['en', 'ar']) {
+  test(`Split disclosures preserve active settings and complete output (${language}) @smoke`, async ({ page }) => {
+    await page.goto('/')
+    await waitForWasmReady(page)
+    if (language === 'ar') await page.getByRole('button', { name: 'العربية' }).click()
+    const summary = page.getByTestId('split-settings')
+    const disclosures = splitPanel(page).locator('details')
+    await expect(disclosures).toHaveCount(3)
+    for (const disclosure of await disclosures.all()) await expect(disclosure).not.toHaveAttribute('open')
+    await expect(splitPanel(page).locator('#split-k')).not.toBeVisible()
+    await expect(splitPanel(page).locator('#split-passphrase')).not.toBeVisible()
+    await expect(summary).toContainText(language === 'en' ? 'Words' : 'كلمات')
+    await expect(summary).toContainText('2')
+    await expect(summary).toContainText('3')
+
+    const counts = page.getByTestId('split-count-options').locator('summary')
+    await counts.focus()
+    await page.keyboard.press('Enter')
+    await splitPanel(page).locator('#split-n').fill('4')
+    await splitPanel(page).locator('#split-k').fill('3')
+    await counts.click()
+    const formats = page.getByTestId('split-format-options').locator('summary')
+    await formats.click()
+    await splitPanel(page).locator('label').filter({ hasText: /Letters|أحرف/ }).click()
+    await formats.click()
+    const protection = page.getByTestId('split-passphrase-options').locator('summary')
+    await protection.click()
+    await splitPanel(page).locator('#split-passphrase').fill('synthetic-disclosure-passphrase')
+    await protection.click()
+    await expect(splitPanel(page).getByRole('alert')).toBeVisible()
+    await protection.click()
+    await splitPanel(page).locator('#split-passphrase-confirmation').fill('synthetic-disclosure-passphrase')
+    await protection.click()
+    await expect(summary).toContainText(language === 'en' ? 'Letters' : 'أحرف')
+    await expect(summary).toContainText(language === 'en' ? 'Passphrase protection enabled' : 'حماية عبارة المرور مفعّلة')
+    await expect(summary).toContainText('3')
+    await expect(summary).toContainText('4')
+    await generateRecoveryShares(page)
+    const output = splitPanel(page).locator('div[dir="ltr"].input')
+    const before = await output.allTextContents()
+    expect(before).toHaveLength(4)
+    for (const disclosure of await disclosures.all()) {
+      await disclosure.locator('summary').click()
+      await disclosure.locator('summary').click()
+    }
+    expect(await output.allTextContents()).toEqual(before)
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async (text: string) => {
+          Object.defineProperty(window, '__disclosureCopy', { configurable: true, value: text })
+        } },
+      })
+    })
+    await splitPanel(page).getByRole('button', { name: /^(Copy Recovery share|نسخ حصة الاسترداد) 1$/ }).click()
+    expect(await page.evaluate(() => (window as Window & { __disclosureCopy?: string }).__disclosureCopy)).toBe(before[0])
+    await protection.click()
+    await expect(splitPanel(page).locator('#split-passphrase')).toHaveValue('synthetic-disclosure-passphrase')
+    await expect(splitPanel(page).locator('#split-passphrase-confirmation')).toHaveValue('synthetic-disclosure-passphrase')
+    await protection.click()
+    await splitPanel(page).locator('textarea').fill('synthetic-changed-after-disclosures')
+    await expectRecoverySharesInvalidated(page)
+  })
+}

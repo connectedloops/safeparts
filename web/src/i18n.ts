@@ -37,6 +37,9 @@ export const STRINGS = {
     encodingBase64urlDesc: "Compact alphanumeric",
     encodingMnemoWords: "Words",
     encodingMnemoWordsDesc: "Easy to write mnemonic words",
+    shareCountsLabel: "Share counts",
+    advancedFormatsLabel: "Advanced share formats",
+    protectionEnabled: "Passphrase protection enabled",
     passphraseLabel: "Passphrase (optional)",
     passphraseHint:
       "Passphrase protection requires this exact value for recovery. Safeparts cannot reset it.",
@@ -146,6 +149,9 @@ export const STRINGS = {
     encodingBase64urlDesc: "أحرف وأرقام مضغوطة",
     encodingMnemoWords: "كلمات",
     encodingMnemoWordsDesc: "كلمات سهلة الكتابة",
+    shareCountsLabel: "عدد الحصص",
+    advancedFormatsLabel: "صيغ الحصص المتقدمة",
+    protectionEnabled: "حماية عبارة المرور مفعّلة",
     passphraseLabel: "عبارة مرور (اختياري)",
     passphraseHint:
       "تتطلب حماية عبارة المرور هذه القيمة نفسها للاسترداد. لا يمكن لـ Safeparts إعادة تعيينها.",

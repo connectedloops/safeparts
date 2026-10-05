@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 
 import initWasm, { split_secret as splitSecret } from '../src/wasm_pkg/safeparts_wasm.js'
-import { waitForWasmReady } from './a11y-utils'
+import { openSplitOptions, waitForWasmReady } from './a11y-utils'
 
 async function instrumentClipboard(page: Page, shouldFail = false): Promise<void> {
   await page.evaluate((failWrites) => {
@@ -52,6 +52,7 @@ async function splitAndCollectShares(
   await page.locator('#split-panel textarea').first().fill(secret)
 
   if (options?.passphrase) {
+    await openSplitOptions(page)
     await page.getByLabel('Passphrase (optional)').fill(options.passphrase)
     await page.getByLabel('Confirm passphrase').fill(options.passphrase)
   }
@@ -89,6 +90,7 @@ test.describe('Web App E2E Smoke @smoke', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
     await waitForWasmReady(page)
+    await openSplitOptions(page)
   })
 
   test('keeps the background gradient fixed to the viewport as shares grow the page', async ({ page }) => {
@@ -359,6 +361,7 @@ test.describe('Web App E2E Smoke @smoke', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await page.reload()
     await waitForWasmReady(page)
+    await openSplitOptions(page)
     await page.evaluate(() => navigator.clipboard.writeText('pasted-synthetic-passphrase'))
 
     await page.getByRole('button', { name: 'Paste passphrase' }).click()
@@ -379,6 +382,7 @@ test.describe('Web App E2E Smoke @smoke', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await page.reload()
     await waitForWasmReady(page)
+    await openSplitOptions(page)
 
     const splitPanel = page.locator('#split-panel')
     const splitButton = splitPanel.getByRole('button', { name: /^(split|قسم)$/i })
@@ -421,6 +425,7 @@ test.describe('Web App E2E Smoke @smoke', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await page.reload()
     await waitForWasmReady(page)
+    await openSplitOptions(page)
 
     const passphrase = 'synthetic-recovery-invalidation-passphrase'
     const shares = await splitAndCollectShares(page, 'synthetic-recovery-invalidation-secret', { passphrase })

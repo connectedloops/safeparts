@@ -16,6 +16,7 @@ Owns the Vite + React browser application source and generated WASM package boun
 
 ## Local Contracts
 
+- Split starts with Secret, a current-settings summary, and Split. Passphrase, Share counts, and Advanced share formats use separate initially closed native disclosures. Closing a disclosure retains settings and results; summaries reflect active hidden settings and protection.
 - Split/combine stays local to the browser through WASM.
 - Do not hand-edit `wasm_pkg/` unless the task explicitly targets generated artifacts.
 - Preserve accessibility, keyboard behavior, live-region feedback, and RTL support when changing UI.
