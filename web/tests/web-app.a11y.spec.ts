@@ -11,6 +11,9 @@ test.describe('Web App Accessibility @smoke', () => {
     // Ensure we're on the Split tab
     await expect(page.getByRole('tab', { name: /split|تقسيم/i })).toHaveAttribute('aria-selected', 'true')
     
+    await expect(page.locator('#split-panel details')).toHaveCount(1)
+    await expect(page.getByTestId('split-advanced-options')).not.toHaveAttribute('open')
+    await expect(page.getByLabel('Passphrase (optional)')).not.toBeVisible()
     await expectNoA11yViolations(page)
   })
 
@@ -22,6 +25,7 @@ test.describe('Web App Accessibility @smoke', () => {
   })
 
   test('Split passphrase confirmation has no accessibility violations', async ({ page }) => {
+    await page.getByTestId('split-advanced-options').locator('summary').click()
     await page.getByLabel('Passphrase (optional)').fill('synthetic-accessibility-passphrase')
     await expect(page.getByLabel('Confirm passphrase')).toBeVisible()
 

@@ -167,14 +167,6 @@
 }
 
 /* Split disclosures retain their inputs when closed. */
-.split-settings {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  font-size: 0.75rem;
-  color: #94a3b8;
-}
-
 .split-options > details {
   border-top: 1px solid rgb(16 185 129 / 0.1);
   padding-block: 0.75rem;
