@@ -266,6 +266,123 @@ export function SplitForm({ strings }: SplitFormProps) {
           </div>
         </label>
 
+        <div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block" htmlFor="split-k">
+              <span className="field-label block sm:min-h-10" id="k-label">
+                {strings.kLabel}
+              </span>
+              {isCoarsePointer ? (
+                <div className="input-stepper-shell mt-2">
+                  <input
+                    id="split-k"
+                    type="number"
+                    inputMode="numeric"
+                    min={2}
+                    max={Math.min(255, n)}
+                    value={k}
+                    onChange={(e) => updateK(Number(e.target.value))}
+                    onFocus={selectAllOnFocus}
+                    onClick={selectAllOnClick}
+                    className="input-stepper-field"
+                    aria-labelledby="k-label"
+                  />
+                  <div className="stepper-controls items-center gap-1 p-1">
+                    <button
+                      type="button"
+                      className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => updateK(k - 1)}
+                      disabled={k <= 2}
+                      aria-label={strings.decrement}
+                      title={strings.decrement}
+                    >
+                      −
+                    </button>
+                    <button
+                      type="button"
+                      className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => updateK(k + 1)}
+                      disabled={k >= Math.min(255, n)}
+                      aria-label={strings.increment}
+                      title={strings.increment}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <input
+                  id="split-k"
+                  type="number"
+                  min={2}
+                  max={Math.min(255, n)}
+                  value={k}
+                  onChange={(e) => updateK(Number(e.target.value))}
+                  className="input mt-2"
+                  aria-labelledby="k-label"
+                />
+              )}
+            </label>
+
+            <label className="block" htmlFor="split-n">
+              <span className="field-label block sm:min-h-10" id="n-label">
+                {strings.nLabel}
+              </span>
+              {isCoarsePointer ? (
+                <div className="input-stepper-shell mt-2">
+                  <input
+                    id="split-n"
+                    type="number"
+                    inputMode="numeric"
+                    min={2}
+                    max={255}
+                    value={n}
+                    onChange={(e) => updateN(Number(e.target.value))}
+                    onFocus={selectAllOnFocus}
+                    onClick={selectAllOnClick}
+                    className="input-stepper-field"
+                    aria-labelledby="n-label"
+                  />
+                  <div className="stepper-controls items-center gap-1 p-1">
+                    <button
+                      type="button"
+                      className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => updateN(n - 1)}
+                      disabled={n <= 2}
+                      aria-label={strings.decrement}
+                      title={strings.decrement}
+                    >
+                      −
+                    </button>
+                    <button
+                      type="button"
+                      className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => updateN(n + 1)}
+                      disabled={n >= 255}
+                      aria-label={strings.increment}
+                      title={strings.increment}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <input
+                  id="split-n"
+                  type="number"
+                  min={2}
+                  max={255}
+                  value={n}
+                  onChange={(e) => updateN(Number(e.target.value))}
+                  className="input mt-2"
+                  aria-labelledby="n-label"
+                />
+              )}
+            </label>
+          </div>
+        </div>
+
+
         {!passphrasesMatch ? <p className="text-xs text-rose-400" id="split-passphrase-mismatch" role="alert">{strings.passphraseMismatch}</p> : null}
 
         <div className="split-options">
@@ -321,122 +438,6 @@ export function SplitForm({ strings }: SplitFormProps) {
                   />
                 </div>
               ) : null}
-            </div>
-
-            <div className="pt-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="block" htmlFor="split-k">
-                  <span className="field-label block sm:min-h-10" id="k-label">
-                    {strings.kLabel}
-                  </span>
-                  {isCoarsePointer ? (
-                    <div className="input-stepper-shell mt-2">
-                      <input
-                        id="split-k"
-                        type="number"
-                        inputMode="numeric"
-                        min={2}
-                        max={Math.min(255, n)}
-                        value={k}
-                        onChange={(e) => updateK(Number(e.target.value))}
-                        onFocus={selectAllOnFocus}
-                        onClick={selectAllOnClick}
-                        className="input-stepper-field"
-                        aria-labelledby="k-label"
-                      />
-                      <div className="stepper-controls items-center gap-1 p-1">
-                        <button
-                          type="button"
-                          className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                          onClick={() => updateK(k - 1)}
-                          disabled={k <= 2}
-                          aria-label={strings.decrement}
-                          title={strings.decrement}
-                        >
-                          −
-                        </button>
-                        <button
-                          type="button"
-                          className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                          onClick={() => updateK(k + 1)}
-                          disabled={k >= Math.min(255, n)}
-                          aria-label={strings.increment}
-                          title={strings.increment}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <input
-                      id="split-k"
-                      type="number"
-                      min={2}
-                      max={Math.min(255, n)}
-                      value={k}
-                      onChange={(e) => updateK(Number(e.target.value))}
-                      className="input mt-2"
-                      aria-labelledby="k-label"
-                    />
-                  )}
-                </label>
-
-                <label className="block" htmlFor="split-n">
-                  <span className="field-label block sm:min-h-10" id="n-label">
-                    {strings.nLabel}
-                  </span>
-                  {isCoarsePointer ? (
-                    <div className="input-stepper-shell mt-2">
-                      <input
-                        id="split-n"
-                        type="number"
-                        inputMode="numeric"
-                        min={2}
-                        max={255}
-                        value={n}
-                        onChange={(e) => updateN(Number(e.target.value))}
-                        onFocus={selectAllOnFocus}
-                        onClick={selectAllOnClick}
-                        className="input-stepper-field"
-                        aria-labelledby="n-label"
-                      />
-                      <div className="stepper-controls items-center gap-1 p-1">
-                        <button
-                          type="button"
-                          className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                          onClick={() => updateN(n - 1)}
-                          disabled={n <= 2}
-                          aria-label={strings.decrement}
-                          title={strings.decrement}
-                        >
-                          −
-                        </button>
-                        <button
-                          type="button"
-                          className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-500/15 bg-black/35 text-sm text-slate-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                          onClick={() => updateN(n + 1)}
-                          disabled={n >= 255}
-                          aria-label={strings.increment}
-                          title={strings.increment}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <input
-                      id="split-n"
-                      type="number"
-                      min={2}
-                      max={255}
-                      value={n}
-                      onChange={(e) => updateN(Number(e.target.value))}
-                      className="input mt-2"
-                      aria-labelledby="n-label"
-                    />
-                  )}
-                </label>
-              </div>
             </div>
 
             <div className="pt-3">
