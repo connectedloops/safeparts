@@ -101,10 +101,8 @@ export async function waitForWasmReady(page: Page): Promise<void> {
 }
 
 export async function openSplitOptions(page: Page) {
-  for (const name of ['split-count-options', 'split-format-options', 'split-passphrase-options']) {
-    const disclosure = page.getByTestId(name)
-    if (!(await disclosure.evaluate((element) => (element as HTMLDetailsElement).open))) {
-      await disclosure.locator('summary').click()
-    }
+  const disclosure = page.getByTestId('split-advanced-options')
+  if (!(await disclosure.evaluate((element) => (element as HTMLDetailsElement).open))) {
+    await disclosure.locator('summary').click()
   }
 }

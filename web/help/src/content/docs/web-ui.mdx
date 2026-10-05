@@ -26,15 +26,15 @@ For binary files, arbitrary-byte recovery, or all share encodings, use the [CLI]
 <Steps>
 1. Open the <span class="token">Split</span> tab.
 2. Enter a secret.
-3. Check the settings summary. The defaults are Words, 2 minimum shares to recover, and 3 total shares to create. Open **Share counts** to change the counts.
-4. To use <span class="token">Letters</span> (Base64url), open **Advanced share formats**.
-5. If your plan uses passphrase protection, open **Passphrase (optional)** and enter the passphrase twice exactly as you intend to keep it.
+3. Keep the defaults (Words, 2 minimum shares to recover, and 3 total shares to create), or open **Advanced** to change the share counts.
+4. Choose <span class="token">Words</span> or <span class="token">Letters</span> inside Advanced.
+5. If your plan uses passphrase protection, enter the passphrase twice inside Advanced exactly as you intend to keep it.
 6. Click <span class="token">Split</span>.
 7. Store each share in a separate place.
 8. Complete the [saved-backup checkpoint](../it-devops-guide/break-glass/#verify-saved-backup) using actual saved custody copies before relying on the backup or retiring the working copy. If policy does not allow verification, retain the working copy and leave setup incomplete.
 </Steps>
 
-Closing an options panel keeps its settings active. Check the summary before splitting.
+Closing Advanced keeps its settings and generated Recovery shares. Input changes clear the results.
 
 Passphrases are masked by default. Use the reveal button to check either entry. You will need the exact passphrase for recovery, and Safeparts cannot reset it.
 

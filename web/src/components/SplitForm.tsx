@@ -266,17 +266,11 @@ export function SplitForm({ strings }: SplitFormProps) {
           </div>
         </label>
 
-        <p className="split-settings" data-testid="split-settings">
-          <span>{encodingOptions.find((option) => option.value === encoding)?.label}</span>
-          <span>{strings.kLabel}: {k}</span>
-          <span>{strings.nLabel}: {n}</span>
-          {passphrase.length > 0 ? <span>{strings.protectionEnabled}</span> : null}
-        </p>
         {!passphrasesMatch ? <p className="text-xs text-rose-400" id="split-passphrase-mismatch" role="alert">{strings.passphraseMismatch}</p> : null}
 
         <div className="split-options">
-          <details data-testid="split-passphrase-options">
-            <summary>{strings.passphraseLabel}</summary>
+          <details data-testid="split-advanced-options">
+            <summary>{strings.advancedLabel}</summary>
             <div className="grid gap-4 pt-3">
               <div className="block">
                 <label className="field-label" id="split-passphrase-label" htmlFor="split-passphrase">
@@ -328,9 +322,7 @@ export function SplitForm({ strings }: SplitFormProps) {
                 </div>
               ) : null}
             </div>
-          </details>
-          <details data-testid="split-count-options">
-            <summary>{strings.shareCountsLabel}</summary>
+
             <div className="pt-3">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block" htmlFor="split-k">
@@ -446,9 +438,7 @@ export function SplitForm({ strings }: SplitFormProps) {
                 </label>
               </div>
             </div>
-          </details>
-          <details data-testid="split-format-options">
-            <summary>{strings.advancedFormatsLabel}</summary>
+
             <div className="pt-3">
               <div className="block">
                 <span className="field-label block" id="encoding-label">
