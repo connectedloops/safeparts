@@ -36,6 +36,7 @@ Historical entries describe support at the time of each change, not current inst
 
 ### Fixes
 
+- fix&#40;web&#41;&#58; place passphrase mismatch below confirmation ([d028bb0](https://github.com/connectedloops/safeparts/commit/d028bb0af16d551986828e993c951033d2dd4a7e))
 - fix&#40;web&#41;&#58; keep Split share counts in the basic form ([35893d9](https://github.com/connectedloops/safeparts/commit/35893d95633aef76b23771daf7cae7caabb13190))
 - fix&#40;web&#41;&#58; consolidate Split options into one Advanced panel ([1d6a0c4](https://github.com/connectedloops/safeparts/commit/1d6a0c4a4c0884de1ef99570026c3b669c127e83))
 - fix&#40;desktop&#41;&#58; confine workflow evidence writes ([fd08c35](https://github.com/connectedloops/safeparts/commit/fd08c359e1f290056dad5af66bc58227df5bc37f))
