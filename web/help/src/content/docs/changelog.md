@@ -13,6 +13,7 @@ Historical entries describe support at the time of each change, not current inst
 
 ### Features
 
+- feat&#40;web&#41;&#58; make Split secret&#45;first with optional disclosures ([63df45a](https://github.com/connectedloops/safeparts/commit/63df45a5925030f05e254377ea01891d89a25fe9))
 - feat&#40;desktop&#41;&#58; inventory local bundle licenses ([8a11ae0](https://github.com/connectedloops/safeparts/commit/8a11ae0676723a7613a1773779709693a796c1ca))
 - feat&#40;desktop&#41;&#58; stage local macOS app bundle ([c8d5966](https://github.com/connectedloops/safeparts/commit/c8d5966af3c864bcc0c6b50695f7e99d37529af3))
 - feat&#40;core&#41;&#58; support bounded protection work factors ([d86bd3f](https://github.com/connectedloops/safeparts/commit/d86bd3ff9b42e76d2500cece99dcdc9396eb06f0))
@@ -35,6 +36,8 @@ Historical entries describe support at the time of each change, not current inst
 
 ### Fixes
 
+- fix&#40;web&#41;&#58; keep Split share counts in the basic form ([35893d9](https://github.com/connectedloops/safeparts/commit/35893d95633aef76b23771daf7cae7caabb13190))
+- fix&#40;web&#41;&#58; consolidate Split options into one Advanced panel ([1d6a0c4](https://github.com/connectedloops/safeparts/commit/1d6a0c4a4c0884de1ef99570026c3b669c127e83))
 - fix&#40;desktop&#41;&#58; confine workflow evidence writes ([fd08c35](https://github.com/connectedloops/safeparts/commit/fd08c359e1f290056dad5af66bc58227df5bc37f))
 - fix&#40;desktop&#41;&#58; harden packaged AX evidence ([1dde4cc](https://github.com/connectedloops/safeparts/commit/1dde4cc1a91469543c1c193d4d052b8b7c4239b4))
 - fix&#40;desktop&#41;&#58; select native share rows atomically ([b428e33](https://github.com/connectedloops/safeparts/commit/b428e330986287bde01724d45afbd55df9efd48f))
@@ -128,6 +131,8 @@ Historical entries describe support at the time of each change, not current inst
 
 ### Documentation
 
+- docs&#40;agents&#41;&#58; use GPT&#45;6&#46;1 Sol for delegated work ([d03aaa7](https://github.com/connectedloops/safeparts/commit/d03aaa723ecda140d1727b17bdd4b07d51227443))
+- docs&#40;desktop&#41;&#58; close manual package checkpoint ([c28e9e1](https://github.com/connectedloops/safeparts/commit/c28e9e1a8c6c8417ae2bb9a1d75a36681b040a01))
 - docs&#40;desktop&#41;&#58; record bounded workflow startup failure ([a03929d](https://github.com/connectedloops/safeparts/commit/a03929d1e35746792bfb205dd88fc6ea30aff745))
 - docs&#40;desktop&#41;&#58; record bounded AX comparison ([1619805](https://github.com/connectedloops/safeparts/commit/1619805f45b0865a76371c08c50864a931da1da0))
 - docs&#40;desktop&#41;&#58; record issue 151 AX source investigation ([a6f63f3](https://github.com/connectedloops/safeparts/commit/a6f63f31dbf90dabfb6a00d427e27125552fa7c5))
