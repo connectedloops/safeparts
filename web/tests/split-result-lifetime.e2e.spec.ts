@@ -215,10 +215,26 @@ for (const language of ['en', 'ar']) {
     await splitPanel(page).locator('#split-k').fill('3')
     await splitPanel(page).locator('label').filter({ hasText: /Letters|أحرف/ }).click()
     await splitPanel(page).locator('#split-passphrase').fill('synthetic-disclosure-passphrase')
+    const confirmation = splitPanel(page).locator('#split-passphrase-confirmation')
+    const mismatch = splitPanel(page).locator('#split-passphrase-mismatch')
+    await expect(mismatch).toHaveCount(1)
+    await expect(mismatch).toHaveText(language === 'en' ? 'Passphrases must match exactly.' : 'يجب أن تتطابق عبارتا المرور تماماً.')
+    await expect(mismatch).toHaveAttribute('role', 'alert')
+    await expect(confirmation).toHaveAttribute('aria-describedby', 'split-passphrase-mismatch')
+    await expect(confirmation).toHaveAttribute('aria-invalid', 'true')
+    expect(await mismatch.evaluate((alert) => {
+      const input = document.getElementById('split-passphrase-confirmation')
+      if (!input) throw new Error('Missing confirmation input')
+      return alert.parentElement === input.parentElement?.parentElement &&
+        alert.previousElementSibling === input.parentElement &&
+        alert.getBoundingClientRect().top >= input.getBoundingClientRect().bottom
+    })).toBe(true)
     await advanced.click()
-    await expect(splitPanel(page).getByRole('alert')).toHaveText(language === 'en' ? 'Passphrases must match exactly.' : 'يجب أن تتطابق عبارتا المرور تماماً.')
+    await expect(mismatch).not.toBeVisible()
     await expect(splitPanel(page).getByRole('button', { name: /^(split|قسم)$/i })).toBeDisabled()
     await advanced.click()
+    await expect(confirmation).toHaveValue('')
+    await expect(mismatch).toBeVisible()
     await splitPanel(page).locator('#split-passphrase-confirmation').fill('synthetic-disclosure-passphrase')
     await advanced.click()
     await generateRecoveryShares(page)
