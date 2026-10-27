@@ -94,8 +94,8 @@ class CiTriggerPolicyTests(unittest.TestCase):
         )[0]
 
         self.assertIn("name: terminal behavior (${{ matrix.id }})", job)
-        self.assertIn("os: blacksmith-4vcpu-windows-2025", job)
-        self.assertIn("os: blacksmith-6vcpu-macos-15", job)
+        self.assertIn("os: windows-2025", job)
+        self.assertIn("os: macos-15-intel", job)
         self.assertIn("toolchain: '1.93.0'", job)
         self.assertIn("cargo test -p safeparts --all-features", job)
         self.assertIn("cargo test -p safeparts_tui --all-features", job)
