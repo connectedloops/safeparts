@@ -34,7 +34,7 @@ on:
 jobs:
   workflow_policy:
     name: workflow policy and actionlint
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -62,9 +62,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: blacksmith-4vcpu-windows-2025
+          - os: windows-2025
             id: windows
-          - os: blacksmith-6vcpu-macos-15
+          - os: macos-15-intel
             id: macos-native
     steps:
       - uses: actions/checkout@v4
@@ -92,7 +92,7 @@ jobs:
         run: cargo test -p safeparts_tui --all-features
 
   rust:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
