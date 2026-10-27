@@ -20,7 +20,7 @@ env:
 jobs:
   test:
     name: test
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -46,15 +46,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: blacksmith-4vcpu-ubuntu-2404
+          - os: ubuntu-24.04
             id: linux
-          - os: blacksmith-4vcpu-windows-2025
+          - os: windows-2025
             id: windows
-          - os: blacksmith-6vcpu-macos-15
+          - os: macos-15-intel
             id: macos-x86_64
             target: x86_64-apple-darwin
             arch: x86_64
-          - os: blacksmith-6vcpu-macos-15
+          - os: macos-15
             id: macos-aarch64
             target: aarch64-apple-darwin
             arch: aarch64
@@ -102,7 +102,7 @@ jobs:
 
   assemble:
     name: assemble
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs:
       - build
     steps:
@@ -157,7 +157,7 @@ jobs:
   publish:
     name: publish
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: assemble
     permissions:
       contents: write

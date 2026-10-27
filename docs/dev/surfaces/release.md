@@ -29,7 +29,7 @@ The web UI is deployed as a tested, retained static artifact rather than a relea
 
 ## Pinned inputs and publication permissions
 
-The release workflow uses immutable commit SHAs for third-party actions. Each `uses:` line keeps the reviewed action version beside the SHA. CLI/TUI build jobs use the Rust version from `mise.toml` and fixed Blacksmith runner labels. They do not use Bun. Web builds and deployments have separate Bun/Node requirements.
+The release workflow uses immutable commit SHAs for third-party actions. Each `uses:` line keeps the reviewed action version beside the SHA. CLI/TUI build jobs use the Rust version from `mise.toml` and fixed GitHub-hosted runner labels. They do not use Bun. Web builds and deployments have separate Bun/Node requirements.
 
 Workflow permissions default to `contents: read`. Artifact assembly stays read-only. The separate `publish` job runs only for a pushed tag and is the only job granted `contents: write`. A manual dispatch still builds, validates, downloads, checksums, and uploads the full candidate, but it cannot create a GitHub Release.
 
